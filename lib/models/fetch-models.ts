@@ -54,9 +54,16 @@ export const fetchHostedModels = async (profile: Tables<"profiles">) => {
 
 export const fetchOllamaModels = async () => {
   try {
-    const response = await fetch(
-      process.env.NEXT_PUBLIC_OLLAMA_URL + "/api/tags"
-    )
+    const ollamaUrl = process.env.NEXT_PUBLIC_OLLAMA_URL
+
+    // Check if Ollama URL is properly configured
+    if (!ollamaUrl || ollamaUrl.trim() === "") {
+      return null
+    }
+
+    const response = await fetch(ollamaUrl + "/api/tags", {
+      signal: AbortSignal.timeout(5000) // 5 second timeout
+    })
 
     if (!response.ok) {
       throw new Error(`Ollama server is not responding.`)
@@ -75,7 +82,8 @@ export const fetchOllamaModels = async () => {
 
     return localModels
   } catch (error) {
-    console.warn("Error fetching Ollama models: " + error)
+    // Silently fail if Ollama is not available - this is expected if not configured
+    return null
   }
 }
 

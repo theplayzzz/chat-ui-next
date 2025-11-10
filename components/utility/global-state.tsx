@@ -144,10 +144,12 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
         }
       }
 
-      if (process.env.NEXT_PUBLIC_OLLAMA_URL) {
+      const ollamaUrl = process.env.NEXT_PUBLIC_OLLAMA_URL
+      if (ollamaUrl && ollamaUrl.trim() !== "") {
         const localModels = await fetchOllamaModels()
-        if (!localModels) return
-        setAvailableLocalModels(localModels)
+        if (localModels && localModels.length > 0) {
+          setAvailableLocalModels(localModels)
+        }
       }
     })()
   }, [])
