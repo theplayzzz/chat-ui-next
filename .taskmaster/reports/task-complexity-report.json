@@ -1,0 +1,93 @@
+{
+	"meta": {
+		"generatedAt": "2025-11-11T02:42:43.875Z",
+		"tasksAnalyzed": 1,
+		"totalTasks": 15,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": false
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Configurar ambiente básico do agente",
+			"complexityScore": 3,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Esta tarefa envolve configuração básica e já tem subtarefas bem definidas. Manter as 4 subtarefas existentes: instalar SDK OpenAI, configurar variáveis de ambiente, implementar geração de embeddings e criar endpoint de status. Considere adicionar testes de integração como subtarefa extra.",
+			"reasoning": "Tarefa relativamente simples focada em configuração básica. O projeto já possui infraestrutura Supabase, OpenAI SDK é bem documentado, e endpoints já seguem padrão existente. As subtarefas estão bem estruturadas e cobrem o escopo necessário."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Estender schema do banco para planos de saúde",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Dividir em: 1) Análise do schema atual e planejamento das mudanças, 2) Criar migration para collections (chunk_size, chunk_overlap, collection_type), 3) Criar migration para file_items (plan_metadata JSONB), 4) Criar tabela health_plan_recommendations com todos os campos necessários, 5) Criar índices otimizados (GIN para JSONB), 6) Executar testes de performance e validação das constraints.",
+			"reasoning": "Complexidade média-alta devido a múltiplas alterações de schema, necessidade de migrations cuidadosas, criação de índices JSONB para performance, e validação de foreign keys. Requer conhecimento detalhado do schema existente do Supabase."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Criar assistente especializado em planos de saúde",
+			"complexityScore": 5,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Dividir em: 1) Estudar sistema existente de assistentes e collections, 2) Definir prompt otimizado para coleta de informações de saúde, 3) Configurar assistente com parâmetros GPT-4o (temperatura 0.3), 4) Implementar associações assistant_collections para planos de saúde, 5) Configurar controle de acesso por workspace via assistant_workspaces.",
+			"reasoning": "Complexidade moderada devido à necessidade de integração com sistema existente de assistentes, definição de prompt especializado eficaz, e configuração correta de associações entre tabelas. Requer entendimento do domínio de planos de saúde."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Desenvolver ferramenta extractClientInfo",
+			"complexityScore": 7,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Dividir em: 1) Definir schema Zod completo para informações do cliente, 2) Criar prompt GPT-4o para extração conversacional estruturada, 3) Implementar função de parsing e validação JSON, 4) Integrar com Vercel AI SDK para function calling, 5) Implementar detecção de campos obrigatórios faltantes, 6) Criar testes com cenários diversos (família complexa, condições pré-existentes), 7) Validar e refinar prompts para casos edge.",
+			"reasoning": "Alta complexidade devido à extração de informações não estruturadas de conversas naturais, necessidade de prompt engineering preciso, validação rigorosa via Zod, e tratamento de casos complexos como múltiplos dependentes e condições médicas."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Desenvolver ferramenta analyzeCompatibility",
+			"complexityScore": 8,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Dividir em: 1) Criar algoritmo de scoring 0-100 para compatibilidade, 2) Implementar análise de elegibilidade (idade, região, condições), 3) Desenvolver avaliação de coberturas relevantes ao perfil, 4) Criar detecção de exclusões e limitações importantes, 5) Implementar processamento em lote de até 10 planos, 6) Desenvolver sistema de geração de justificativas detalhadas, 7) Implementar identificação de alertas críticos (carências), 8) Criar ranking inteligente e testes com perfis diversos.",
+			"reasoning": "Alta complexidade devido ao algoritmo de scoring sofisticado, análise multifatorial de compatibilidade, processamento simultâneo de múltiplos planos, e necessidade de explicações detalhadas para decisões de AI. Requer conhecimento especializado em planos de saúde."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Desenvolver integração com API ERP",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Dividir em: 1) Projetar interface de configuração por workspace para credenciais ERP, 2) Implementar cliente HTTP com timeout, retry e tratamento de erros, 3) Desenvolver cálculo de preços familiares (titular + dependentes), 4) Implementar sistema de cache inteligente (15 min) com invalidação, 5) Criar graceful degradation quando API falha, 6) Implementar testes com mock servers e validação de edge cases.",
+			"reasoning": "Complexidade moderada-alta devido à integração com sistema externo, necessidade de resiliência (timeout, retry, cache), cálculos específicos de preços familiares, e configuração flexível por cliente. Requer tratamento robusto de falhas de rede."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Desenvolver ferramenta generateRecommendation",
+			"complexityScore": 5,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Dividir em: 1) Projetar template de recomendação humanizada com seções estruturadas, 2) Implementar geração da recomendação principal com justificativa empática, 3) Desenvolver geração de alternativas (econômica/premium), 4) Criar comparativo em tabela Markdown formatada, 5) Implementar geração de próximos passos e alertas importantes com linguagem clara.",
+			"reasoning": "Complexidade moderada devido à necessidade de comunicação humanizada eficaz, estruturação em Markdown, geração de comparativos tabulares, e balanceamento entre informação técnica e linguagem acessível ao usuário final."
+		},
+		{
+			"taskId": 11,
+			"taskTitle": "Implementar controle de acesso por workspace",
+			"complexityScore": 4,
+			"recommendedSubtasks": 4,
+			"expansionPrompt": "Dividir em: 1) Implementar verificação de autorização no frontend (assistente condicional), 2) Criar middleware backend para validação 403, 3) Desenvolver interface admin para gerenciar workspaces autorizados, 4) Validar integração com RLS do Supabase e sistema de permissões existente.",
+			"reasoning": "Complexidade baixa-moderada devido ao aproveitamento do sistema existente assistant_workspaces e RLS do Supabase. Principalmente envolve configuração e validação de permissões já implementadas na aplicação."
+		},
+		{
+			"taskId": 12,
+			"taskTitle": "Desenvolver componentes React especializados",
+			"complexityScore": 7,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Dividir em: 1) Criar health-plan-chat.tsx como wrapper principal com estado centralizado, 2) Desenvolver progress-indicator.tsx para visualizar 5 etapas do fluxo, 3) Implementar client-info-card.tsx para resumo dinâmico, 4) Criar plan-comparison.tsx com tabela responsiva e filtros, 5) Desenvolver recommendation-panel.tsx com formatação rica, 6) Garantir compatibilidade com tema escuro/claro e responsividade, 7) Implementar testes de acessibilidade e integração entre componentes.",
+			"reasoning": "Alta complexidade devido a múltiplos componentes interdependentes, necessidade de design system consistente, responsividade mobile complexa, estados compartilhados entre componentes, e requisitos de acessibilidade. Requer expertise em React e Tailwind."
+		},
+		{
+			"taskId": 14,
+			"taskTitle": "Integrar monitoramento LangSmith",
+			"complexityScore": 8,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Dividir em: 1) Configurar SDK LangSmith e conexão inicial, 2) Implementar tracing de todas as chamadas GPT-4o, 3) Configurar tracking detalhado do orquestrador principal, 4) Implementar métricas granulares (latência, tokens, custos), 5) Desenvolver correlation IDs para sessões completas, 6) Configurar dashboards de performance personalizados, 7) Implementar sistema de alertas para erros e timeouts, 8) Validar traces end-to-end e otimizar coleta de dados.",
+			"reasoning": "Alta complexidade devido à observabilidade completa de sistema distribuído, necessidade de correlation tracking preciso, configuração de múltiplos dashboards, alertas em tempo real, e integração profunda com todos os componentes do agente."
+		}
+	]
+}
