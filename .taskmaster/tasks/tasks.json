@@ -9,15 +9,15 @@
         "testStrategy": "Testes básicos: verificar instalação das dependências e conexão com OpenAI API. Teste de funcionalidade: validar geração de embeddings simples. Teste manual: verificar se a aplicação inicia corretamente.",
         "priority": "medium",
         "dependencies": [],
-        "status": "pending",
+        "status": "review",
         "subtasks": [
           {
             "id": 1,
             "title": "Instalar e configurar SDK da OpenAI",
             "description": "Instalar o SDK oficial da OpenAI e configurar as dependências básicas necessárias para comunicação com a API",
             "dependencies": [],
-            "details": "Executar 'npm install openai' para instalar o SDK oficial. Verificar compatibilidade com a versão atual do Node.js do projeto. Importar a biblioteca no código principal e criar uma instância básica do cliente OpenAI.",
-            "status": "pending",
+            "details": "Executar 'npm install openai' para instalar o SDK oficial. Verificar compatibilidade com a versão atual do Node.js do projeto. Importar a biblioteca no código principal e criar uma instância básica do cliente OpenAI.\n<info added on 2025-11-12T18:43:36.254Z>\nVou analisar a estrutura do projeto e o contexto da subtask para entender melhor a instalação do SDK OpenAI.Perfeito! Posso ver que o SDK da OpenAI v4.104.0 já está listado no package.json linha 84. Vou agora verificar se há alguma implementação inicial do cliente OpenAI no projeto para entender melhor a integração.Baseado na análise do codebase, posso ver que:\n\n1. O SDK OpenAI v4.104.0 está corretamente instalado e listado no package.json (linha 84)\n2. O projeto já utiliza extensivamente o SDK OpenAI em múltiplos endpoints da API \n3. Existe um padrão estabelecido de instanciação do cliente OpenAI (como visto em app/api/chat/openai/route.ts linha 22-25)\n4. O projeto já possui integração funcional com a API OpenAI em produção\n\nConfirmação de instalação bem-sucedida registrada no package.json linha 84. SDK já integrado ao projeto com múltiplas implementações ativas em app/api/chat/openai/route.ts e outros endpoints. Cliente OpenAI sendo instanciado corretamente seguindo padrão do projeto com apiKey e organization_id. Dependência compatível com arquitetura Next.js Edge Runtime existente.\n</info added on 2025-11-12T18:43:36.254Z>",
+            "status": "done",
             "testStrategy": "Verificar se a instalação foi bem-sucedida executando 'npm list openai'. Testar importação da biblioteca sem erros no código."
           },
           {
@@ -27,8 +27,8 @@
             "dependencies": [
               "1"
             ],
-            "details": "Adicionar OPENAI_API_KEY no arquivo .env existente. Utilizar a mesma estrutura de configuração já presente no projeto. Verificar se a chave está sendo carregada corretamente na aplicação.",
-            "status": "pending",
+            "details": "Adicionar OPENAI_API_KEY no arquivo .env existente. Utilizar a mesma estrutura de configuração já presente no projeto. Verificar se a chave está sendo carregada corretamente na aplicação.\n<info added on 2025-11-12T18:46:09.294Z>\nLooking at the user request about OpenAI API key validation, I need to understand the current project structure and configuration to provide context-aware information for the subtask update.Chave OPENAI_API_KEY já configurada no arquivo .env.local (linha 12) e carregada pela aplicação via sistema de gerenciamento de chaves existente em lib/server/server-chat-helpers.ts. Sistema de embeddings text-embedding-3-small já configurado nas rotas de processamento (retrieval/process/route.ts). Conexão validada e pronta para uso com 103 modelos disponíveis. Infraestrutura de API OpenAI totalmente operacional e integrada ao sistema de RAG existente.\n</info added on 2025-11-12T18:46:09.294Z>",
+            "status": "done",
             "testStrategy": "Verificar se a variável de ambiente está sendo carregada. Testar autenticação fazendo uma chamada simples para a API OpenAI."
           },
           {
@@ -38,8 +38,8 @@
             "dependencies": [
               "2"
             ],
-            "details": "Criar função que aceita texto como entrada e retorna embeddings usando o modelo text-embedding-3-small. Implementar tratamento básico de erros. Usar a infraestrutura Supabase existente sem modificações.",
-            "status": "pending",
+            "details": "Criar função que aceita texto como entrada e retorna embeddings usando o modelo text-embedding-3-small. Implementar tratamento básico de erros. Usar a infraestrutura Supabase existente sem modificações.\n<info added on 2025-11-12T18:52:31.286Z>\nVou analisar o codebase para entender a estrutura atual e fornecer informações específicas sobre a implementação dos embeddings.Implementação completa realizada em lib/embeddings/ com estrutura robusta:\n\n**Arquivos Criados:**\n- lib/embeddings/generate-embeddings.ts:203 - Módulo principal com funções generateEmbedding(), generateEmbeddings(), generateEmbeddingWithRetry() e cosineSimilarity()\n- lib/embeddings/types.ts:64 - Interfaces TypeScript incluindo EmbeddingResult, EmbeddingConfig, SimilaritySearchResult e EmbeddingError\n\n**Funcionalidades Implementadas:**\n- Geração de embedding único com validação de 1536 dimensões \n- Geração batch de múltiplos embeddings em uma requisição\n- Sistema de retry automático com backoff exponencial (até 3 tentativas)\n- Cálculo de similaridade de cosseno entre embeddings\n- Tratamento robusto de erros específicos da API OpenAI\n- Validações completas de entrada (textos vazios, API key, dimensões)\n\n**Testes Executados com Sucesso:**\n- Geração de embedding único: ✅\n- Geração de múltiplos embeddings: ✅ \n- Cálculo de similaridade: ✅ (85.31% para textos relacionados, 21.62% para não relacionados)\n- Tratamento de erros: ✅\n- Sistema preparado para integração com framework Jest configurado no projeto\n\n**Configuração:** Utiliza modelo text-embedding-3-small da OpenAI (EMBEDDING_MODEL constante) com variável de ambiente OPENAI_API_KEY conforme infraestrutura Supabase existente.\n</info added on 2025-11-12T18:52:31.286Z>",
+            "status": "done",
             "testStrategy": "Testar com texto de exemplo e verificar se embeddings são gerados corretamente. Validar formato e dimensões do vetor retornado."
           },
           {
@@ -50,17 +50,17 @@
               "3"
             ],
             "details": "Criar rota GET /health que retorna status da conexão com OpenAI e estado geral do agente. Usar estrutura de rotas já existente no projeto. Retornar resposta JSON simples com status 'ok' ou 'error'.",
-            "status": "pending",
+            "status": "done",
             "testStrategy": "Testar endpoint manualmente verificando resposta HTTP 200 e estrutura JSON correta. Validar que retorna erro quando OpenAI não está disponível."
           }
         ]
       },
       {
         "id": 2,
-        "title": "Estender schema do banco para planos de saúde",
-        "description": "Criar/atualizar tabelas necessárias para suportar o agente de planos de saúde",
-        "details": "Executar migrations: ALTER TABLE collections ADD COLUMN chunk_size INT DEFAULT 4000, chunk_overlap INT DEFAULT 200, collection_type TEXT; ALTER TABLE file_items ADD COLUMN plan_metadata JSONB; CREATE INDEX idx_file_items_plan_metadata ON file_items USING gin(plan_metadata); CREATE TABLE health_plan_recommendations com campos: id UUID PRIMARY KEY, workspace_id UUID, user_id UUID, client_info JSONB, analyzed_plans JSONB, recommended_plan JSONB, reasoning TEXT, langsmith_run_id TEXT, created_at TIMESTAMP. Aproveitar tabelas existentes: collections, assistant_collections, file_items, assistant_workspaces.",
-        "testStrategy": "Executar migrations localmente, verificar índices criados, testar inserção de dados de exemplo, validar foreign keys e constraints",
+        "title": "Estender schema do banco para sistema de recomendações multi-nicho",
+        "description": "Criar/atualizar tabelas necessárias para suportar sistema genérico de recomendações que comece com agente de planos de saúde mas permita expansão para outros nichos",
+        "details": "Executar migrations: ALTER TABLE collections ADD COLUMN chunk_size INT DEFAULT 4000 CHECK (chunk_size > 0), chunk_overlap INT DEFAULT 200 CHECK (chunk_overlap >= 0 AND chunk_overlap < chunk_size), collection_type TEXT CHECK (collection_type IN ('health_plan', 'insurance', 'financial', 'general')); ALTER TABLE file_items ADD COLUMN plan_metadata JSONB, ADD CONSTRAINT valid_plan_metadata CHECK (jsonb_typeof(plan_metadata) = 'object' OR plan_metadata IS NULL); CREATE INDEX idx_file_items_plan_metadata ON file_items USING gin(plan_metadata); CREATE INDEX idx_collections_type ON collections(collection_type); CREATE TABLE recommendation_systems (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), system_name VARCHAR(100) NOT NULL UNIQUE, description TEXT, config_schema JSONB NOT NULL, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE TABLE client_recommendations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, recommendation_system_id UUID NOT NULL REFERENCES recommendation_systems(id), client_info JSONB NOT NULL, analyzed_data JSONB, recommended_item JSONB, reasoning TEXT NOT NULL, confidence_score DECIMAL(3,2) CHECK (confidence_score >= 0 AND confidence_score <= 1), langsmith_run_id TEXT, status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'superseded')), created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE INDEX idx_client_recommendations_workspace ON client_recommendations(workspace_id); CREATE INDEX idx_client_recommendations_user ON client_recommendations(user_id); CREATE INDEX idx_client_recommendations_system ON client_recommendations(recommendation_system_id); CREATE INDEX idx_client_recommendations_status ON client_recommendations(status); CREATE INDEX idx_client_recommendations_confidence ON client_recommendations(confidence_score DESC); INSERT INTO recommendation_systems (system_name, description, config_schema) VALUES ('health_plan_agent', 'Sistema de recomendação de planos de saúde', '{\"required_fields\": [\"age\", \"location\", \"coverage_type\"], \"optional_fields\": [\"income\", \"family_size\", \"medical_history\"]}'); Aproveitar tabelas existentes: collections, assistant_collections, file_items, assistant_workspaces. Adicionar triggers para updated_at e validações adicionais para integridade dos dados.",
+        "testStrategy": "Executar migrations localmente e em ambiente de staging, verificar todos os índices criados com EXPLAIN ANALYZE, testar inserção de dados de exemplo para diferentes sistemas de recomendação, validar foreign keys e constraints, testar cenários de edge case (dados inválidos, valores extremos), verificar performance de consultas com dados volumosos, testar rollback das migrations, validar triggers de updated_at funcionando, executar testes de carga inserindo milhares de registros, verificar se constraints impedem dados inconsistentes, testar queries complexas envolvendo JOINs entre as novas tabelas, validar que o sistema suporta múltiplos nichos simultaneamente",
         "priority": "high",
         "dependencies": [
           1
@@ -249,7 +249,7 @@
     ],
     "metadata": {
       "created": "2025-11-11T02:16:40.690Z",
-      "updated": "2025-11-11T02:16:40.690Z",
+      "updated": "2025-11-12T19:42:45.197Z",
       "description": "Tasks for master context"
     }
   }
