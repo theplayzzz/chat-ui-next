@@ -66,7 +66,75 @@
           1
         ],
         "status": "pending",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Analisar schema atual e planejar mudanças necessárias",
+            "description": "Realizar análise completa do schema atual do banco de dados, identificar dependências existentes e planejar a sequência de migrations para implementar o sistema de recomendações multi-nicho",
+            "dependencies": [],
+            "details": "Mapear tabelas existentes (collections, file_items, assistant_collections, assistant_workspaces), identificar foreign keys e constraints atuais, documentar estrutura de dados existente, definir ordem de execução das migrations para evitar conflitos, validar compatibilidade com sistema atual",
+            "status": "pending",
+            "testStrategy": "Revisar schema atual com queries SQL, documentar dependências encontradas, validar plano de migration em ambiente de desenvolvimento"
+          },
+          {
+            "id": 2,
+            "title": "Criar migration para estender tabela collections",
+            "description": "Implementar migration para adicionar colunas chunk_size, chunk_overlap e collection_type na tabela collections com suas respectivas constraints e valores padrão",
+            "dependencies": [
+              1
+            ],
+            "details": "Executar ALTER TABLE collections ADD COLUMN chunk_size INT DEFAULT 4000 CHECK (chunk_size > 0), chunk_overlap INT DEFAULT 200 CHECK (chunk_overlap >= 0 AND chunk_overlap < chunk_size), collection_type TEXT CHECK (collection_type IN ('health_plan', 'insurance', 'financial', 'general'))",
+            "status": "pending",
+            "testStrategy": "Executar migration em ambiente local, verificar constraints funcionando, testar valores padrão aplicados em registros existentes"
+          },
+          {
+            "id": 3,
+            "title": "Criar migration para estender tabela file_items",
+            "description": "Implementar migration para adicionar coluna plan_metadata JSONB na tabela file_items com constraint de validação e índice GIN para performance",
+            "dependencies": [
+              1
+            ],
+            "details": "Executar ALTER TABLE file_items ADD COLUMN plan_metadata JSONB, ADD CONSTRAINT valid_plan_metadata CHECK (jsonb_typeof(plan_metadata) = 'object' OR plan_metadata IS NULL); CREATE INDEX idx_file_items_plan_metadata ON file_items USING gin(plan_metadata)",
+            "status": "pending",
+            "testStrategy": "Verificar criação da coluna JSONB, testar constraint com dados válidos e inválidos, confirmar índice GIN criado com EXPLAIN ANALYZE"
+          },
+          {
+            "id": 4,
+            "title": "Criar tabelas do sistema de recomendações",
+            "description": "Implementar criação das tabelas recommendation_systems e client_recommendations com todos os campos, constraints, foreign keys e relacionamentos necessários",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar tabela recommendation_systems com campos id, system_name, description, config_schema, is_active, timestamps. Criar tabela client_recommendations com workspace_id, user_id, recommendation_system_id, client_info, analyzed_data, recommended_item, reasoning, confidence_score, langsmith_run_id, status e timestamps",
+            "status": "pending",
+            "testStrategy": "Verificar criação das tabelas, testar foreign keys com workspaces e users, validar constraints de confidence_score e status, confirmar campos JSONB funcionais"
+          },
+          {
+            "id": 5,
+            "title": "Criar índices otimizados para performance",
+            "description": "Implementar todos os índices necessários para otimizar consultas nas novas tabelas, incluindo índices compostos e índices GIN para campos JSONB",
+            "dependencies": [
+              2,
+              3,
+              4
+            ],
+            "details": "Criar índices: idx_collections_type, idx_client_recommendations_workspace, idx_client_recommendations_user, idx_client_recommendations_system, idx_client_recommendations_status, idx_client_recommendations_confidence. Otimizar para consultas frequentes de filtro e ordenação",
+            "status": "pending",
+            "testStrategy": "Executar EXPLAIN ANALYZE em consultas típicas, verificar uso correto dos índices, medir tempo de resposta antes e depois da criação dos índices"
+          },
+          {
+            "id": 6,
+            "title": "Inserir dados iniciais e executar testes de validação",
+            "description": "Inserir registro inicial do sistema health_plan_agent, executar testes de performance, validar constraints e triggers, e confirmar integridade de todos os componentes implementados",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Inserir registro em recommendation_systems para 'health_plan_agent' com schema de configuração, criar triggers para updated_at, testar inserção de dados de exemplo em client_recommendations, validar todas as constraints e foreign keys funcionando corretamente",
+            "status": "pending",
+            "testStrategy": "Testar inserção de dados válidos e inválidos, verificar triggers de updated_at funcionando, executar cenários de edge case, confirmar performance adequada em consultas complexas"
+          }
+        ]
       },
       {
         "id": 3,
@@ -245,11 +313,22 @@
         ],
         "status": "pending",
         "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Teste de Autopilot TDD",
+        "description": "Task de demonstração para testar os 3 agentes do autopilot",
+        "details": "",
+        "testStrategy": "",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2025-11-11T02:16:40.690Z",
-      "updated": "2025-11-12T19:42:45.197Z",
+      "updated": "2025-11-13T14:16:00.213Z",
       "description": "Tasks for master context"
     }
   }
