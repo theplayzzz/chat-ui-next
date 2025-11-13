@@ -1,0 +1,224 @@
+# Planejamento: Assistente Especializado em Planos de Saúde
+
+## Visão Geral
+Criar um assistente dedicado para recomendação de planos de saúde que utilize o sistema existente de assistentes do chatbot-ui. O assistente será configurado com prompt especializado para coletar informações dos usuários e recomendar planos adequados baseado nas collections de dados de planos de saúde já carregadas no sistema.
+
+O assistente deve:
+- Aparecer apenas em workspaces autorizados
+- Estar associado às collections de planos de saúde
+- Utilizar GPT-4o com temperatura otimizada para consistência
+- Guiar usuários através de perguntas estruturadas
+
+## Recursos Principais
+
+### 1. Configuração do Assistente
+**O que faz:** Cria um novo assistente no sistema com configurações específicas para planos de saúde
+
+**Por que é importante:** Permite que o sistema tenha um agente especializado focado apenas em recomendação de planos
+
+**Como funciona:**
+- Utilizar interface/API existente de criação de assistentes
+- Configurar nome: "Agente de Planos de Saúde"
+- Definir modelo: GPT-4o
+- Temperatura: 0.3 (para respostas consistentes e menos criativas)
+
+### 2. Prompt Especializado
+**O que faz:** Define o comportamento e expertise do assistente
+
+**Por que é importante:** Garante que o assistente colete informações corretas e forneça recomendações adequadas
+
+**Como funciona:**
+- Prompt deve guiar coleta de: idade, localização, tipo de cobertura desejada
+- Informações opcionais: renda, tamanho da família, histórico médico
+- Instruções para comparar planos baseado nos dados coletados
+- Tom profissional mas acessível
+
+### 3. Associação com Collections
+**O que faz:** Conecta o assistente às collections que contêm dados de planos de saúde
+
+**Por que é importante:** Permite que o assistente acesse informações específicas de planos através de RAG
+
+**Como funciona:**
+- Usar tabela assistant_collections para criar associações
+- Vincular apenas collections do tipo 'health_plan'
+- Permitir que o assistente consulte múltiplas collections se necessário
+
+### 4. Controle de Acesso por Workspace
+**O que faz:** Limita a visibilidade do assistente a workspaces específicos
+
+**Por que é importante:** Garante que apenas organizações autorizadas possam usar o assistente de planos de saúde
+
+**Como funciona:**
+- Usar tabela assistant_workspaces para definir permissões
+- Criar registros apenas para workspaces autorizados
+- Sistema deve verificar essas permissões antes de exibir assistente
+
+## Experiência do Usuário
+
+### Persona
+**Usuário Final:** Pessoa buscando plano de saúde (idade variada, diferentes necessidades)
+
+**Admin:** Administrador do workspace que configura e autoriza o assistente
+
+### Fluxo Principal do Usuário
+1. Usuário abre chatbot em workspace autorizado
+2. Seleciona "Agente de Planos de Saúde" na lista de assistentes
+3. Assistente se apresenta e explica que vai ajudar a encontrar o melhor plano
+4. Assistente faz perguntas estruturadas sobre necessidades
+5. Com base nas respostas, assistente consulta collections e recomenda planos
+6. Assistente explica por que cada plano foi recomendado
+
+### Fluxo do Admin
+1. Admin acessa interface de criação de assistentes
+2. Cria novo assistente com configurações especificadas
+3. Associa assistente às collections de planos de saúde
+4. Define quais workspaces podem acessar o assistente
+5. Testa assistente antes de liberar para usuários finais
+
+## Arquitetura Técnica
+
+### Componentes do Sistema
+- **Tabela assistants:** Armazena configuração base do assistente
+- **Tabela assistant_collections:** Associa assistente com collections de planos
+- **Tabela assistant_workspaces:** Define controle de acesso por workspace
+- **Tabela collections:** Contém os dados de planos de saúde (já existente)
+- **Interface de criação de assistentes:** Frontend para configuração
+- **API de assistentes:** Backend para CRUD de assistentes
+
+### Modelos de Dados Utilizados
+- **Assistant:**
+  - id (UUID)
+  - name: "Agente de Planos de Saúde"
+  - model: "gpt-4o"
+  - temperature: 0.3
+  - prompt: [prompt especializado]
+  - created_at, updated_at
+
+- **Assistant_Collections:**
+  - assistant_id (FK para assistants)
+  - collection_id (FK para collections onde collection_type = 'health_plan')
+
+- **Assistant_Workspaces:**
+  - assistant_id (FK para assistants)
+  - workspace_id (FK para workspaces autorizados)
+
+### Integrações
+- Sistema de RAG existente para buscar informações nas collections
+- OpenAI API para GPT-4o
+- Sistema de autenticação para verificar workspace do usuário
+
+## Roteiro de Desenvolvimento
+
+### Fase 1: Análise e Preparação
+- Estudar código existente de criação de assistentes
+- Mapear tabelas e relações: assistants, assistant_collections, assistant_workspaces
+- Identificar endpoints API relevantes
+- Entender fluxo de verificação de permissões por workspace
+
+### Fase 2: Desenvolvimento do Prompt
+- Criar prompt especializado para coleta de informações
+- Definir perguntas estruturadas para: idade, localização, tipo de cobertura
+- Incluir instruções para análise e recomendação de planos
+- Testar prompt isoladamente antes de integrar
+
+### Fase 3: Configuração do Assistente
+- Criar assistente via interface existente ou API
+- Configurar parâmetros: nome, modelo GPT-4o, temperatura 0.3
+- Inserir prompt especializado
+- Validar que assistente foi criado corretamente
+
+### Fase 4: Associação com Collections
+- Identificar collections existentes do tipo 'health_plan'
+- Criar registros em assistant_collections vinculando assistente às collections
+- Verificar que associação foi persistida corretamente
+
+### Fase 5: Controle de Acesso
+- Definir workspace(s) autorizado(s) para teste
+- Criar registros em assistant_workspaces
+- Implementar verificação no frontend para exibir assistente apenas em workspaces autorizados
+
+### Fase 6: Testes
+- Testar criação via interface admin
+- Validar que assistente aparece apenas em workspaces autorizados
+- Testar prompt inicial e fluxo de perguntas
+- Verificar que assistente acessa corretamente as collections
+- Validar recomendações geradas
+
+## Cadeia de Dependências Lógicas
+
+### Ordem de Desenvolvimento
+1. **Primeiro:** Análise do sistema existente (fundação)
+   - Sem isso, não sabemos como implementar
+
+2. **Segundo:** Desenvolvimento do prompt
+   - Pode ser feito em paralelo, mas precisa ser definido antes da configuração
+
+3. **Terceiro:** Configuração do assistente
+   - Depende de entender o sistema e ter o prompt pronto
+
+4. **Quarto:** Associação com collections
+   - Depende do assistente existir
+
+5. **Quinto:** Controle de acesso por workspace
+   - Depende do assistente existir
+
+6. **Sexto:** Testes completos
+   - Depende de tudo estar implementado
+
+### MVP Utilizável
+O MVP utilizável é alcançado após Fase 3, onde temos:
+- Assistente criado e configurado
+- Prompt funcional
+- Capaz de conversar (mesmo sem collections ainda)
+
+Isso permite testar a experiência base antes de adicionar complexidades de associações e controle de acesso.
+
+## Riscos e Mitigações
+
+### Risco 1: Sistema existente de assistentes pode não suportar todas as configurações
+**Mitigação:** Estudar bem o código existente na Fase 1 antes de assumir funcionalidades
+
+### Risco 2: Collections podem não ter dados suficientes
+**Mitigação:** Verificar que tarefa 2 (extensão de schema) foi concluída e dados foram inseridos
+
+### Risco 3: Temperatura 0.3 pode ser muito baixa ou alta
+**Mitigação:** Tornar temperatura configurável e testar diferentes valores
+
+### Risco 4: Prompt pode não coletar informações adequadas
+**Mitigação:** Testar prompt isoladamente e iterar baseado em feedback
+
+### Risco 5: Controle de acesso pode ter complexidades não previstas
+**Mitigação:** Consultar implementações existentes de controle por workspace
+
+## Critérios de Sucesso
+
+### Técnicos
+- [ ] Assistente criado com configurações especificadas (nome, GPT-4o, temp 0.3)
+- [ ] Prompt especializado implementado e funcionando
+- [ ] Associações com collections de planos de saúde criadas
+- [ ] Controle de acesso por workspace implementado
+- [ ] Assistente aparece apenas em workspaces autorizados
+
+### Funcionais
+- [ ] Assistente guia usuário através de perguntas estruturadas
+- [ ] Assistente acessa corretamente dados das collections
+- [ ] Assistente fornece recomendações baseadas em informações coletadas
+- [ ] Interface admin permite criar e configurar assistente
+- [ ] Testes validam comportamento esperado
+
+### Qualitativos
+- [ ] Prompt é claro e profissional
+- [ ] Fluxo de perguntas é lógico e não invasivo
+- [ ] Recomendações são relevantes e bem explicadas
+
+## Apêndice
+
+### Referências Técnicas
+- Schema do banco: supabase/types.ts
+- Migrations relacionadas: supabase/migrations/202511*
+- Tabela recommendation_systems já criada na tarefa 2
+
+### Informações Adicionais
+- Sistema deve ser extensível para outros nichos (seguros, produtos financeiros)
+- Usar collection_type para diferenciar tipos de dados
+- Considerar LangSmith para tracking de runs (campo langsmith_run_id já existe)
