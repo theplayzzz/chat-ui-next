@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": "1",
+        "id": 1,
         "title": "Configurar ambiente básico do agente",
         "description": "Configurar dependências essenciais para o agente de planos de saúde",
         "details": "Configurar dependências básicas: instalar OpenAI SDK com configuração padrão. Configurar variáveis de ambiente: OpenAI API key. Utilizar infraestrutura Supabase existente sem modificações. Usar embeddings OpenAI text-embedding-3-small. Implementar endpoint básico de verificação de status.",
@@ -63,7 +63,7 @@
         "expansionPrompt": "Esta tarefa envolve configuração básica e já tem subtarefas bem definidas. Manter as 4 subtarefas existentes: instalar SDK OpenAI, configurar variáveis de ambiente, implementar geração de embeddings e criar endpoint de status. Considere adicionar testes de integração como subtarefa extra."
       },
       {
-        "id": "2",
+        "id": 2,
         "title": "Estender schema do banco para sistema de recomendações multi-nicho",
         "description": "Criar/atualizar tabelas necessárias para suportar sistema genérico de recomendações que comece com agente de planos de saúde mas permita expansão para outros nichos",
         "details": "Executar migrations: ALTER TABLE collections ADD COLUMN chunk_size INT DEFAULT 4000 CHECK (chunk_size > 0), chunk_overlap INT DEFAULT 200 CHECK (chunk_overlap >= 0 AND chunk_overlap < chunk_size), collection_type TEXT CHECK (collection_type IN ('health_plan', 'insurance', 'financial', 'general')); ALTER TABLE file_items ADD COLUMN plan_metadata JSONB, ADD CONSTRAINT valid_plan_metadata CHECK (jsonb_typeof(plan_metadata) = 'object' OR plan_metadata IS NULL); CREATE INDEX idx_file_items_plan_metadata ON file_items USING gin(plan_metadata); CREATE INDEX idx_collections_type ON collections(collection_type); CREATE TABLE recommendation_systems (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), system_name VARCHAR(100) NOT NULL UNIQUE, description TEXT, config_schema JSONB NOT NULL, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE TABLE client_recommendations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, recommendation_system_id UUID NOT NULL REFERENCES recommendation_systems(id), client_info JSONB NOT NULL, analyzed_data JSONB, recommended_item JSONB, reasoning TEXT NOT NULL, confidence_score DECIMAL(3,2) CHECK (confidence_score >= 0 AND confidence_score <= 1), langsmith_run_id TEXT, status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'superseded')), created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE INDEX idx_client_recommendations_workspace ON client_recommendations(workspace_id); CREATE INDEX idx_client_recommendations_user ON client_recommendations(user_id); CREATE INDEX idx_client_recommendations_system ON client_recommendations(recommendation_system_id); CREATE INDEX idx_client_recommendations_status ON client_recommendations(status); CREATE INDEX idx_client_recommendations_confidence ON client_recommendations(confidence_score DESC); INSERT INTO recommendation_systems (system_name, description, config_schema) VALUES ('health_plan_agent', 'Sistema de recomendação de planos de saúde', '{\"required_fields\": [\"age\", \"location\", \"coverage_type\"], \"optional_fields\": [\"income\", \"family_size\", \"medical_history\"]}'); Aproveitar tabelas existentes: collections, assistant_collections, file_items, assistant_workspaces. Adicionar triggers para updated_at e validações adicionais para integridade dos dados.",
@@ -160,7 +160,7 @@
         "updatedAt": "2025-11-13T20:23:25.657Z"
       },
       {
-        "id": "3",
+        "id": 3,
         "title": "Criar assistente especializado em planos de saúde",
         "description": "Configurar assistente dedicado com prompt otimizado e associação às collections de planos",
         "details": "Criar assistente usando sistema existente com configurações específicas: nome 'Agente de Planos de Saúde', modelo GPT-4o, temperatura 0.3, prompt especializado em coleta de informações e recomendação de planos. Associar assistente a collections via assistant_collections. Configurar controle de acesso por workspace via assistant_workspaces apenas para workspaces autorizados. Utilizar sistema existing de criação/gerenciamento de assistentes.",
@@ -241,7 +241,7 @@
         "updatedAt": "2025-11-13T22:37:23.294Z"
       },
       {
-        "id": "4",
+        "id": 4,
         "title": "Implementar sistema RAG configurável para documents",
         "description": "Estender sistema de Collections existente para suportar chunking configurável específico para planos de saúde",
         "details": "Estender interface existente de Collections para adicionar configuração de chunking: campos chunk_size (500-4000 tokens) e chunk_overlap (50-500 tokens). Utilizar LangChain RecursiveCharacterTextSplitter configurável. Implementar reprocessamento automático quando parâmetros de chunk mudarem. Organizar collections por plano: 'plano_unimed_1', 'plano_bradesco_saude', 'collection_geral'. Aproveitar sistema existente de embeddings OpenAI 1536 dims e pgvector.",
@@ -255,7 +255,7 @@
         "subtasks": []
       },
       {
-        "id": "5",
+        "id": 5,
         "title": "Desenvolver ferramenta extractClientInfo",
         "description": "Implementar tool que extrai informações do cliente de forma conversacional usando GPT-4o",
         "details": "Criar function tool em /lib/tools/health-plan/extract-client-info.ts que usa GPT-4o para extrair: idade titular, dependentes (relação + idade), condições pré-existentes, medicamentos contínuos, cidade/região, orçamento, preferências. Retornar JSON estruturado com schema validado via Zod. Implementar validação de campos obrigatórios e identificação de informações faltantes. Integrar com Vercel AI SDK para function calling.",
@@ -272,7 +272,7 @@
         "expansionPrompt": "Dividir em: 1) Definir schema Zod completo para informações do cliente, 2) Criar prompt GPT-4o para extração conversacional estruturada, 3) Implementar função de parsing e validação JSON, 4) Integrar com Vercel AI SDK para function calling, 5) Implementar detecção de campos obrigatórios faltantes, 6) Criar testes com cenários diversos (família complexa, condições pré-existentes), 7) Validar e refinar prompts para casos edge."
       },
       {
-        "id": "6",
+        "id": 6,
         "title": "Desenvolver ferramenta searchHealthPlans",
         "description": "Implementar busca inteligente em múltiplas collections de planos usando RAG",
         "details": "Criar function em /lib/tools/health-plan/search-health-plans.ts que: obtém collections do assistente via assistant_collections, executa busca vetorial em cada collection separadamente usando função existente match_file_items_openai estendida, aplica filtros por metadata (região, operadora), agrega resultados de todas collections, implementa re-ranking por relevância global. Suportar top-K configurável (10-20 por collection). Query otimizada baseada no perfil do cliente.",
@@ -285,7 +285,7 @@
         "subtasks": []
       },
       {
-        "id": "7",
+        "id": 7,
         "title": "Desenvolver ferramenta analyzeCompatibility",
         "description": "Implementar análise de compatibilidade entre perfil do cliente e planos usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/analyze-compatibility.ts que usa GPT-4o para: analisar elegibilidade (idade, região, condições), avaliar coberturas relevantes ao perfil, identificar exclusões importantes, calcular score 0-100, gerar justificativa detalhada, identificar alertas críticos (carências, limitações). Processar até 10 planos simultaneamente, retornar ranking ordenado por score.",
@@ -302,7 +302,7 @@
         "expansionPrompt": "Dividir em: 1) Criar algoritmo de scoring 0-100 para compatibilidade, 2) Implementar análise de elegibilidade (idade, região, condições), 3) Desenvolver avaliação de coberturas relevantes ao perfil, 4) Criar detecção de exclusões e limitações importantes, 5) Implementar processamento em lote de até 10 planos, 6) Desenvolver sistema de geração de justificativas detalhadas, 7) Implementar identificação de alertas críticos (carências), 8) Criar ranking inteligente e testes com perfis diversos."
       },
       {
-        "id": "8",
+        "id": 8,
         "title": "Desenvolver integração com API ERP",
         "description": "Implementar ferramenta fetchERPPrices para consultar preços atualizados de planos",
         "details": "Criar function em /lib/tools/health-plan/fetch-erp-prices.ts que: consulta API ERP do cliente com IDs de planos, calcula preços para família (titular + dependentes), implementa cache 15 minutos, retry automático (2 tentativas), timeout 10s, graceful degradation (cache se API falhar). Suporte a headers customizados por cliente. Usar padrão de configuração por workspace para URLs/credenciais da API.",
@@ -318,7 +318,7 @@
         "expansionPrompt": "Dividir em: 1) Projetar interface de configuração por workspace para credenciais ERP, 2) Implementar cliente HTTP com timeout, retry e tratamento de erros, 3) Desenvolver cálculo de preços familiares (titular + dependentes), 4) Implementar sistema de cache inteligente (15 min) com invalidação, 5) Criar graceful degradation quando API falha, 6) Implementar testes com mock servers e validação de edge cases."
       },
       {
-        "id": "9",
+        "id": 9,
         "title": "Desenvolver ferramenta generateRecommendation",
         "description": "Implementar geração de recomendação humanizada usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/generate-recommendation.ts que gera: recomendação principal + justificativa, alternativas (econômica/premium), comparativo top 3 em tabela Markdown, alertas importantes (carências, exclusões), próximos passos. Usar temperatura baixa (0.1) para consistência, linguagem empática e clara, termos técnicos explicados.",
@@ -334,7 +334,7 @@
         "expansionPrompt": "Dividir em: 1) Projetar template de recomendação humanizada com seções estruturadas, 2) Implementar geração da recomendação principal com justificativa empática, 3) Desenvolver geração de alternativas (econômica/premium), 4) Criar comparativo em tabela Markdown formatada, 5) Implementar geração de próximos passos e alertas importantes com linguagem clara."
       },
       {
-        "id": "10",
+        "id": 10,
         "title": "Criar orquestrador multi-step",
         "description": "Implementar API route que coordena os 5 passos do processo de recomendação",
         "details": "Criar /app/api/chat/health-plan-agent/route.ts com: execução sequencial dos 5 tools, gerenciamento de estado de sessão, streaming de respostas via Vercel AI SDK, timeout total 60s (Node.js runtime), tratamento de erros por step, logs detalhados, integração com LangSmith para rastreamento. Implementar session-manager.ts para persistir estado entre steps.",
@@ -351,7 +351,7 @@
         "subtasks": []
       },
       {
-        "id": "11",
+        "id": 11,
         "title": "Implementar controle de acesso por workspace",
         "description": "Configurar sistema de permissões para liberar agente apenas para workspaces autorizados",
         "details": "Utilizar sistema existente assistant_workspaces para controle de acesso. Implementar verificação automática no frontend (assistente só aparece se autorizado), validação backend (403 se não autorizado), interface admin para gerenciar workspaces autorizados. RLS do Supabase garante segurança a nível de banco. Aproveitar sistema de permissões existente da aplicação.",
@@ -367,7 +367,7 @@
         "expansionPrompt": "Dividir em: 1) Implementar verificação de autorização no frontend (assistente condicional), 2) Criar middleware backend para validação 403, 3) Desenvolver interface admin para gerenciar workspaces autorizados, 4) Validar integração com RLS do Supabase e sistema de permissões existente."
       },
       {
-        "id": "12",
+        "id": 12,
         "title": "Desenvolver componentes React especializados",
         "description": "Criar interface especializada para interação com agente de planos de saúde",
         "details": "Criar componentes em /components/health-plan/: health-plan-chat.tsx (wrapper principal), progress-indicator.tsx (barra 5 steps), client-info-card.tsx (resumo info coletadas), plan-comparison.tsx (tabela comparativa), recommendation-panel.tsx (recomendação final). Usar design system existente (Radix UI + Tailwind), compatível com tema escuro/claro, responsivo mobile.",
@@ -383,7 +383,7 @@
         "expansionPrompt": "Dividir em: 1) Criar health-plan-chat.tsx como wrapper principal com estado centralizado, 2) Desenvolver progress-indicator.tsx para visualizar 5 etapas do fluxo, 3) Implementar client-info-card.tsx para resumo dinâmico, 4) Criar plan-comparison.tsx com tabela responsiva e filtros, 5) Desenvolver recommendation-panel.tsx com formatação rica, 6) Garantir compatibilidade com tema escuro/claro e responsividade, 7) Implementar testes de acessibilidade e integração entre componentes."
       },
       {
-        "id": "13",
+        "id": 13,
         "title": "Implementar sistema de auditoria e compliance",
         "description": "Criar sistema de logs para compliance LGPD e auditoria de recomendações",
         "details": "Implementar registro automático em health_plan_recommendations: timestamp, workspace/usuário, informações cliente (anonimizadas se necessário), planos analisados, recomendação + justificativa, preços consultados, langsmith_run_id. Interface de consulta histórico com filtros, exportação CSV, retenção configurável (2 anos default). Criptografia em repouso via Supabase.",
@@ -396,7 +396,7 @@
         "subtasks": []
       },
       {
-        "id": "14",
+        "id": 14,
         "title": "Integrar monitoramento LangSmith",
         "description": "Configurar observabilidade completa com LangSmith SDK para rastreamento e análise",
         "details": "Configurar LangSmith SDK: rastreamento todas chamadas LLM (GPT-4o), tracking cada step do orquestrador, métricas (latência por tool, tokens consumidos, custos, taxa sucesso/erro), dashboards performance, alertas para erros/timeouts. Implementar em cada tool individual e no orquestrador principal. Correlation ID para tracking completo da sessão.",
@@ -413,7 +413,7 @@
         "expansionPrompt": "Dividir em: 1) Configurar SDK LangSmith e conexão inicial, 2) Implementar tracing de todas as chamadas GPT-4o, 3) Configurar tracking detalhado do orquestrador principal, 4) Implementar métricas granulares (latência, tokens, custos), 5) Desenvolver correlation IDs para sessões completas, 6) Configurar dashboards de performance personalizados, 7) Implementar sistema de alertas para erros e timeouts, 8) Validar traces end-to-end e otimizar coleta de dados."
       },
       {
-        "id": "15",
+        "id": 15,
         "title": "Criar interface admin para gerenciamento de documentos",
         "description": "Estender interface existing de Collections para gerenciar documentos de planos com chunking configurável",
         "details": "Estender interface existing sidebar Collections: adicionar campos chunk_size/chunk_overlap configuráveis, preview como documentos serão divididos, tags/categorias para collections (plano_specific, geral), status processamento por collection, estatísticas (chunks, tokens, documentos), controle associação assistente ↔ collections. Manter drag-and-drop upload, progress bars, filtros existentes.",
@@ -427,7 +427,7 @@
         "subtasks": []
       },
       {
-        "id": "16",
+        "id": 16,
         "title": "Teste de Autopilot TDD",
         "description": "Task de demonstração para testar os 3 agentes do autopilot",
         "details": "",
@@ -445,7 +445,10 @@
       "completedCount": 3,
       "tags": [
         "master"
-      ]
+      ],
+      "created": "2025-11-14T14:36:06.613Z",
+      "description": "Tasks for master context",
+      "updated": "2025-11-14T14:36:06.613Z"
     }
   }
 }
