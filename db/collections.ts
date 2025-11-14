@@ -182,3 +182,34 @@ export const deleteCollectionWorkspace = async (
 
   return true
 }
+
+export const getCollectionsByType = async (
+  collectionType: string,
+  workspaceId?: string
+) => {
+  let query = supabase.from("collections").select("*")
+
+  // Filter by collection type
+  if (collectionType) {
+    query = query.eq("collection_type", collectionType)
+  }
+
+  // Optionally filter by workspace
+  if (workspaceId) {
+    query = query.in(
+      "id",
+      supabase
+        .from("collection_workspaces")
+        .select("collection_id")
+        .eq("workspace_id", workspaceId) as any
+    )
+  }
+
+  const { data: collections, error } = await query
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return collections || []
+}
