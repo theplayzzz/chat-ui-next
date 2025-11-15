@@ -16,7 +16,7 @@ import { FileIcon } from "lucide-react"
 import { FC, useContext, useEffect, useRef, useState } from "react"
 
 interface AssistantRetrievalSelectProps {
-  selectedAssistantRetrievalItems: Tables<"files">[] | Tables<"collections">[]
+  selectedAssistantRetrievalItems: (Tables<"files"> | Tables<"collections">)[]
   onAssistantRetrievalItemsSelect: (
     item: Tables<"files"> | Tables<"collections">
   ) => void

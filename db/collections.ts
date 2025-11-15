@@ -213,3 +213,92 @@ export const getCollectionsByType = async (
 
   return collections || []
 }
+
+/**
+ * Create a collection with specific chunk configuration and type
+ * Helper for creating organized collections by health plan or other niches
+ */
+export const createCollectionWithConfig = async (
+  collection: TablesInsert<"collections"> & {
+    chunk_size?: number
+    chunk_overlap?: number
+    collection_type?: "health_plan" | "insurance" | "financial" | "general"
+  },
+  workspace_id: string
+) => {
+  // Set defaults if not provided
+  const collectionData = {
+    ...collection,
+    chunk_size: collection.chunk_size ?? 4000,
+    chunk_overlap: collection.chunk_overlap ?? 200,
+    collection_type: collection.collection_type ?? "general"
+  }
+
+  return createCollection(collectionData, workspace_id)
+}
+
+/**
+ * Helper to create a health plan specific collection with recommended settings
+ */
+export const createHealthPlanCollection = async (
+  planName: string,
+  description: string,
+  userId: string,
+  workspaceId: string,
+  folderId?: string
+) => {
+  // Recommended chunking for health plan documents:
+  // - Larger chunks (2000) to preserve context of coverage rules
+  // - Moderate overlap (300) to maintain continuity
+  return createCollectionWithConfig(
+    {
+      user_id: userId,
+      name: `Plano ${planName}`,
+      description,
+      folder_id: folderId,
+      chunk_size: 2000,
+      chunk_overlap: 300,
+      collection_type: "health_plan"
+    },
+    workspaceId
+  )
+}
+
+/**
+ * Update collection chunk configuration and optionally reprocess files
+ * Returns file IDs that need reprocessing
+ */
+export const updateCollectionChunkConfig = async (
+  collectionId: string,
+  chunkSize: number,
+  chunkOverlap: number
+) => {
+  // Validate chunk configuration
+  if (chunkSize <= 0) {
+    throw new Error("chunk_size must be positive")
+  }
+  if (chunkOverlap < 0) {
+    throw new Error("chunk_overlap must be non-negative")
+  }
+  if (chunkOverlap >= chunkSize) {
+    throw new Error("chunk_overlap must be less than chunk_size")
+  }
+
+  // Update collection
+  await updateCollection(collectionId, {
+    chunk_size: chunkSize,
+    chunk_overlap: chunkOverlap
+  })
+
+  // Get file IDs that need reprocessing
+  const { data: collectionFiles, error } = await supabase
+    .from("collection_files")
+    .select("file_id")
+    .eq("collection_id", collectionId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (collectionFiles || []).map(cf => cf.file_id)
+}

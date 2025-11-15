@@ -1,5 +1,5 @@
 import { generateLocalEmbedding } from "@/lib/generate-local-embedding"
-import { processDocX } from "@/lib/retrieval/processing"
+import { ChunkConfig, processDocX } from "@/lib/retrieval/processing"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { Database } from "@/supabase/types"
 import { FileItemChunk } from "@/types"
@@ -32,11 +32,35 @@ export async function POST(req: Request) {
       }
     }
 
+    // Get collection configuration for chunk settings
+    let chunkConfig: Partial<ChunkConfig> | undefined
+    const { data: collectionFile } = await supabaseAdmin
+      .from("collection_files")
+      .select("collection_id")
+      .eq("file_id", fileId)
+      .limit(1)
+      .single()
+
+    if (collectionFile) {
+      const { data: collection } = await supabaseAdmin
+        .from("collections")
+        .select("chunk_size, chunk_overlap")
+        .eq("id", collectionFile.collection_id)
+        .single()
+
+      if (collection && collection.chunk_size && collection.chunk_overlap) {
+        chunkConfig = {
+          chunkSize: collection.chunk_size,
+          chunkOverlap: collection.chunk_overlap
+        }
+      }
+    }
+
     let chunks: FileItemChunk[] = []
 
     switch (fileExtension) {
       case "docx":
-        chunks = await processDocX(text)
+        chunks = await processDocX(text, chunkConfig)
         break
       default:
         return new NextResponse("Unsupported file type", {

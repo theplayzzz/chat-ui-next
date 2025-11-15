@@ -251,8 +251,73 @@
           "2",
           "3"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Atualizar interface de Collections para configuração de chunking",
+            "description": "Modificar o schema de dados e funcções existentes para suportar chunk_size e chunk_overlap configuráveis nas Collections.",
+            "dependencies": [],
+            "details": "Estender o arquivo db/collections.ts e tipos TypeScript para incluir os novos campos chunk_size (500-4000) e chunk_overlap (50-500). Atualizar as funções createCollection, updateCollection para aceitar esses parâmetros. Garantir validação de dados nos limites especificados e que chunk_overlap < chunk_size.\n<info added on 2025-11-14T20:29:50.002Z>\nBaseado na análise do código e no contexto fornecido, posso ver que a implementação foi bem-sucedida. As alterações incluem tipos regenerados do Supabase, novos campos de configuração de chunking (chunk_size, chunk_overlap, collection_type) e correções nas interfaces TypeScript. \n\nO build está compilando sem erros e a funcionalidade de collections já possui as novas funções auxiliares createCollectionWithConfig, createHealthPlanCollection e updateCollectionChunkConfig no arquivo db/collections.ts:221-304.\n\nImplementação concluída com sucesso. Schema da base de dados atualizado, tipos TypeScript regenerados, interfaces de componentes corrigidas para suportar union types adequados, e build confirmado como funcional sem erros de TypeScript. As funções de apoio para configuração de chunking específica para planos de saúde já estão integradas no sistema.\n</info added on 2025-11-14T20:29:50.002Z>",
+            "status": "done",
+            "testStrategy": "Testar criação de collection com parâmetros de chunking válidos e inválidos, verificar persistência dos valores no banco",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-14T20:28:40.644Z"
+          },
+          {
+            "id": 2,
+            "title": "Implementar TextSplitter configurável usando LangChain",
+            "description": "Refatorar o processamento de documentos para usar configurações específicas de chunking por collection.",
+            "dependencies": [
+              1
+            ],
+            "details": "Modificar lib/retrieval/processing/pdf.ts, txt.ts, md.ts para aceitar chunk_size e chunk_overlap como parâmetros. Remover constantes globais CHUNK_SIZE e CHUNK_OVERLAP do index.ts. Implementar função createConfigurableTextSplitter que usa RecursiveCharacterTextSplitter com parâmetros dinâmicos da collection.\n<info added on 2025-11-14T20:30:39.287Z>\nImplementação completa validada em todos os arquivos processadores: lib/retrieval/processing/pdf.ts, txt.ts, md.ts, docx.ts, csv.ts e json.ts utilizam corretamente a função createConfigurableTextSplitter() ou aplicam as configurações de chunk_size e chunk_overlap. O processMarkdown.ts usa RecursiveCharacterTextSplitter.fromLanguage() específico para Markdown mas aplica as configurações. O processCSV.ts implementa separadores customizados (\"\\n\\n\") mantendo a configurabilidade. Sistema de TextSplitter configurável completamente funcional com backward compatibility preservada através das constantes CHUNK_SIZE e CHUNK_OVERLAP que referenciam DEFAULT_CHUNK_SIZE e DEFAULT_CHUNK_OVERLAP.\n</info added on 2025-11-14T20:30:39.287Z>",
+            "status": "done",
+            "testStrategy": "Testar processamento com diferentes configurações de chunk, validar que chunks gerados respeitam os limites, verificar consistência de overlap",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-14T20:28:43.023Z"
+          },
+          {
+            "id": 3,
+            "title": "Atualizar API de processamento para usar configuração da collection",
+            "description": "Modificar o endpoint /api/retrieval/process/route.ts para recuperar e usar configurações de chunking da collection.",
+            "dependencies": [
+              2
+            ],
+            "details": "Estender o endpoint para receber collection_id no FormData. Buscar configurações chunk_size e chunk_overlap da collection correspondente. Passar essas configurações para as funções de processamento de arquivos. Manter compatibilidade com processamento sem collection (usar valores padrão).",
+            "status": "done",
+            "testStrategy": "Testar upload de arquivo com collection_id válido, verificar uso das configurações corretas, testar fallback para valores padrão",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-14T20:28:45.349Z"
+          },
+          {
+            "id": 4,
+            "title": "Implementar sistema de reprocessamento automático",
+            "description": "Criar funcionalidade para reprocessar file_items quando parâmetros de chunking de uma collection mudarem.",
+            "dependencies": [
+              3
+            ],
+            "details": "Implementar função reprocessCollectionFiles que: 1) Identifica arquivos associados à collection; 2) Remove file_items existentes; 3) Reprocessa arquivos com novos parâmetros; 4) Regenera embeddings. Adicionar trigger ou webhook para executar reprocessamento quando chunk_size/chunk_overlap são atualizados via updateCollection.",
+            "status": "done",
+            "testStrategy": "Testar alteração de parâmetros de chunking, verificar reprocessamento automático, validar que embeddings são regerados corretamente",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-14T20:28:47.563Z"
+          },
+          {
+            "id": 5,
+            "title": "Organizar collections por plano de saúde com nomenclatura específica",
+            "description": "Criar estrutura de nomenclatura e organização para collections de planos de saúde específicos.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implementar convenção de nomenclatura: 'plano_unimed_1', 'plano_bradesco_saude', 'collection_geral'. Utilizar campo collection_type='health_plan' para filtrar collections de planos. Criar função getCollectionsByType já implementada. Adicionar validação de nomenclatura no createCollection para garantir padrão consistente.",
+            "status": "done",
+            "testStrategy": "Criar collections com nomenclatura específica, verificar filtragem por tipo 'health_plan', validar organização por plano específico",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-14T20:28:49.840Z"
+          }
+        ],
+        "updatedAt": "2025-11-14T20:28:49.840Z"
       },
       {
         "id": 5,
@@ -440,15 +505,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-13T22:37:23.295Z",
+      "lastModified": "2025-11-14T20:28:49.841Z",
       "taskCount": 16,
-      "completedCount": 3,
+      "completedCount": 4,
       "tags": [
         "master"
       ],
-      "created": "2025-11-14T14:36:06.613Z",
+      "created": "2025-11-14T20:29:02.204Z",
       "description": "Tasks for master context",
-      "updated": "2025-11-14T14:36:06.613Z"
+      "updated": "2025-11-14T20:30:41.117Z"
     }
   }
 }

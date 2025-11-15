@@ -311,45 +311,129 @@ Step 5: Geração de Recomendação
 ---
 
 ### RF-011: Gerenciamento de Collections e Documentos (Admin)
-**Descrição:** Estender interface existente de Collections para gerenciar conjuntos de documentos de planos de saúde com controle granular de chunking.
+**Descrição:** Estender interface existente de Collections para gerenciar conjuntos de documentos de planos de saúde com controle granular de chunking e gerenciamento completo via frontend.
 
-**Funcionalidades (aproveitar sistema existente + extensões):**
+**BACKEND (✅ IMPLEMENTADO):**
+- [x] Extensão da tabela `collections` com campos: `chunk_size`, `chunk_overlap`, `collection_type`
+- [x] Sistema de chunking configurável usando LangChain RecursiveCharacterTextSplitter
+- [x] Todos os processadores de arquivos (PDF, TXT, MD, DOCX, CSV, JSON) aceitam ChunkConfig
+- [x] Endpoint `/api/retrieval/reprocess` para reprocessar arquivos quando configuração muda
+- [x] Funções helper em `db/collections.ts`: `createHealthPlanCollection`, `getCollectionsByType`, `updateCollectionChunkConfig`
+- [x] Validação de chunk_size e chunk_overlap
+- [x] Sistema de Collections existente funcionando
 
-**Gerenciamento de Collections:**
-- [ ] Criação de Collections específicas para planos (sistema já existe)
-- [ ] Tags/categorias para identificar tipo de collection (ex: "plano_unimed", "geral")
-- [ ] Associação de Collections ao assistente via `assistant_collections`
-- [ ] Visualização de quais assistentes têm acesso a cada collection
+**FRONTEND (⚠️ PENDENTE):**
 
-**Gerenciamento de Documentos:**
-- [ ] Upload de PDFs via interface existente
-- [ ] **Configuração de Chunking por Collection**:
-  - [ ] Tamanho de chunk customizável (padrão: 4000, ajustável para 500-1000)
-  - [ ] Overlap customizável (padrão: 200, ajustável)
-  - [ ] Preview de como documentos serão divididos
-- [ ] Visualização de documentos indexados
-- [ ] Edição de metadata (plano, operadora, região, etc.)
-- [ ] Remoção de documentos com confirmação
-- [ ] Reprocessamento de embeddings quando parâmetros de chunk mudarem
+**1. Interface de Criação de Collections:**
+- [ ] Formulário de criação com campos adicionais:
+  - [ ] Campo `chunk_size` (número, padrão: 4000, min: 500, max: 8000)
+  - [ ] Campo `chunk_overlap` (número, padrão: 200, validação: 0 ≤ overlap < chunk_size)
+  - [ ] Dropdown `collection_type`: health_plan, insurance, financial, general
+  - [ ] Helper text explicando impacto de cada configuração
+- [ ] Preview estimado de quantos chunks serão gerados baseado nos valores
+- [ ] Validação em tempo real dos campos
 
-**Interface de Controle:**
-- [ ] Painel mostrando todas collections do assistente
-- [ ] Status de processamento por collection
-- [ ] Estatísticas: total de chunks, tokens, documentos por collection
-- [ ] Filtros por collection, operadora, região
+**2. Interface de Edição de Collections:**
+- [ ] Modal de edição que permite alterar:
+  - [ ] Nome e descrição (já existe)
+  - [ ] chunk_size e chunk_overlap (NOVO)
+  - [ ] collection_type (NOVO)
+- [ ] Botão "Reprocessar Arquivos" que:
+  - [ ] Chama `/api/retrieval/reprocess` com collection_id
+  - [ ] Mostra progress bar durante reprocessamento
+  - [ ] Exibe confirmação: "X arquivos serão reprocessados"
+  - [ ] Reprocessa cada arquivo chamando `/api/retrieval/process` para cada file_id
+- [ ] Warning ao mudar chunk config: "Arquivos precisarão ser reprocessados"
+
+**3. Visualização de Collections:**
+- [ ] Card de collection mostrando:
+  - [ ] Nome, descrição, tipo
+  - [ ] Chunk config: "Chunks: 2000 tokens (overlap: 300)"
+  - [ ] Estatísticas: total de arquivos, total de chunks/embeddings
+  - [ ] Status de processamento
+- [ ] Lista de arquivos dentro da collection:
+  - [ ] Nome do arquivo, tipo, tamanho
+  - [ ] Status: "Processado", "Processando", "Erro"
+  - [ ] Número de chunks gerados
+  - [ ] Ações: Reprocessar, Remover
+
+**4. Gerenciamento de Arquivos Vetorizados:**
+- [ ] Interface para visualizar arquivos após vetorização:
+  - [ ] Lista de file_items (chunks) por arquivo
+  - [ ] Preview do conteúdo de cada chunk
+  - [ ] Embedding ID e metadata
+- [ ] Busca e filtros por:
+  - [ ] Nome do arquivo
+  - [ ] Collection
+  - [ ] Status de processamento
+- [ ] Ações disponíveis:
+  - [ ] Remover arquivo da collection (mantém file, remove de collection_files)
+  - [ ] Deletar arquivo completamente (deleta file + file_items)
+  - [ ] Reprocessar arquivo individual
+
+**5. Delegação de Collections a Assistentes:**
+- [ ] Interface de associação Assistant ↔ Collections:
+  - [ ] Componente em `create-assistant.tsx` já existe (AssistantRetrievalSelect)
+  - [ ] ✅ JÁ FUNCIONA: Seleção de collections ao criar assistente
+  - [ ] MELHORAR: Mostrar collection_type e chunk config na seleção
+  - [ ] MELHORAR: Filtro por collection_type
+  - [ ] ADICIONAR: Badge indicando número de arquivos em cada collection
+- [ ] Visualização no perfil do assistente:
+  - [ ] Lista de collections delegadas ao assistente
+  - [ ] Estatísticas agregadas (total de documentos, chunks)
+  - [ ] Botão para adicionar/remover collections
+
+**6. Painel Administrativo de Collections:**
+- [ ] Dashboard consolidado (`components/admin/collections-dashboard.tsx`):
+  - [ ] Cards de resumo:
+    - Total de collections por tipo
+    - Total de arquivos processados
+    - Total de embeddings/chunks
+    - Custos estimados de storage
+  - [ ] Gráficos:
+    - Collections por tipo (pie chart)
+    - Arquivos por collection (bar chart)
+    - Timeline de uploads/processamentos
+  - [ ] Filtros globais por:
+    - collection_type
+    - Status de processamento
+    - Assistente associado
+
+**Componentes a Criar/Modificar:**
+```
+components/
+├── collections/
+│   ├── collection-create-form.tsx          (NOVO - form com chunk config)
+│   ├── collection-edit-modal.tsx           (NOVO - edição + reprocessing)
+│   ├── collection-card.tsx                 (NOVO - exibe config e stats)
+│   ├── collection-file-list.tsx            (NOVO - lista files com chunks)
+│   ├── reprocess-button.tsx                (NOVO - botão reprocessar)
+│   └── chunk-config-preview.tsx            (NOVO - preview de chunking)
+├── sidebar/items/collections/
+│   ├── create-collection.tsx               (MODIFICAR - adicionar campos)
+│   └── update-collection.tsx               (MODIFICAR - chunk config)
+├── sidebar/items/assistants/
+│   ├── assistant-retrieval-select.tsx      (MODIFICAR - mostrar type/config)
+│   └── create-assistant.tsx                (OK - já funciona)
+└── admin/
+    └── collections-dashboard.tsx           (NOVO - painel admin)
+```
 
 **Critérios de Aceitação:**
-- [ ] Aproveitar interface existente de Collections (sidebar)
-- [ ] Adicionar campos específicos para configuração de chunking
-- [ ] Upload drag-and-drop de PDFs mantido
-- [ ] Progress bar durante processamento
-- [ ] Lista de documentos com filtros por collection
-- [ ] Edição de metadata específica para planos
-- [ ] Confirmação antes de remover
-- [ ] Status de indexação visível por collection
-- [ ] Painel de controle consolidado mostrando todas collections
+- [ ] Usuário consegue criar collection configurando chunk_size, chunk_overlap, collection_type
+- [ ] Usuário consegue editar collection existente e seus parâmetros de chunk
+- [ ] Ao mudar chunk config, sistema oferece botão de reprocessamento
+- [ ] Reprocessamento mostra progress e status por arquivo
+- [ ] Usuário visualiza lista de arquivos dentro de uma collection
+- [ ] Usuário visualiza chunks/embeddings gerados de cada arquivo
+- [ ] Usuário consegue adicionar/remover arquivos de collections
+- [ ] AssistantRetrievalSelect mostra collection_type e configurações
+- [ ] Dashboard admin mostra estatísticas agregadas de todas collections
+- [ ] Interface responsiva e segue design system existente
+- [ ] Loading states apropriados em todas operações assíncronas
+- [ ] Mensagens de erro claras e acionáveis
 
-**Prioridade:** Média
+**Prioridade:** Alta (backend completo, frontend necessário para usar funcionalidade)
 
 ---
 
@@ -853,6 +937,7 @@ Frontend (formatted display)
 |--------|------|-------|----------|
 | 1.0 | 2025-11-10 | Claude Code | Versão inicial do PRD |
 | 1.1 | 2025-11-10 | Claude Code | Atualização: Collections, chunking configurável, LangSmith, histórico de chat |
+| 1.2 | 2025-11-14 | Claude Code | Expansão de RF-011: Detalhamento completo de requisitos frontend para gerenciamento de Collections (criação, edição, visualização, reprocessamento, delegação a assistentes, dashboard admin) |
 
 ---
 

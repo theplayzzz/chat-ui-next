@@ -36,7 +36,7 @@ export const CreateAssistant: FC<CreateAssistantProps> = ({
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [imageLink, setImageLink] = useState("")
   const [selectedAssistantRetrievalItems, setSelectedAssistantRetrievalItems] =
-    useState<Tables<"files">[] | Tables<"collections">[]>([])
+    useState<(Tables<"files"> | Tables<"collections">)[]>([])
   const [selectedAssistantToolItems, setSelectedAssistantToolItems] = useState<
     Tables<"tools">[]
   >([])

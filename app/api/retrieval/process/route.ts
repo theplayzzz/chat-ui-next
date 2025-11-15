@@ -1,5 +1,6 @@
 import { generateLocalEmbedding } from "@/lib/generate-local-embedding"
 import {
+  ChunkConfig,
   processCSV,
   processJSON,
   processMarkdown,
@@ -47,6 +48,30 @@ export async function POST(req: Request) {
       throw new Error("Unauthorized")
     }
 
+    // Get collection configuration for chunk settings
+    let chunkConfig: Partial<ChunkConfig> | undefined
+    const { data: collectionFile } = await supabaseAdmin
+      .from("collection_files")
+      .select("collection_id")
+      .eq("file_id", file_id)
+      .limit(1)
+      .single()
+
+    if (collectionFile) {
+      const { data: collection } = await supabaseAdmin
+        .from("collections")
+        .select("chunk_size, chunk_overlap")
+        .eq("id", collectionFile.collection_id)
+        .single()
+
+      if (collection && collection.chunk_size && collection.chunk_overlap) {
+        chunkConfig = {
+          chunkSize: collection.chunk_size,
+          chunkOverlap: collection.chunk_overlap
+        }
+      }
+    }
+
     const { data: file, error: fileError } = await supabaseAdmin.storage
       .from("files")
       .download(fileMetadata.file_path)
@@ -77,19 +102,19 @@ export async function POST(req: Request) {
 
     switch (fileExtension) {
       case "csv":
-        chunks = await processCSV(blob)
+        chunks = await processCSV(blob, chunkConfig)
         break
       case "json":
-        chunks = await processJSON(blob)
+        chunks = await processJSON(blob, chunkConfig)
         break
       case "md":
-        chunks = await processMarkdown(blob)
+        chunks = await processMarkdown(blob, chunkConfig)
         break
       case "pdf":
-        chunks = await processPdf(blob)
+        chunks = await processPdf(blob, chunkConfig)
         break
       case "txt":
-        chunks = await processTxt(blob)
+        chunks = await processTxt(blob, chunkConfig)
         break
       default:
         return new NextResponse("Unsupported file type", {
