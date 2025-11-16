@@ -57,4 +57,50 @@ export interface ExtractClientInfoResponse {
   nextQuestion?: string
 }
 
+/**
+ * Parâmetros para a tool searchHealthPlans
+ */
+export interface SearchHealthPlansParams {
+  assistantId: string
+  clientInfo: PartialClientInfo
+  topK?: number // Número de resultados por collection (default: 10)
+  filters?: {
+    region?: {
+      state?: string
+      city?: string
+    }
+    operator?: string
+    priceRange?: {
+      min?: number
+      max?: number
+    }
+    planType?: string
+  }
+}
+
+/**
+ * Resultado individual de busca de plano de saúde
+ */
+export interface HealthPlanSearchResult {
+  content: string
+  similarity: number
+  collectionId: string
+  collectionName: string
+  fileId: string
+  metadata?: Record<string, any>
+}
+
+/**
+ * Resposta da tool searchHealthPlans
+ */
+export interface SearchHealthPlansResponse {
+  results: HealthPlanSearchResult[]
+  metadata: {
+    totalCollectionsSearched: number
+    query: string
+    executionTimeMs: number
+    totalResultsBeforeFiltering?: number
+  }
+}
+
 export type { ClientInfo, PartialClientInfo }
