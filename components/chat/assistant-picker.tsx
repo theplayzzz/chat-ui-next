@@ -1,9 +1,10 @@
 import { ChatbotUIContext } from "@/context/context"
 import { Tables } from "@/supabase/types"
-import { IconRobotFace } from "@tabler/icons-react"
+import { IconRobotFace, IconHeartbeat } from "@tabler/icons-react"
 import Image from "next/image"
 import { FC, useContext, useEffect, useRef } from "react"
 import { usePromptAndCommand } from "./chat-hooks/use-prompt-and-command"
+import { useHealthPlanAccess } from "@/hooks/use-health-plan-access"
 
 interface AssistantPickerProps {}
 
@@ -18,6 +19,7 @@ export const AssistantPicker: FC<AssistantPickerProps> = ({}) => {
   } = useContext(ChatbotUIContext)
 
   const { handleSelectAssistant } = usePromptAndCommand()
+  const { isHealthPlanAssistant } = useHealthPlanAccess()
 
   const itemsRef = useRef<(HTMLDivElement | null)[]>([])
 
@@ -110,8 +112,16 @@ export const AssistantPicker: FC<AssistantPickerProps> = ({}) => {
                     <IconRobotFace size={32} />
                   )}
 
-                  <div className="ml-3 flex flex-col">
-                    <div className="font-bold">{item.name}</div>
+                  <div className="ml-3 flex flex-1 flex-col">
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold">{item.name}</div>
+                      {isHealthPlanAssistant(item) && (
+                        <div className="bg-primary/10 text-primary flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
+                          <IconHeartbeat size={12} />
+                          <span>Health Plan</span>
+                        </div>
+                      )}
+                    </div>
 
                     <div className="truncate text-sm opacity-80">
                       {item.description || "No description."}

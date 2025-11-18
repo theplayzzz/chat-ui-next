@@ -9,6 +9,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { searchHealthPlans } from "@/lib/tools/health-plan/search-health-plans"
 import type { SearchHealthPlansParams } from "@/lib/tools/health-plan/types"
+import {
+  validateAssistantWorkspaceAccess,
+  unauthorizedResponse
+} from "@/lib/server/workspace-authorization"
+import { logAuthAttempt } from "@/lib/middleware/workspace-auth"
 
 /**
  * POST /api/tools/search-health-plans
@@ -25,13 +30,20 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Parse do body
     const body = await request.json()
-    const { assistantId, clientInfo, topK, filters } =
-      body as SearchHealthPlansParams
+    const { assistantId, clientInfo, topK, filters, workspaceId } =
+      body as SearchHealthPlansParams & { workspaceId: string }
 
     // 2. Validar parâmetros obrigatórios
     if (!assistantId) {
       return NextResponse.json(
         { error: "assistantId é obrigatório" },
+        { status: 400 }
+      )
+    }
+
+    if (!workspaceId) {
+      return NextResponse.json(
+        { error: "workspaceId é obrigatório" },
         { status: 400 }
       )
     }
@@ -43,22 +55,54 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 3. Obter profile do servidor
+    // 3. Validar autorização workspace + assistente
+    console.log("[API] Validando autorização...")
+    const authResult = await validateAssistantWorkspaceAccess(
+      assistantId,
+      workspaceId
+    )
+
+    // Log de tentativa de autorização
+    logAuthAttempt(
+      {
+        isAuthorized: authResult.isAuthorized,
+        userId: authResult.userId,
+        assistantId,
+        workspaceId,
+        errors: authResult.errors
+      },
+      {
+        endpoint: "/api/tools/search-health-plans",
+        method: "POST"
+      }
+    )
+
+    if (!authResult.isAuthorized) {
+      console.warn(`[API] Acesso negado: ${authResult.errors.join("; ")}`)
+      return unauthorizedResponse(
+        `Access denied: ${authResult.errors.join("; ")}`,
+        403
+      )
+    }
+
+    console.log(`[API] Autorização concedida para userId: ${authResult.userId}`)
+
+    // 4. Obter profile do servidor
     const profile = await getServerProfile()
 
-    // 4. Verificar API key da OpenAI
+    // 5. Verificar API key da OpenAI
     if (profile.use_azure_openai) {
       checkApiKey(profile.azure_openai_api_key, "Azure OpenAI")
     } else {
       checkApiKey(profile.openai_api_key, "OpenAI")
     }
 
-    // 5. Obter API key
+    // 6. Obter API key
     const apiKey = profile.use_azure_openai
       ? profile.azure_openai_api_key || ""
       : profile.openai_api_key || ""
 
-    // 6. Executar busca
+    // 7. Executar busca
     console.log("[API] Iniciando busca de planos de saúde")
     console.log(`[API] AssistantId: ${assistantId}`)
     console.log(`[API] TopK: ${topK || 10}`)
@@ -77,7 +121,7 @@ export async function POST(request: NextRequest) {
       `[API] Busca concluída: ${response.results.length} resultados em ${response.metadata.executionTimeMs}ms`
     )
 
-    // 7. Retornar resultados
+    // 8. Retornar resultados
     return NextResponse.json(response, { status: 200 })
   } catch (error: any) {
     console.error("[API] Erro ao buscar planos de saúde:", error)
