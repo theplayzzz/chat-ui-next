@@ -196,6 +196,7 @@ export async function listAuthorizedWorkspaces(
  * Get health plan assistant ID
  *
  * Finds assistant by checking for health_plan collection type
+ * Fallback: searches by name containing "health plan" or "plano de saúde"
  * For MVP: assumes single health plan assistant
  *
  * @returns Health plan assistant ID or null
@@ -203,31 +204,45 @@ export async function listAuthorizedWorkspaces(
 export async function getHealthPlanAssistantId(): Promise<string | null> {
   const supabase = getSupabaseServerClient()
 
-  // Get collections of type health_plan
-  const { data: collections, error: collError } = await supabase
+  // Strategy 1: Get collections of type health_plan
+  const { data: collections } = await supabase
     .from("collections")
     .select("id")
     .eq("collection_type", "health_plan")
     .limit(1)
-    .single()
 
-  if (collError || !collections) {
-    return null
+  if (collections && collections.length > 0) {
+    // Get assistant associated with this collection
+    const { data: assistantCollection } = await supabase
+      .from("assistant_collections")
+      .select("assistant_id")
+      .eq("collection_id", collections[0].id)
+      .limit(1)
+
+    if (assistantCollection && assistantCollection.length > 0) {
+      return assistantCollection[0].assistant_id
+    }
   }
 
-  // Get assistant associated with this collection
-  const { data: assistantCollection, error: acError } = await supabase
-    .from("assistant_collections")
-    .select("assistant_id")
-    .eq("collection_id", collections.id)
+  // Strategy 2: Search by assistant name (fallback)
+  const { data: assistants } = await supabase
+    .from("assistants")
+    .select("id, name, description")
+    .or(
+      "name.ilike.%health plan%,name.ilike.%plano de saúde%,description.ilike.%health plan%,description.ilike.%plano de saúde%"
+    )
     .limit(1)
-    .single()
 
-  if (acError || !assistantCollection) {
-    return null
+  if (assistants && assistants.length > 0) {
+    console.log(
+      "[Admin] Found health plan assistant by name:",
+      assistants[0].name
+    )
+    return assistants[0].id
   }
 
-  return assistantCollection.assistant_id
+  console.warn("[Admin] No health plan assistant found")
+  return null
 }
 
 /**

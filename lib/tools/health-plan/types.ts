@@ -103,4 +103,75 @@ export interface SearchHealthPlansResponse {
   }
 }
 
+/**
+ * Parâmetros para a tool analyzeCompatibility
+ */
+export interface AnalyzeCompatibilityParams {
+  clientInfo: ClientInfo
+  plans: Array<{
+    planId: string
+    planName: string
+    operadora?: string
+    collectionId: string
+    collectionName: string
+    documents: HealthPlanSearchResult[]
+  }>
+  options?: {
+    topK?: number
+    includeAlternatives?: boolean
+    detailedReasoning?: boolean
+    maxConcurrency?: number
+    timeoutMs?: number
+  }
+}
+
+/**
+ * Análise de compatibilidade de um plano
+ */
+export interface PlanCompatibilityAnalysis {
+  planId: string
+  planName: string
+  operadora?: string
+  collectionId: string
+  collectionName: string
+  score: {
+    overall: number
+    breakdown: {
+      eligibility: number
+      coverage: number
+      budget: number
+      network: number
+      preferences: number
+    }
+  }
+  pros: string[]
+  cons: string[]
+  alerts: Array<{
+    type: string
+    severity: "high" | "medium" | "low"
+    description: string
+  }>
+  reasoning: string
+  analyzedAt: string
+  confidence: number
+}
+
+/**
+ * Resposta da tool analyzeCompatibility
+ */
+export interface AnalyzeCompatibilityResponse {
+  ranking: {
+    recommended: PlanCompatibilityAnalysis
+    alternatives: PlanCompatibilityAnalysis[]
+    budget: PlanCompatibilityAnalysis | null
+    premium: PlanCompatibilityAnalysis | null
+  }
+  executionTimeMs: number
+  metadata: {
+    totalPlansAnalyzed: number
+    analysisVersion: string
+    modelUsed: string
+  }
+}
+
 export type { ClientInfo, PartialClientInfo }

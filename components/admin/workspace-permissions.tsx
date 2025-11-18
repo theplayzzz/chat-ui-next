@@ -106,6 +106,32 @@ export const WorkspacePermissions: FC = () => {
   }
 
   if (error && workspaces.length === 0) {
+    // Special handling for "assistant not found" error
+    if (error.includes("Health plan assistant not found")) {
+      return (
+        <div className="rounded-lg border border-yellow-500 bg-yellow-500/10 p-6">
+          <h3 className="mb-2 text-lg font-bold text-yellow-600">
+            Health Plan Assistant Not Found
+          </h3>
+          <p className="text-muted-foreground mb-4">
+            To use this feature, you need to create a Health Plan Assistant
+            first.
+          </p>
+          <div className="bg-muted rounded border p-4">
+            <p className="mb-2 font-medium">Steps to set up:</p>
+            <ol className="text-muted-foreground ml-4 list-decimal space-y-1 text-sm">
+              <li>Create a new Assistant</li>
+              <li>
+                Create a Collection with type <code>health_plan</code>
+              </li>
+              <li>Associate the Collection with the Assistant</li>
+              <li>Return to this page to manage workspace permissions</li>
+            </ol>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="bg-destructive/10 border-destructive rounded-lg border p-4">
         <p className="text-destructive font-medium">Error: {error}</p>
