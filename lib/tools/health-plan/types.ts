@@ -175,3 +175,123 @@ export interface AnalyzeCompatibilityResponse {
 }
 
 export type { ClientInfo, PartialClientInfo }
+
+// ============================================================================
+// ERP Integration Types (Task 8)
+// ============================================================================
+
+/**
+ * Workspace ERP configuration stored in Supabase
+ */
+export interface WorkspaceERPConfig {
+  id: string
+  workspace_id: string
+  api_url: string
+  api_key_encrypted: string
+  custom_headers: Record<string, string>
+  timeout_ms: number
+  retry_attempts: number
+  cache_ttl_minutes: number
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Input for creating ERP configuration
+ */
+export interface ERPConfigInsert {
+  workspace_id: string
+  api_url: string
+  api_key: string // Will be encrypted before storage
+  custom_headers?: Record<string, string>
+  timeout_ms?: number
+  retry_attempts?: number
+  cache_ttl_minutes?: number
+}
+
+/**
+ * Input for updating ERP configuration
+ */
+export interface ERPConfigUpdate {
+  api_url?: string
+  api_key?: string // Will be encrypted before storage
+  custom_headers?: Record<string, string>
+  timeout_ms?: number
+  retry_attempts?: number
+  cache_ttl_minutes?: number
+}
+
+/**
+ * Family profile for price calculation
+ */
+export interface FamilyProfile {
+  titular: {
+    idade: number
+  }
+  dependentes: Array<{
+    relacao: "conjuge" | "filho" | "pai" | "mae" | "outro"
+    idade: number
+  }>
+}
+
+/**
+ * Breakdown of family pricing
+ */
+export interface PriceBreakdown {
+  titular: number
+  dependentes: Array<{
+    relacao: string
+    idade: number
+    preco: number
+  }>
+  subtotal: number
+  descontos: number
+  total: number
+  model: PricingModel
+}
+
+/**
+ * Pricing models supported by ERP
+ */
+export type PricingModel = "familia_unica" | "por_pessoa" | "faixa_etaria"
+
+/**
+ * Source of pricing data
+ */
+export type PriceSource = "live" | "cache" | "stale_cache" | "none"
+
+/**
+ * Result from fetchERPPrices
+ */
+export interface ERPPriceResult {
+  success: boolean
+  prices?: PriceBreakdown[]
+  source: PriceSource
+  cached_at: string | null
+  is_fresh: boolean
+  error?: string
+  metadata?: {
+    workspace_id: string
+    plan_ids: string[]
+    fetched_at: string
+    cache_age_minutes?: number
+  }
+}
+
+/**
+ * ERP error information
+ */
+export interface ERPError {
+  code: string
+  message: string
+  statusCode?: number
+  attempt: number
+  timestamp: string
+}
+
+/**
+ * Discriminated union for ERP results
+ */
+export type ERPResult<T> =
+  | { success: true; data: T; source: "api" }
+  | { success: false; error: ERPError; canRetry: boolean }
