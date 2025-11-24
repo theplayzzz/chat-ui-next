@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": 1,
+        "id": "1",
         "title": "Configurar ambiente básico do agente",
         "description": "Configurar dependências essenciais para o agente de planos de saúde",
         "details": "Configurar dependências básicas: instalar OpenAI SDK com configuração padrão. Configurar variáveis de ambiente: OpenAI API key. Utilizar infraestrutura Supabase existente sem modificações. Usar embeddings OpenAI text-embedding-3-small. Implementar endpoint básico de verificação de status.",
@@ -63,7 +63,7 @@
         "expansionPrompt": "Esta tarefa envolve configuração básica e já tem subtarefas bem definidas. Manter as 4 subtarefas existentes: instalar SDK OpenAI, configurar variáveis de ambiente, implementar geração de embeddings e criar endpoint de status. Considere adicionar testes de integração como subtarefa extra."
       },
       {
-        "id": 2,
+        "id": "2",
         "title": "Estender schema do banco para sistema de recomendações multi-nicho",
         "description": "Criar/atualizar tabelas necessárias para suportar sistema genérico de recomendações que comece com agente de planos de saúde mas permita expansão para outros nichos",
         "details": "Executar migrations: ALTER TABLE collections ADD COLUMN chunk_size INT DEFAULT 4000 CHECK (chunk_size > 0), chunk_overlap INT DEFAULT 200 CHECK (chunk_overlap >= 0 AND chunk_overlap < chunk_size), collection_type TEXT CHECK (collection_type IN ('health_plan', 'insurance', 'financial', 'general')); ALTER TABLE file_items ADD COLUMN plan_metadata JSONB, ADD CONSTRAINT valid_plan_metadata CHECK (jsonb_typeof(plan_metadata) = 'object' OR plan_metadata IS NULL); CREATE INDEX idx_file_items_plan_metadata ON file_items USING gin(plan_metadata); CREATE INDEX idx_collections_type ON collections(collection_type); CREATE TABLE recommendation_systems (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), system_name VARCHAR(100) NOT NULL UNIQUE, description TEXT, config_schema JSONB NOT NULL, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE TABLE client_recommendations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, recommendation_system_id UUID NOT NULL REFERENCES recommendation_systems(id), client_info JSONB NOT NULL, analyzed_data JSONB, recommended_item JSONB, reasoning TEXT NOT NULL, confidence_score DECIMAL(3,2) CHECK (confidence_score >= 0 AND confidence_score <= 1), langsmith_run_id TEXT, status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'superseded')), created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE INDEX idx_client_recommendations_workspace ON client_recommendations(workspace_id); CREATE INDEX idx_client_recommendations_user ON client_recommendations(user_id); CREATE INDEX idx_client_recommendations_system ON client_recommendations(recommendation_system_id); CREATE INDEX idx_client_recommendations_status ON client_recommendations(status); CREATE INDEX idx_client_recommendations_confidence ON client_recommendations(confidence_score DESC); INSERT INTO recommendation_systems (system_name, description, config_schema) VALUES ('health_plan_agent', 'Sistema de recomendação de planos de saúde', '{\"required_fields\": [\"age\", \"location\", \"coverage_type\"], \"optional_fields\": [\"income\", \"family_size\", \"medical_history\"]}'); Aproveitar tabelas existentes: collections, assistant_collections, file_items, assistant_workspaces. Adicionar triggers para updated_at e validações adicionais para integridade dos dados.",
@@ -160,7 +160,7 @@
         "updatedAt": "2025-11-13T20:23:25.657Z"
       },
       {
-        "id": 3,
+        "id": "3",
         "title": "Criar assistente especializado em planos de saúde",
         "description": "Configurar assistente dedicado com prompt otimizado e associação às collections de planos",
         "details": "Criar assistente usando sistema existente com configurações específicas: nome 'Agente de Planos de Saúde', modelo GPT-4o, temperatura 0.3, prompt especializado em coleta de informações e recomendação de planos. Associar assistente a collections via assistant_collections. Configurar controle de acesso por workspace via assistant_workspaces apenas para workspaces autorizados. Utilizar sistema existing de criação/gerenciamento de assistentes.",
@@ -241,7 +241,7 @@
         "updatedAt": "2025-11-13T22:37:23.294Z"
       },
       {
-        "id": 4,
+        "id": "4",
         "title": "Implementar sistema RAG configurável para documents",
         "description": "Estender sistema de Collections existente para suportar chunking configurável específico para planos de saúde",
         "details": "Estender interface existente de Collections para adicionar configuração de chunking: campos chunk_size (500-4000 tokens) e chunk_overlap (50-500 tokens). Utilizar LangChain RecursiveCharacterTextSplitter configurável. Implementar reprocessamento automático quando parâmetros de chunk mudarem. Organizar collections por plano: 'plano_unimed_1', 'plano_bradesco_saude', 'collection_geral'. Aproveitar sistema existente de embeddings OpenAI 1536 dims e pgvector.",
@@ -320,7 +320,7 @@
         "updatedAt": "2025-11-14T20:28:49.840Z"
       },
       {
-        "id": 5,
+        "id": "5",
         "title": "Desenvolver ferramenta extractClientInfo",
         "description": "Implementar tool que extrai informações do cliente de forma conversacional usando GPT-4o",
         "details": "Criar function tool em /lib/tools/health-plan/extract-client-info.ts que usa GPT-4o para extrair: idade titular, dependentes (relação + idade), condições pré-existentes, medicamentos contínuos, cidade/região, orçamento, preferências. Retornar JSON estruturado com schema validado via Zod. Implementar validação de campos obrigatórios e identificação de informações faltantes. Integrar com Vercel AI SDK para function calling.",
@@ -422,7 +422,7 @@
         "updatedAt": "2025-11-16T14:59:08.031Z"
       },
       {
-        "id": 6,
+        "id": "6",
         "title": "Desenvolver ferramenta searchHealthPlans",
         "description": "Implementar busca inteligente em múltiplas collections de planos usando RAG",
         "details": "Criar function em /lib/tools/health-plan/search-health-plans.ts que: obtém collections do assistente via assistant_collections, executa busca vetorial em cada collection separadamente usando função existente match_file_items_openai estendida, aplica filtros por metadata (região, operadora), agrega resultados de todas collections, implementa re-ranking por relevância global. Suportar top-K configurável (10-20 por collection). Query otimizada baseada no perfil do cliente.",
@@ -500,7 +500,7 @@
         "updatedAt": "2025-11-16T19:55:19.993Z"
       },
       {
-        "id": 7,
+        "id": "7",
         "title": "Desenvolver ferramenta analyzeCompatibility",
         "description": "Implementar análise de compatibilidade entre perfil do cliente e planos usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/analyze-compatibility.ts que usa GPT-4o para: analisar elegibilidade (idade, região, condições), avaliar coberturas relevantes ao perfil, identificar exclusões importantes, calcular score 0-100, gerar justificativa detalhada, identificar alertas críticos (carências, limitações). Processar até 10 planos simultaneamente, retornar ranking ordenado por score.",
@@ -634,9 +634,9 @@
         "id": "8",
         "title": "Desenvolver integração com API ERP",
         "description": "Implementar ferramenta fetchERPPrices para consultar preços atualizados de planos. Sistema completo implementado com 6 fases: configuração workspace, cliente HTTP robusto, cálculo familiar, cache inteligente, graceful degradation e suite de testes.",
-        "status": "in-progress",
+        "status": "done",
         "dependencies": [
-          7
+          "7"
         ],
         "priority": "medium",
         "details": "Implementação completa em 10 arquivos principais:\n\n1. supabase/migrations/20251118000001_create_workspace_erp_config.sql - Tabela workspace_erp_config com RLS, criptografia pgp_sym_encrypt/decrypt, validações CHECK, trigger auto-update\n\n2. db/workspace-erp-config.ts - CRUD helpers: getERPConfigByWorkspaceId, createERPConfig, updateERPConfig, deleteERPConfig, getDecryptedAPIKey\n\n3. lib/clients/erp-client.ts - Classe ERPClient com fetchPrices(), retry logic com backoff exponencial (100ms*2^attempt), timeout via AbortController, tratamento de erros por tipo (TIMEOUT/SERVER_ERROR/CLIENT_ERROR/VALIDATION_ERROR), logging estruturado\n\n4. lib/utils/pricing.ts - Função calculateFamilyPrice() com 3 modelos: familia_unica (preço fixo), por_pessoa (soma individual), faixa_etaria (lookup por idade). Retorna PriceBreakdown completo com titular/dependentes/subtotal/descontos/total\n\n5. lib/cache/erp-price-cache.ts - Classe singleton ERPPriceCache com Map, chave format erp_prices:{workspace_id}:{hash16}, TTL 15min configurável, getCached/setCached/invalidateCache, estatísticas hit/miss rate, auto-cleanup cada 5min\n\n6. lib/tools/health-plan/fetch-erp-prices.ts - Orquestração principal: validação→config→cache→API→cálculo→persistência→fallback. Graceful degradation em cascata (cache fresco→API live→stale cache <24h→erro). Metadados completos: source/cached_at/is_fresh/metadata\n\n7. lib/tools/health-plan/schemas/erp-response-schema.ts - Schemas Zod: ERPResponseSchema, ERPPriceItemSchema, ERPDependentePriceSchema\n\n8. lib/tools/health-plan/types.ts - Tipos WorkspaceERPConfig, FamilyProfile, PriceBreakdown, ERPPriceResult, PricingModel, PriceSource, ERPError, ERPResult<T>\n\n9. lib/tools/health-plan/__tests__/fetch-erp-prices.test.ts - 445 linhas Vitest+MSW: 13 testes cálculo preços (3 modelos, edge cases 0-120 anos), 13 testes cache (TTL, invalidação, stats), 4 estruturas mock server (success/timeout/error/malformed)\n\n10. lib/tools/health-plan/__tests__/README.md - Documentação completa: executar testes, estrutura, coverage >85%, debugging MSW, próximos passos\n\nSistema atende 100% do RF-006: consulta múltiplos planos, timeout 10s, retry 2x com backoff exponencial, graceful degradation com stale cache <24h, cache 15min, headers customizados por workspace, preços estruturados com breakdown, cálculo familiar 3 modelos, descontos aplicados, fallback automático para cache.\n\nPronto para integração com orquestrador (Task 9).",
@@ -651,7 +651,8 @@
             ],
             "details": "Criar /lib/tools/health-plan/__tests__/fetch-erp-prices.test.ts usando Vitest. Implementar mock server com msw (Mock Service Worker) simulando: respostas bem-sucedidas, delays (timeout), falhas intermitentes (retry), erros HTTP 4xx/5xx, respostas malformadas. Testar: cálculo correto de preços familiares, cache hit/miss, retry logic, graceful degradation, validação de configurações, diferentes modelos de API. Incluir testes de integração com Supabase (configurações). Coverage mínimo 85%. Documentar cenários testados.\n\nConforme planejamento: Fase 6 com estimativa 4-5h. Arquivos: /lib/tools/health-plan/__tests__/fetch-erp-prices.test.ts, /lib/tools/health-plan/__tests__/mocks/erp-server.mock.ts. Validação final completa do RF-006 conforme checklist documentado.\n<info added on 2025-11-19T09:39:08.502Z>\nAnalisando a estrutura do projeto para contextualizar a atualização...Com base na análise do código implementado em `lib/tools/health-plan/__tests__/fetch-erp-prices.test.ts` (445 linhas) e na documentação completa em `lib/tools/health-plan/__tests__/README.md`, aqui está o texto de atualização para a subtask:\n\nImplementação completa validada: arquivo fetch-erp-prices.test.ts com 445 linhas usando Vitest + MSW. Mock server configurado com setupServer simulando cenários: success (HTTP 200 + JSON válido), timeout (delay 15s), erro 500, resposta malformada. Três grupos de testes implementados: 1) Price Calculation (13 testes cobrindo famílias típicas, titular solo, famílias grandes >5 dependentes, modelos familia_unica/por_pessoa/faixa_etaria, edge cases idade 0-120 com validação de exceções), 2) Cache System (13 testes cobrindo setCached/getCached, TTL expiration, invalidação por workspace, estatísticas hit/miss rate, geração de chaves consistentes independente de ordem dos planIds), 3) Mock Server (4 estruturas de teste HTTP preparadas para integração futura). Coverage atual estimado >85% nas funções calculateFamilyPrice (100% branches cobertos) e erpPriceCache operations (100% métodos testados). Documentação técnica completa em README.md com 191 linhas incluindo: executar testes, estrutura, coverage target, debugging MSW, próximos passos marcados como pendentes (retry end-to-end requer cliente HTTP real, graceful degradation requer simulação API offline, integração Supabase requer DB local com supabase start). Validação RF-006 completa para componentes unitários prontos. Testes de integração completa aguardam: 1) implementação de cliente HTTP real com retry/backoff, 2) Supabase local configurado com migration workspace_erp_config aplicada, 3) graceful degradation com stale cache <24h. Estrutura robusta e expansível criada conforme checklist task-8-implementation-plan.md fase 6.\n</info added on 2025-11-19T09:39:08.502Z>",
             "status": "done",
-            "testStrategy": "Executar suite completa de testes, verificar coverage >85%, validar todos os edge cases documentados, testar com diferentes configurações de workspace, confirmar mock server simulando cenários realistas. Validar checklist completo RF-006 do PRD."
+            "testStrategy": "Executar suite completa de testes, verificar coverage >85%, validar todos os edge cases documentados, testar com diferentes configurações de workspace, confirmar mock server simulando cenários realistas. Validar checklist completo RF-006 do PRD.",
+            "parentId": "undefined"
           },
           {
             "id": 1,
@@ -716,10 +717,13 @@
             "parentId": "undefined",
             "updatedAt": "2025-11-18T23:07:42.887Z"
           }
-        ]
+        ],
+        "complexity": 6,
+        "recommendedSubtasks": 6,
+        "expansionPrompt": "Dividir em: 1) Projetar interface de configuração por workspace para credenciais ERP, 2) Implementar cliente HTTP com timeout, retry e tratamento de erros, 3) Desenvolver cálculo de preços familiares (titular + dependentes), 4) Implementar sistema de cache inteligente (15 min) com invalidação, 5) Criar graceful degradation quando API falha, 6) Implementar testes com mock servers e validação de edge cases."
       },
       {
-        "id": 9,
+        "id": "9",
         "title": "Desenvolver ferramenta generateRecommendation",
         "description": "Implementar geração de recomendação humanizada usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/generate-recommendation.ts que gera: recomendação principal + justificativa, alternativas (econômica/premium), comparativo top 3 em tabela Markdown, alertas importantes (carências, exclusões), próximos passos. Usar temperatura baixa (0.1) para consistência, linguagem empática e clara, termos técnicos explicados.",
@@ -728,14 +732,82 @@
         "dependencies": [
           "8"
         ],
-        "status": "pending",
-        "subtasks": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Projetar template de recomendação humanizada com seções estruturadas",
+            "description": "Definir estrutura do template de recomendação com seções claras: introdução empática, recomendação principal, justificativa, alternativas, comparativo, alertas e próximos passos em formato Markdown",
+            "dependencies": [],
+            "details": "Criar arquivo /lib/tools/health-plan/templates/recommendation-template.ts contendo constantes de template com placeholders para: saudação personalizada, recomendação principal com tom empático, seção de justificativa detalhada, alternativas econômica e premium, comparativo em tabela Markdown, alertas importantes (carências, exclusões, limitações), próximos passos acionáveis. Definir estrutura de dados TypeScript para inputs do template (cliente, plano recomendado, alternativas, alertas). Incluir helpers para formatação consistente de valores monetários, porcentagens e prazos em linguagem natural.",
+            "status": "done",
+            "testStrategy": "Validar estrutura do template com dados mock, verificar todos os placeholders estão definidos, testar renderização Markdown, confirmar formatação de valores monetários e datas",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-24T01:14:10.550Z"
+          },
+          {
+            "id": 2,
+            "title": "Implementar geração da recomendação principal com justificativa empática",
+            "description": "Desenvolver função que usa GPT-4o para gerar recomendação principal do plano mais adequado com justificativa humanizada e empática baseada no perfil do cliente",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar função generateMainRecommendation em /lib/tools/health-plan/generate-recommendation.ts que recebe perfil do cliente e plano recomendado. Construir prompt estruturado para GPT-4o com temperatura 0.1 incluindo: contexto do perfil (idade, dependentes, condições, orçamento), características do plano recomendado, instruções para tom empático e acolhedor, diretrizes para explicar termos técnicos. Implementar parser de resposta que extrai recomendação e justificativa. Adicionar validação de comprimento e qualidade da resposta. Usar schema Zod para validar output estruturado.",
+            "status": "done",
+            "testStrategy": "Testar com 3+ perfis diferentes (jovem, família, idoso), validar tom empático da resposta, verificar explicação de termos técnicos, confirmar temperatura baixa gera respostas consistentes, validar schema Zod",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-24T01:18:46.858Z"
+          },
+          {
+            "id": 3,
+            "title": "Desenvolver geração de alternativas econômica e premium",
+            "description": "Implementar função que gera sugestões de alternativas ao plano principal, incluindo opção econômica (menor custo) e premium (maior cobertura)",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar função generateAlternatives em /lib/tools/health-plan/generate-recommendation.ts que recebe lista de planos analisados e perfil do cliente. Identificar plano econômico (menor mensalidade mantendo requisitos mínimos) e premium (melhor cobertura dentro do orçamento +20%). Para cada alternativa, usar GPT-4o (temperatura 0.1) para gerar: descrição breve, principais diferenças vs recomendação principal, vantagens/desvantagens, indicação de quando escolher. Formatar em Markdown com seções claras. Implementar fallback caso não existam alternativas viáveis.",
+            "status": "done",
+            "testStrategy": "Testar identificação de alternativas econômica/premium, validar descrições são claras e objetivas, verificar comparação com plano principal, testar casos sem alternativas viáveis, confirmar formato Markdown",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-24T01:18:46.868Z"
+          },
+          {
+            "id": 4,
+            "title": "Criar comparativo top 3 em tabela Markdown formatada",
+            "description": "Implementar função que gera tabela comparativa em Markdown dos 3 melhores planos, destacando características principais, coberturas, valores e diferenciais",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar função generateComparisonTable em /lib/tools/health-plan/generate-recommendation.ts que recebe top 3 planos ranqueados. Construir tabela Markdown com colunas: Característica | Plano 1 | Plano 2 | Plano 3. Linhas incluem: Operadora, Mensalidade (formatada R$), Coparticipação, Tipo de acomodação, Abrangência, Carência (resumida), Score compatibilidade, Principais diferenciais. Usar ícones/emojis simples para destacar vantagens (✓) e limitações (⚠️). Implementar função helper para formatação consistente de valores e prazos. Adicionar nota de rodapé explicativa sobre termos técnicos.",
+            "status": "done",
+            "testStrategy": "Testar renderização da tabela Markdown em diferentes viewers, validar formatação de valores monetários, verificar alinhamento de colunas, confirmar ícones aparecem corretamente, testar com menos de 3 planos",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-24T01:18:46.877Z"
+          },
+          {
+            "id": 5,
+            "title": "Implementar geração de próximos passos e alertas importantes",
+            "description": "Desenvolver função que gera seção de próximos passos acionáveis e alertas críticos sobre carências, exclusões e limitações em linguagem clara e acessível",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Criar função generateNextStepsAndAlerts em /lib/tools/health-plan/generate-recommendation.ts. Para alertas: extrair de análise de compatibilidade carências > 180 dias, exclusões relevantes ao perfil, limitações importantes, usar GPT-4o (temperatura 0.1) para reformular em linguagem clara com ícones ⚠️. Para próximos passos: gerar checklist acionável incluindo documentação necessária, prazo para contratação, como proceder com operadora, dicas para período de carência. Formatar em Markdown com listas numeradas e bullet points. Integrar todas seções no template final. Implementar função main generateRecommendation que orquestra todas as subfunções.",
+            "status": "done",
+            "testStrategy": "Testar identificação de alertas críticos relevantes ao perfil, validar clareza da linguagem nos alertas, verificar checklist de próximos passos é acionável, testar integração de todas seções no output final, validar output Markdown completo",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-24T01:18:46.884Z"
+          }
+        ],
         "complexity": 5,
         "recommendedSubtasks": 5,
-        "expansionPrompt": "Dividir em: 1) Projetar template de recomendação humanizada com seções estruturadas, 2) Implementar geração da recomendação principal com justificativa empática, 3) Desenvolver geração de alternativas (econômica/premium), 4) Criar comparativo em tabela Markdown formatada, 5) Implementar geração de próximos passos e alertas importantes com linguagem clara."
+        "expansionPrompt": "Dividir em: 1) Projetar template de recomendação humanizada com seções estruturadas, 2) Implementar geração da recomendação principal com justificativa empática, 3) Desenvolver geração de alternativas (econômica/premium), 4) Criar comparativo em tabela Markdown formatada, 5) Implementar geração de próximos passos e alertas importantes com linguagem clara.",
+        "updatedAt": "2025-11-24T01:18:46.884Z"
       },
       {
-        "id": 10,
+        "id": "10",
         "title": "Criar orquestrador multi-step",
         "description": "Implementar API route que coordena os 5 passos do processo de recomendação",
         "details": "Criar /app/api/chat/health-plan-agent/route.ts com: execução sequencial dos 5 tools, gerenciamento de estado de sessão, streaming de respostas via Vercel AI SDK, timeout total 60s (Node.js runtime), tratamento de erros por step, logs detalhados, integração com LangSmith para rastreamento. Implementar session-manager.ts para persistir estado entre steps.",
@@ -752,7 +824,7 @@
         "subtasks": []
       },
       {
-        "id": 11,
+        "id": "11",
         "title": "Implementar controle de acesso por workspace",
         "description": "Configurar sistema de permissões para liberar agente apenas para workspaces autorizados",
         "details": "Utilizar sistema existente assistant_workspaces para controle de acesso. Implementar verificação automática no frontend (assistente só aparece se autorizado), validação backend (403 se não autorizado), interface admin para gerenciar workspaces autorizados. RLS do Supabase garante segurança a nível de banco. Aproveitar sistema de permissões existente da aplicação.",
@@ -822,7 +894,7 @@
         "updatedAt": "2025-11-18T01:52:17.687Z"
       },
       {
-        "id": 12,
+        "id": "12",
         "title": "Desenvolver componentes React especializados",
         "description": "Criar interface especializada para interação com agente de planos de saúde",
         "details": "Criar componentes em /components/health-plan/: health-plan-chat.tsx (wrapper principal), progress-indicator.tsx (barra 5 steps), client-info-card.tsx (resumo info coletadas), plan-comparison.tsx (tabela comparativa), recommendation-panel.tsx (recomendação final). Usar design system existente (Radix UI + Tailwind), compatível com tema escuro/claro, responsivo mobile.",
@@ -838,7 +910,7 @@
         "expansionPrompt": "Dividir em: 1) Criar health-plan-chat.tsx como wrapper principal com estado centralizado, 2) Desenvolver progress-indicator.tsx para visualizar 5 etapas do fluxo, 3) Implementar client-info-card.tsx para resumo dinâmico, 4) Criar plan-comparison.tsx com tabela responsiva e filtros, 5) Desenvolver recommendation-panel.tsx com formatação rica, 6) Garantir compatibilidade com tema escuro/claro e responsividade, 7) Implementar testes de acessibilidade e integração entre componentes."
       },
       {
-        "id": 13,
+        "id": "13",
         "title": "Implementar sistema de auditoria e compliance",
         "description": "Criar sistema de logs para compliance LGPD e auditoria de recomendações",
         "details": "Implementar registro automático em health_plan_recommendations: timestamp, workspace/usuário, informações cliente (anonimizadas se necessário), planos analisados, recomendação + justificativa, preços consultados, langsmith_run_id. Interface de consulta histórico com filtros, exportação CSV, retenção configurável (2 anos default). Criptografia em repouso via Supabase.",
@@ -851,7 +923,7 @@
         "subtasks": []
       },
       {
-        "id": 14,
+        "id": "14",
         "title": "Integrar monitoramento LangSmith",
         "description": "Configurar observabilidade completa com LangSmith SDK para rastreamento e análise",
         "details": "Configurar LangSmith SDK: rastreamento todas chamadas LLM (GPT-4o), tracking cada step do orquestrador, métricas (latência por tool, tokens consumidos, custos, taxa sucesso/erro), dashboards performance, alertas para erros/timeouts. Implementar em cada tool individual e no orquestrador principal. Correlation ID para tracking completo da sessão.",
@@ -868,7 +940,7 @@
         "expansionPrompt": "Dividir em: 1) Configurar SDK LangSmith e conexão inicial, 2) Implementar tracing de todas as chamadas GPT-4o, 3) Configurar tracking detalhado do orquestrador principal, 4) Implementar métricas granulares (latência, tokens, custos), 5) Desenvolver correlation IDs para sessões completas, 6) Configurar dashboards de performance personalizados, 7) Implementar sistema de alertas para erros e timeouts, 8) Validar traces end-to-end e otimizar coleta de dados."
       },
       {
-        "id": 15,
+        "id": "15",
         "title": "Criar interface admin para gerenciamento de documentos",
         "description": "Estender interface existing de Collections para gerenciar documentos de planos com chunking configurável",
         "details": "Estender interface existing sidebar Collections: adicionar campos chunk_size/chunk_overlap configuráveis, preview como documentos serão divididos, tags/categorias para collections (plano_specific, geral), status processamento por collection, estatísticas (chunks, tokens, documentos), controle associação assistente ↔ collections. Manter drag-and-drop upload, progress bars, filtros existentes.",
@@ -882,7 +954,7 @@
         "subtasks": []
       },
       {
-        "id": 16,
+        "id": "16",
         "title": "Teste de Autopilot TDD",
         "description": "Task de demonstração para testar os 3 agentes do autopilot",
         "details": "",
@@ -950,18 +1022,30 @@
             "parentId": "undefined"
           }
         ]
+      },
+      {
+        "id": "17",
+        "title": "Criar interface administrativa para configuração ERP por workspace",
+        "description": "Desenvolver UI completa para gerenciar credenciais da API ERP, incluindo formulário CRUD de configurações, dashboard de estatísticas do cache, histórico de chamadas à API, painel de monitoramento de health checks, validação de credenciais e gestão de permissões.",
+        "details": "Implementar interface administrativa em /components/admin/erp-config/ com os seguintes componentes:\n\n1. **erp-config-form.tsx**: Formulário CRUD completo para workspace_erp_config usando helpers de db/workspace-erp-config.ts (getERPConfigByWorkspaceId, createERPConfig, updateERPConfig, deleteERPConfig). Campos: api_url (validação URL), api_key (input type password, sem exibir valor atual), custom_headers (JSON editor), timeout_ms (number, 1000-60000), max_retries (number, 0-5), cache_ttl_seconds (number, 60-86400). Botão \"Testar Conectividade\" que chama endpoint de validação usando ERPClient.fetchPrices() com dados mock.\n\n2. **cache-stats-dashboard.tsx**: Dashboard de estatísticas do cache usando dados de lib/cache/erp-cache-manager.ts. Métricas em cards: Hit Rate (%), Miss Rate (%), Total Entries, Evictions (últimas 24h). Gráfico temporal de hits/misses usando Recharts. Botão \"Limpar Cache\" que chama endpoint clear cache por workspace.\n\n3. **api-call-history.tsx**: Tabela de histórico de chamadas à API ERP. Colunas: timestamp, workspace, status (success/error), response_time_ms, cache_hit, error_message. Filtros: range de datas (react-day-picker), workspace (dropdown), status (checkboxes). Paginação server-side (20 registros por página). Implementar tabela supabase erp_api_logs via migration.\n\n4. **health-monitor-panel.tsx**: Painel de monitoramento com indicador visual (verde/amarelo/vermelho) do status da API ERP. Últimos 5 health checks com timestamps e latência. Configurar cron job (Vercel/Supabase) que executa health check a cada 5 minutos e armazena em erp_health_checks table. Alertas automáticos se taxa de erro > 20% em 1 hora.\n\n5. **erp-config-page.tsx**: Página principal em /app/[locale]/[workspaceId]/admin/erp-config/page.tsx que integra todos componentes. Verificação de permissões: apenas admins do workspace (checar role via Supabase auth.users metadata ou workspace_users table). Usar layout admin existente, Radix UI components (Dialog, Tabs, Select, Card), Tailwind classes do design system, suporte dark/light mode.\n\n**Migrations necessárias:**\n- 20251119000001_create_erp_api_logs.sql: tabela erp_api_logs (id, workspace_id, timestamp, status, response_time_ms, cache_hit, error_message, request_params JSONB)\n- 20251119000002_create_erp_health_checks.sql: tabela erp_health_checks (id, workspace_id, timestamp, status, latency_ms, error_details)\n- Ambas com RLS policies baseadas em workspace_id\n\n**API Endpoints:**\n- POST /api/admin/erp-config/test: valida credenciais chamando ERPClient\n- DELETE /api/admin/erp-config/cache/clear: limpa cache por workspace\n- GET /api/admin/erp-config/logs: retorna histórico paginado\n- GET /api/admin/erp-config/health: retorna últimos health checks",
+        "testStrategy": "Testes unitários: componentes React com Testing Library (formulário, validações, filtros). Testes de integração: fluxo completo CRUD usando db helpers, verificar permissões (admin vs não-admin), testar endpoint de validação de credenciais com mock ERPClient. Testes E2E: criar configuração via UI, testar conectividade, verificar dashboard de cache atualiza após chamadas à API, filtrar histórico por data/status, confirmar health monitor exibe status correto. Testes de segurança: validar RLS bloqueia acesso cross-workspace, confirmar api_key criptografada no banco (pgp_sym_encrypt), verificar apenas admins acessam rota. Teste de responsividade: validar UI mobile/desktop. Coverage mínimo: 80% nos componentes principais.",
+        "status": "pending",
+        "dependencies": [
+          "8",
+          "11"
+        ],
+        "priority": "medium",
+        "subtasks": []
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-18T23:07:54.784Z",
-      "taskCount": 16,
-      "completedCount": 8,
+      "lastModified": "2025-11-24T01:18:46.886Z",
+      "taskCount": 17,
+      "completedCount": 10,
       "tags": [
         "master"
-      ],
-      "created": "2025-11-19T09:38:35.473Z",
-      "description": "Tasks for master context"
+      ]
     }
   }
 }
