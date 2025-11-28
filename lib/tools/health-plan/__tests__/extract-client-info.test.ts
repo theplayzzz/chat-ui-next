@@ -12,7 +12,7 @@
  * - Valores edge
  */
 
-// Testes usando Jest (test runner do projeto)
+import { describe, it, expect, vi } from "vitest"
 import {
   parseClientInfo,
   detectMissingFields,

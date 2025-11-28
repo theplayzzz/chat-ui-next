@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": "1",
+        "id": 1,
         "title": "Configurar ambiente básico do agente",
         "description": "Configurar dependências essenciais para o agente de planos de saúde",
         "details": "Configurar dependências básicas: instalar OpenAI SDK com configuração padrão. Configurar variáveis de ambiente: OpenAI API key. Utilizar infraestrutura Supabase existente sem modificações. Usar embeddings OpenAI text-embedding-3-small. Implementar endpoint básico de verificação de status.",
@@ -63,7 +63,7 @@
         "expansionPrompt": "Esta tarefa envolve configuração básica e já tem subtarefas bem definidas. Manter as 4 subtarefas existentes: instalar SDK OpenAI, configurar variáveis de ambiente, implementar geração de embeddings e criar endpoint de status. Considere adicionar testes de integração como subtarefa extra."
       },
       {
-        "id": "2",
+        "id": 2,
         "title": "Estender schema do banco para sistema de recomendações multi-nicho",
         "description": "Criar/atualizar tabelas necessárias para suportar sistema genérico de recomendações que comece com agente de planos de saúde mas permita expansão para outros nichos",
         "details": "Executar migrations: ALTER TABLE collections ADD COLUMN chunk_size INT DEFAULT 4000 CHECK (chunk_size > 0), chunk_overlap INT DEFAULT 200 CHECK (chunk_overlap >= 0 AND chunk_overlap < chunk_size), collection_type TEXT CHECK (collection_type IN ('health_plan', 'insurance', 'financial', 'general')); ALTER TABLE file_items ADD COLUMN plan_metadata JSONB, ADD CONSTRAINT valid_plan_metadata CHECK (jsonb_typeof(plan_metadata) = 'object' OR plan_metadata IS NULL); CREATE INDEX idx_file_items_plan_metadata ON file_items USING gin(plan_metadata); CREATE INDEX idx_collections_type ON collections(collection_type); CREATE TABLE recommendation_systems (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), system_name VARCHAR(100) NOT NULL UNIQUE, description TEXT, config_schema JSONB NOT NULL, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE TABLE client_recommendations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, recommendation_system_id UUID NOT NULL REFERENCES recommendation_systems(id), client_info JSONB NOT NULL, analyzed_data JSONB, recommended_item JSONB, reasoning TEXT NOT NULL, confidence_score DECIMAL(3,2) CHECK (confidence_score >= 0 AND confidence_score <= 1), langsmith_run_id TEXT, status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'superseded')), created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE INDEX idx_client_recommendations_workspace ON client_recommendations(workspace_id); CREATE INDEX idx_client_recommendations_user ON client_recommendations(user_id); CREATE INDEX idx_client_recommendations_system ON client_recommendations(recommendation_system_id); CREATE INDEX idx_client_recommendations_status ON client_recommendations(status); CREATE INDEX idx_client_recommendations_confidence ON client_recommendations(confidence_score DESC); INSERT INTO recommendation_systems (system_name, description, config_schema) VALUES ('health_plan_agent', 'Sistema de recomendação de planos de saúde', '{\"required_fields\": [\"age\", \"location\", \"coverage_type\"], \"optional_fields\": [\"income\", \"family_size\", \"medical_history\"]}'); Aproveitar tabelas existentes: collections, assistant_collections, file_items, assistant_workspaces. Adicionar triggers para updated_at e validações adicionais para integridade dos dados.",
@@ -160,7 +160,7 @@
         "updatedAt": "2025-11-13T20:23:25.657Z"
       },
       {
-        "id": "3",
+        "id": 3,
         "title": "Criar assistente especializado em planos de saúde",
         "description": "Configurar assistente dedicado com prompt otimizado e associação às collections de planos",
         "details": "Criar assistente usando sistema existente com configurações específicas: nome 'Agente de Planos de Saúde', modelo GPT-4o, temperatura 0.3, prompt especializado em coleta de informações e recomendação de planos. Associar assistente a collections via assistant_collections. Configurar controle de acesso por workspace via assistant_workspaces apenas para workspaces autorizados. Utilizar sistema existing de criação/gerenciamento de assistentes.",
@@ -241,7 +241,7 @@
         "updatedAt": "2025-11-13T22:37:23.294Z"
       },
       {
-        "id": "4",
+        "id": 4,
         "title": "Implementar sistema RAG configurável para documents",
         "description": "Estender sistema de Collections existente para suportar chunking configurável específico para planos de saúde",
         "details": "Estender interface existente de Collections para adicionar configuração de chunking: campos chunk_size (500-4000 tokens) e chunk_overlap (50-500 tokens). Utilizar LangChain RecursiveCharacterTextSplitter configurável. Implementar reprocessamento automático quando parâmetros de chunk mudarem. Organizar collections por plano: 'plano_unimed_1', 'plano_bradesco_saude', 'collection_geral'. Aproveitar sistema existente de embeddings OpenAI 1536 dims e pgvector.",
@@ -320,7 +320,7 @@
         "updatedAt": "2025-11-14T20:28:49.840Z"
       },
       {
-        "id": "5",
+        "id": 5,
         "title": "Desenvolver ferramenta extractClientInfo",
         "description": "Implementar tool que extrai informações do cliente de forma conversacional usando GPT-4o",
         "details": "Criar function tool em /lib/tools/health-plan/extract-client-info.ts que usa GPT-4o para extrair: idade titular, dependentes (relação + idade), condições pré-existentes, medicamentos contínuos, cidade/região, orçamento, preferências. Retornar JSON estruturado com schema validado via Zod. Implementar validação de campos obrigatórios e identificação de informações faltantes. Integrar com Vercel AI SDK para function calling.",
@@ -422,7 +422,7 @@
         "updatedAt": "2025-11-16T14:59:08.031Z"
       },
       {
-        "id": "6",
+        "id": 6,
         "title": "Desenvolver ferramenta searchHealthPlans",
         "description": "Implementar busca inteligente em múltiplas collections de planos usando RAG",
         "details": "Criar function em /lib/tools/health-plan/search-health-plans.ts que: obtém collections do assistente via assistant_collections, executa busca vetorial em cada collection separadamente usando função existente match_file_items_openai estendida, aplica filtros por metadata (região, operadora), agrega resultados de todas collections, implementa re-ranking por relevância global. Suportar top-K configurável (10-20 por collection). Query otimizada baseada no perfil do cliente.",
@@ -500,7 +500,7 @@
         "updatedAt": "2025-11-16T19:55:19.993Z"
       },
       {
-        "id": "7",
+        "id": 7,
         "title": "Desenvolver ferramenta analyzeCompatibility",
         "description": "Implementar análise de compatibilidade entre perfil do cliente e planos usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/analyze-compatibility.ts que usa GPT-4o para: analisar elegibilidade (idade, região, condições), avaliar coberturas relevantes ao perfil, identificar exclusões importantes, calcular score 0-100, gerar justificativa detalhada, identificar alertas críticos (carências, limitações). Processar até 10 planos simultaneamente, retornar ranking ordenado por score.",
@@ -631,7 +631,7 @@
         "updatedAt": "2025-11-18T19:32:01.115Z"
       },
       {
-        "id": "8",
+        "id": 8,
         "title": "Desenvolver integração com API ERP",
         "description": "Implementar ferramenta fetchERPPrices para consultar preços atualizados de planos. Sistema completo implementado com 6 fases: configuração workspace, cliente HTTP robusto, cálculo familiar, cache inteligente, graceful degradation e suite de testes.",
         "status": "done",
@@ -723,7 +723,7 @@
         "expansionPrompt": "Dividir em: 1) Projetar interface de configuração por workspace para credenciais ERP, 2) Implementar cliente HTTP com timeout, retry e tratamento de erros, 3) Desenvolver cálculo de preços familiares (titular + dependentes), 4) Implementar sistema de cache inteligente (15 min) com invalidação, 5) Criar graceful degradation quando API falha, 6) Implementar testes com mock servers e validação de edge cases."
       },
       {
-        "id": "9",
+        "id": 9,
         "title": "Desenvolver ferramenta generateRecommendation",
         "description": "Implementar geração de recomendação humanizada usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/generate-recommendation.ts que gera: recomendação principal + justificativa, alternativas (econômica/premium), comparativo top 3 em tabela Markdown, alertas importantes (carências, exclusões), próximos passos. Usar temperatura baixa (0.1) para consistência, linguagem empática e clara, termos técnicos explicados.",
@@ -807,7 +807,7 @@
         "updatedAt": "2025-11-24T01:18:46.884Z"
       },
       {
-        "id": "10",
+        "id": 10,
         "title": "Criar orquestrador multi-step",
         "description": "Implementar API route que coordena os 5 passos do processo de recomendação",
         "details": "Criar /app/api/chat/health-plan-agent/route.ts com: execução sequencial dos 5 tools, gerenciamento de estado de sessão, streaming de respostas via Vercel AI SDK, timeout total 60s (Node.js runtime), tratamento de erros por step, logs detalhados, integração com LangSmith para rastreamento. Implementar session-manager.ts para persistir estado entre steps.",
@@ -820,11 +820,72 @@
           "8",
           "9"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Criar estrutura base da API route /api/chat/health-plan-agent",
+            "description": "Implementar arquivo route.ts com configuração Node.js runtime, validação de workspace autorizado, estrutura básica de request/response e integração com Supabase para buscar configurações",
+            "dependencies": [],
+            "details": "Criar /app/api/chat/health-plan-agent/route.ts com export const runtime = 'nodejs' (necessário para timeout 60s). Implementar função POST que recebe { workspaceId, userId, messages, sessionId? }. Validar workspace autorizado via tabela assistant_workspaces. Buscar configurações ERP do workspace via workspace_erp_config. Implementar estrutura de error handling com try-catch e retorno de erros HTTP apropriados (401, 403, 500). Configurar CORS headers se necessário. Seguir padrão dos routes existentes em app/api/chat/* para consistência.",
+            "status": "pending",
+            "testStrategy": "Testar chamada básica POST, verificar validação de workspace não autorizado (403), confirmar runtime Node.js, validar parsing de request body, testar error handling para workspace inexistente",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implementar session-manager para persistência de estado entre steps",
+            "description": "Criar módulo de gerenciamento de sessão que armazena estado intermediário dos 5 steps, permitindo recuperação em caso de timeout ou erro",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar /lib/tools/health-plan/session-manager.ts com interface SessionState { sessionId, workspaceId, userId, currentStep: 1-5, clientInfo?, searchResults?, compatibilityAnalysis?, erpPrices?, recommendation?, errors[], startedAt, lastUpdatedAt }. Implementar funções: createSession(), getSession(sessionId), updateSession(sessionId, updates), completeSession(sessionId). Persistir em tabela Supabase 'health_plan_sessions' com TTL de 1 hora. Implementar lógica de cleanup automático de sessões expiradas. Incluir validação de ownership (userId/workspaceId) para segurança. Usar transactions para updates atômicos.",
+            "status": "pending",
+            "testStrategy": "Testar criação de sessão, recuperação de estado após erro simulado, validar TTL e cleanup, verificar ownership validation, testar updates concorrentes, confirmar transactions atômicas",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Implementar orquestração sequencial dos 5 tools com streaming",
+            "description": "Criar lógica de execução sequencial (extractClientInfo → searchHealthPlans → analyzeCompatibility → fetchERPPrices → generateRecommendation) com streaming de progresso via Vercel AI SDK",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "No route.ts, implementar função executeHealthPlanWorkflow() que executa steps sequencialmente. Para cada step: (1) atualizar session com currentStep, (2) executar tool correspondente, (3) fazer streaming de progresso usando createDataStreamResponse do pacote 'ai', (4) salvar resultado parcial na session, (5) passar para próximo step. Usar pattern async/await com proper error handling por step. Implementar streaming de mensagens intermediárias: 'Coletando informações...', 'Buscando planos...', 'Analisando compatibilidade...', 'Consultando preços...', 'Gerando recomendação...'. Retornar StreamingTextResponse final com recomendação completa. Garantir que erro em um step não perca dados dos steps anteriores (salvar na session).",
+            "status": "pending",
+            "testStrategy": "Testar fluxo completo end-to-end com dados reais, verificar streaming de progresso, confirmar execução sequencial (step N só após N-1), validar salvamento de estado intermediário, testar recuperação após erro em step intermediário",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Implementar timeout global de 60s e tratamento granular de erros",
+            "description": "Adicionar timeout total de 60 segundos para toda execução do workflow, com timeouts individuais por step e tratamento específico de erros para cada fase",
+            "dependencies": [
+              3
+            ],
+            "details": "Implementar Promise.race com setTimeout(60000) para timeout global do workflow. Definir timeouts individuais por step: extractClientInfo (10s), searchHealthPlans (15s), analyzeCompatibility (15s), fetchERPPrices (10s), generateRecommendation (15s). Total: 65s buffer, mas cancelar tudo se ultrapassar 60s. Criar ErrorHandler class com métodos handleStepError(step, error) que classifica erros: ValidationError, TimeoutError, APIError, DatabaseError. Para cada tipo, retornar mensagem user-friendly e status HTTP apropriado. Implementar retry logic para erros temporários (max 2 retries com exponential backoff). Salvar erros na session para análise posterior. Em caso de timeout, retornar resposta parcial com dados coletados até o momento + mensagem explicativa.",
+            "status": "pending",
+            "testStrategy": "Testar timeout global (simular step lento >60s), verificar timeouts individuais por step, validar retry logic para erros temporários, confirmar salvamento de erros na session, testar resposta parcial em timeout, verificar classificação correta de tipos de erro",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Integrar logs detalhados e rastreamento LangSmith",
+            "description": "Implementar sistema de logging estruturado com níveis de log e integração com LangSmith para rastreamento de execuções via langsmith_run_id",
+            "dependencies": [
+              3
+            ],
+            "details": "Implementar logger estruturado usando console.log com formato JSON: { timestamp, level, workspaceId, userId, sessionId, step, action, duration, error?, metadata? }. Níveis: INFO (início/fim steps), WARN (retries, fallbacks), ERROR (falhas). Logs por step: início (timestamp, inputs), fim (timestamp, outputs, duration), erro (stacktrace, context). Para LangSmith: gerar UUID como langsmith_run_id no início da execução, passar para todos os tools via contexto, salvar na tabela client_recommendations junto com resultado final. Implementar função logToLangSmith() que envia traces estruturados (se LANGSMITH_API_KEY configurada). Incluir metadata: modelo GPT usado, tokens consumidos, latência por step, success rate. Garantir que logs sensíveis (CPF, dados pessoais) sejam mascarados antes de enviar para LangSmith.",
+            "status": "pending",
+            "testStrategy": "Verificar logs estruturados em console, validar formato JSON, confirmar mascaramento de dados sensíveis, testar salvamento de langsmith_run_id em client_recommendations, verificar traces no LangSmith dashboard (se configurado), validar metadata de performance (latência, tokens)",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2025-11-27T20:43:39.734Z"
       },
       {
-        "id": "11",
+        "id": 11,
         "title": "Implementar controle de acesso por workspace",
         "description": "Configurar sistema de permissões para liberar agente apenas para workspaces autorizados",
         "details": "Utilizar sistema existente assistant_workspaces para controle de acesso. Implementar verificação automática no frontend (assistente só aparece se autorizado), validação backend (403 se não autorizado), interface admin para gerenciar workspaces autorizados. RLS do Supabase garante segurança a nível de banco. Aproveitar sistema de permissões existente da aplicação.",
@@ -894,7 +955,7 @@
         "updatedAt": "2025-11-18T01:52:17.687Z"
       },
       {
-        "id": "12",
+        "id": 12,
         "title": "Desenvolver componentes React especializados",
         "description": "Criar interface especializada para interação com agente de planos de saúde",
         "details": "Criar componentes em /components/health-plan/: health-plan-chat.tsx (wrapper principal), progress-indicator.tsx (barra 5 steps), client-info-card.tsx (resumo info coletadas), plan-comparison.tsx (tabela comparativa), recommendation-panel.tsx (recomendação final). Usar design system existente (Radix UI + Tailwind), compatível com tema escuro/claro, responsivo mobile.",
@@ -910,7 +971,7 @@
         "expansionPrompt": "Dividir em: 1) Criar health-plan-chat.tsx como wrapper principal com estado centralizado, 2) Desenvolver progress-indicator.tsx para visualizar 5 etapas do fluxo, 3) Implementar client-info-card.tsx para resumo dinâmico, 4) Criar plan-comparison.tsx com tabela responsiva e filtros, 5) Desenvolver recommendation-panel.tsx com formatação rica, 6) Garantir compatibilidade com tema escuro/claro e responsividade, 7) Implementar testes de acessibilidade e integração entre componentes."
       },
       {
-        "id": "13",
+        "id": 13,
         "title": "Implementar sistema de auditoria e compliance",
         "description": "Criar sistema de logs para compliance LGPD e auditoria de recomendações",
         "details": "Implementar registro automático em health_plan_recommendations: timestamp, workspace/usuário, informações cliente (anonimizadas se necessário), planos analisados, recomendação + justificativa, preços consultados, langsmith_run_id. Interface de consulta histórico com filtros, exportação CSV, retenção configurável (2 anos default). Criptografia em repouso via Supabase.",
@@ -923,7 +984,7 @@
         "subtasks": []
       },
       {
-        "id": "14",
+        "id": 14,
         "title": "Integrar monitoramento LangSmith",
         "description": "Configurar observabilidade completa com LangSmith SDK para rastreamento e análise",
         "details": "Configurar LangSmith SDK: rastreamento todas chamadas LLM (GPT-4o), tracking cada step do orquestrador, métricas (latência por tool, tokens consumidos, custos, taxa sucesso/erro), dashboards performance, alertas para erros/timeouts. Implementar em cada tool individual e no orquestrador principal. Correlation ID para tracking completo da sessão.",
@@ -940,7 +1001,7 @@
         "expansionPrompt": "Dividir em: 1) Configurar SDK LangSmith e conexão inicial, 2) Implementar tracing de todas as chamadas GPT-4o, 3) Configurar tracking detalhado do orquestrador principal, 4) Implementar métricas granulares (latência, tokens, custos), 5) Desenvolver correlation IDs para sessões completas, 6) Configurar dashboards de performance personalizados, 7) Implementar sistema de alertas para erros e timeouts, 8) Validar traces end-to-end e otimizar coleta de dados."
       },
       {
-        "id": "15",
+        "id": 15,
         "title": "Criar interface admin para gerenciamento de documentos",
         "description": "Estender interface existing de Collections para gerenciar documentos de planos com chunking configurável",
         "details": "Estender interface existing sidebar Collections: adicionar campos chunk_size/chunk_overlap configuráveis, preview como documentos serão divididos, tags/categorias para collections (plano_specific, geral), status processamento por collection, estatísticas (chunks, tokens, documentos), controle associação assistente ↔ collections. Manter drag-and-drop upload, progress bars, filtros existentes.",
@@ -954,7 +1015,7 @@
         "subtasks": []
       },
       {
-        "id": "16",
+        "id": 16,
         "title": "Teste de Autopilot TDD",
         "description": "Task de demonstração para testar os 3 agentes do autopilot",
         "details": "",
@@ -1024,7 +1085,7 @@
         ]
       },
       {
-        "id": "17",
+        "id": 17,
         "title": "Criar interface administrativa para configuração ERP por workspace",
         "description": "Desenvolver UI completa para gerenciar credenciais da API ERP, incluindo formulário CRUD de configurações, dashboard de estatísticas do cache, histórico de chamadas à API, painel de monitoramento de health checks, validação de credenciais e gestão de permissões.",
         "details": "Implementar interface administrativa em /components/admin/erp-config/ com os seguintes componentes:\n\n1. **erp-config-form.tsx**: Formulário CRUD completo para workspace_erp_config usando helpers de db/workspace-erp-config.ts (getERPConfigByWorkspaceId, createERPConfig, updateERPConfig, deleteERPConfig). Campos: api_url (validação URL), api_key (input type password, sem exibir valor atual), custom_headers (JSON editor), timeout_ms (number, 1000-60000), max_retries (number, 0-5), cache_ttl_seconds (number, 60-86400). Botão \"Testar Conectividade\" que chama endpoint de validação usando ERPClient.fetchPrices() com dados mock.\n\n2. **cache-stats-dashboard.tsx**: Dashboard de estatísticas do cache usando dados de lib/cache/erp-cache-manager.ts. Métricas em cards: Hit Rate (%), Miss Rate (%), Total Entries, Evictions (últimas 24h). Gráfico temporal de hits/misses usando Recharts. Botão \"Limpar Cache\" que chama endpoint clear cache por workspace.\n\n3. **api-call-history.tsx**: Tabela de histórico de chamadas à API ERP. Colunas: timestamp, workspace, status (success/error), response_time_ms, cache_hit, error_message. Filtros: range de datas (react-day-picker), workspace (dropdown), status (checkboxes). Paginação server-side (20 registros por página). Implementar tabela supabase erp_api_logs via migration.\n\n4. **health-monitor-panel.tsx**: Painel de monitoramento com indicador visual (verde/amarelo/vermelho) do status da API ERP. Últimos 5 health checks com timestamps e latência. Configurar cron job (Vercel/Supabase) que executa health check a cada 5 minutos e armazena em erp_health_checks table. Alertas automáticos se taxa de erro > 20% em 1 hora.\n\n5. **erp-config-page.tsx**: Página principal em /app/[locale]/[workspaceId]/admin/erp-config/page.tsx que integra todos componentes. Verificação de permissões: apenas admins do workspace (checar role via Supabase auth.users metadata ou workspace_users table). Usar layout admin existente, Radix UI components (Dialog, Tabs, Select, Card), Tailwind classes do design system, suporte dark/light mode.\n\n**Migrations necessárias:**\n- 20251119000001_create_erp_api_logs.sql: tabela erp_api_logs (id, workspace_id, timestamp, status, response_time_ms, cache_hit, error_message, request_params JSONB)\n- 20251119000002_create_erp_health_checks.sql: tabela erp_health_checks (id, workspace_id, timestamp, status, latency_ms, error_details)\n- Ambas com RLS policies baseadas em workspace_id\n\n**API Endpoints:**\n- POST /api/admin/erp-config/test: valida credenciais chamando ERPClient\n- DELETE /api/admin/erp-config/cache/clear: limpa cache por workspace\n- GET /api/admin/erp-config/logs: retorna histórico paginado\n- GET /api/admin/erp-config/health: retorna últimos health checks",
@@ -1040,12 +1101,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-24T01:18:46.886Z",
+      "lastModified": "2025-11-27T20:43:39.736Z",
       "taskCount": 17,
-      "completedCount": 10,
+      "completedCount": 11,
       "tags": [
         "master"
-      ]
+      ],
+      "created": "2025-11-28T11:09:24.333Z",
+      "description": "Tasks for master context",
+      "updated": "2025-11-28T11:09:24.333Z"
     }
   }
 }
