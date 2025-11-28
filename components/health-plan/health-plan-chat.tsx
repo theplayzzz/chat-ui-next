@@ -40,6 +40,7 @@ export interface HealthPlanChatProps {
   onError?: (error: string) => void
   onSelectPlan?: (planId: string) => void
   onAction?: (action: "quote" | "save" | "share") => void
+  onEditClientInfo?: () => void
 }
 
 /**
@@ -68,7 +69,8 @@ function HealthPlanChatInner({
   onComplete,
   onError,
   onSelectPlan,
-  onAction
+  onAction,
+  onEditClientInfo
 }: HealthPlanChatInnerProps) {
   const {
     state,
@@ -76,6 +78,7 @@ function HealthPlanChatInner({
     completeStep,
     setLoading,
     setError,
+    resetToStep,
     setClientInfo,
     setSearchResults,
     setCompatibilityAnalysis,
@@ -107,10 +110,24 @@ function HealthPlanChatInner({
   }, [state.recommendation, onComplete])
 
   /**
+   * Start processing a step (sets loading state)
+   */
+  const startStepProcessing = useCallback(
+    (step: HealthPlanStep) => {
+      setStep(step)
+      setLoading(true)
+      setError(null)
+    },
+    [setStep, setLoading, setError]
+  )
+
+  /**
    * Process a tool result from the orchestrator
    */
   const processToolResult = useCallback(
     (result: ToolResult) => {
+      setLoading(false)
+
       switch (result.type) {
         case "clientInfo":
           setClientInfo(result.data as PartialClientInfo)
@@ -141,7 +158,6 @@ function HealthPlanChatInner({
         case "recommendation":
           setRecommendation(result.data as GenerateRecommendationResult)
           completeStep(5)
-          setLoading(false)
           break
       }
     },
@@ -178,13 +194,32 @@ function HealthPlanChatInner({
     [onAction]
   )
 
-  // Expose processToolResult to parent via ref or callback
-  // For now, we expose it via a data attribute
+  /**
+   * Go back to a previous step (clears data from that step onwards)
+   */
+  const goToStep = useCallback(
+    (step: HealthPlanStep) => {
+      if (step < state.currentStep) {
+        // Going back - reset and clear data
+        resetToStep(step)
+      } else if (step > state.currentStep) {
+        // Going forward - only if allowed
+        setStep(step)
+        setLoading(true)
+      }
+    },
+    [state.currentStep, resetToStep, setStep, setLoading]
+  )
+
+  // Expose functions to parent via ref or callback
   useEffect(() => {
     if (containerRef.current) {
       ;(containerRef.current as any).__processToolResult = processToolResult
+      ;(containerRef.current as any).__startStepProcessing = startStepProcessing
+      ;(containerRef.current as any).__goToStep = goToStep
+      ;(containerRef.current as any).__resetToStep = resetToStep
     }
-  }, [processToolResult])
+  }, [processToolResult, startStepProcessing, goToStep, resetToStep])
 
   return (
     <div
@@ -216,6 +251,7 @@ function HealthPlanChatInner({
           clientInfo={state.clientInfo}
           isCollapsed={state.isClientInfoCollapsed}
           onToggleCollapse={toggleClientInfoCollapsed}
+          onEdit={onEditClientInfo}
           className={cn(state.currentStep > 1 && "opacity-90")}
         />
       )}
@@ -280,13 +316,34 @@ export function HealthPlanChat({
 // =============================================================================
 
 /**
- * Hook to get the processToolResult function from a HealthPlanChat component
+ * Functions exposed by HealthPlanChat for orchestrator integration
+ */
+export interface HealthPlanChatHandlers {
+  /** Process a completed tool result and advance workflow */
+  processToolResult: (result: ToolResult) => void
+  /** Start processing a step (activates loading state) */
+  startStepProcessing: (step: HealthPlanStep) => void
+  /** Navigate to a step (going back clears data from that step onwards) */
+  goToStep: (step: HealthPlanStep) => void
+  /** Reset workflow to a specific step, clearing subsequent data */
+  resetToStep: (step: HealthPlanStep) => void
+}
+
+/**
+ * Hook to get the handler functions from a HealthPlanChat component
  */
 export function useHealthPlanChatRef(
   ref: React.RefObject<HTMLDivElement>
-): ((result: ToolResult) => void) | null {
+): HealthPlanChatHandlers | null {
   if (!ref.current) return null
-  return (ref.current as any).__processToolResult || null
+  const processToolResult = (ref.current as any).__processToolResult
+  const startStepProcessing = (ref.current as any).__startStepProcessing
+  const goToStep = (ref.current as any).__goToStep
+  const resetToStep = (ref.current as any).__resetToStep
+  if (!processToolResult || !startStepProcessing || !goToStep || !resetToStep) {
+    return null
+  }
+  return { processToolResult, startStepProcessing, goToStep, resetToStep }
 }
 
 export { HealthPlanProvider, useHealthPlan }

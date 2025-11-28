@@ -118,7 +118,12 @@ const mockERPPrices: ERPPriceResult = {
   ],
   source: "live",
   cached_at: null,
-  is_fresh: true
+  is_fresh: true,
+  metadata: {
+    workspace_id: "test-workspace",
+    plan_ids: ["plan-1", "plan-2"],
+    fetched_at: new Date().toISOString()
+  }
 }
 
 const mockBadges: Record<string, PlanBadge[]> = {
@@ -161,7 +166,9 @@ describe("PlanComparison", () => {
     it("renders plan count in header", () => {
       render(<PlanComparison plans={mockPlans} />)
 
-      expect(screen.getByText("Planos Compatíveis (2)")).toBeInTheDocument()
+      // Header shows "Planos Compatíveis" with count in a separate span
+      expect(screen.getByText("Planos Compatíveis")).toBeInTheDocument()
+      expect(screen.getByText("(2)")).toBeInTheDocument()
     })
 
     it("renders empty state when no plans", () => {

@@ -891,6 +891,7 @@ export async function generateRecommendation(
         alerts: alertsMarkdown,
         nextSteps: nextStepsMarkdown
       },
+      structuredAlerts: alerts,
       metadata: {
         generatedAt,
         version: "1.0.0",

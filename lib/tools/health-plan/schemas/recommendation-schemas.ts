@@ -280,6 +280,30 @@ export type GenerateRecommendationParams = z.infer<
 // =============================================================================
 
 /**
+ * Schema para alerta estruturado na UI
+ */
+export const StructuredAlertSchema = z.object({
+  icon: z.string(),
+  title: z.string(),
+  description: z.string(),
+  impact: z.string()
+})
+
+/**
+ * Schema para seção de alertas estruturados
+ */
+export const StructuredAlertsSchema = z.object({
+  hasCriticalAlerts: z.boolean(),
+  critical: z.array(StructuredAlertSchema),
+  important: z.array(StructuredAlertSchema),
+  informative: z.array(StructuredAlertSchema),
+  summary: z.string().optional()
+})
+
+export type StructuredAlert = z.infer<typeof StructuredAlertSchema>
+export type StructuredAlerts = z.infer<typeof StructuredAlertsSchema>
+
+/**
  * Schema para resultado da geração de recomendação
  */
 export const GenerateRecommendationResultSchema = z.object({
@@ -293,6 +317,9 @@ export const GenerateRecommendationResultSchema = z.object({
     alerts: z.string(),
     nextSteps: z.string()
   }),
+  structuredAlerts: StructuredAlertsSchema.optional().describe(
+    "Alertas estruturados para renderização com componentes visuais"
+  ),
   metadata: z.object({
     generatedAt: z.string(),
     version: z.string(),

@@ -42,7 +42,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger
 } from "@/components/ui/collapsible"
-import type { GenerateRecommendationResult } from "./types"
+import type { GenerateRecommendationResult, StructuredAlerts } from "./types"
 
 // =============================================================================
 // TYPES
@@ -111,6 +111,39 @@ function GlossaryTerm({
   )
 }
 
+/**
+ * Process text to wrap glossary terms with tooltips
+ */
+function processTextForGlossary(text: string): React.ReactNode {
+  const terms = Object.keys(GLOSSARY)
+  // Sort by length (longest first) to match longer phrases before shorter ones
+  const sortedTerms = terms.sort((a, b) => b.length - a.length)
+
+  // Create regex pattern for all terms (case insensitive)
+  const pattern = sortedTerms
+    .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("|")
+
+  if (!pattern) return text
+
+  const regex = new RegExp(`(${pattern})`, "gi")
+  const parts = text.split(regex)
+
+  return parts.map((part, index) => {
+    const matchedTerm = terms.find(
+      term => term.toLowerCase() === part.toLowerCase()
+    )
+    if (matchedTerm) {
+      return (
+        <GlossaryTerm key={index} term={matchedTerm}>
+          {part}
+        </GlossaryTerm>
+      )
+    }
+    return part
+  })
+}
+
 // =============================================================================
 // ALERT COMPONENT
 // =============================================================================
@@ -172,6 +205,97 @@ function AlertItem({ urgency, title, description }: AlertItemProps) {
   )
 }
 
+/**
+ * Component to display structured alerts using AlertItem
+ */
+interface StructuredAlertsDisplayProps {
+  alerts: StructuredAlerts
+}
+
+function StructuredAlertsDisplay({ alerts }: StructuredAlertsDisplayProps) {
+  const hasAlerts =
+    alerts.critical.length > 0 ||
+    alerts.important.length > 0 ||
+    alerts.informative.length > 0
+
+  if (!hasAlerts) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-green-500/30 bg-green-500/10 p-4">
+        <CheckCircle2 className="size-5 text-green-500" />
+        <p className="text-green-700 dark:text-green-400">
+          Nenhum alerta importante para este plano.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Summary if available */}
+      {alerts.summary && (
+        <p className="text-muted-foreground text-sm">{alerts.summary}</p>
+      )}
+
+      {/* Critical Alerts */}
+      {alerts.critical.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-red-700 dark:text-red-400">
+            Alertas Críticos
+          </h4>
+          <div className="space-y-2">
+            {alerts.critical.map((alert, index) => (
+              <AlertItem
+                key={`critical-${index}`}
+                urgency="critico"
+                title={alert.title}
+                description={`${alert.description}${alert.impact ? ` • Impacto: ${alert.impact}` : ""}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Important Alerts */}
+      {alerts.important.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-amber-700 dark:text-amber-400">
+            Alertas Importantes
+          </h4>
+          <div className="space-y-2">
+            {alerts.important.map((alert, index) => (
+              <AlertItem
+                key={`important-${index}`}
+                urgency="importante"
+                title={alert.title}
+                description={`${alert.description}${alert.impact ? ` • Impacto: ${alert.impact}` : ""}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Informative Alerts */}
+      {alerts.informative.length > 0 && (
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-blue-700 dark:text-blue-400">
+            Informações Importantes
+          </h4>
+          <div className="space-y-2">
+            {alerts.informative.map((alert, index) => (
+              <AlertItem
+                key={`informative-${index}`}
+                urgency="informativo"
+                title={alert.title}
+                description={`${alert.description}${alert.impact ? ` • Impacto: ${alert.impact}` : ""}`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // =============================================================================
 // SECTION COMPONENTS
 // =============================================================================
@@ -217,6 +341,24 @@ function Section({
 // MARKDOWN COMPONENTS
 // =============================================================================
 
+/**
+ * Process children to apply glossary term detection to text nodes
+ */
+function processChildren(children: React.ReactNode): React.ReactNode {
+  if (typeof children === "string") {
+    return processTextForGlossary(children)
+  }
+  if (Array.isArray(children)) {
+    return children.map((child, index) => {
+      if (typeof child === "string") {
+        return <span key={index}>{processTextForGlossary(child)}</span>
+      }
+      return child
+    })
+  }
+  return children
+}
+
 const markdownComponents = {
   h1: ({ children }: any) => (
     <h1 className="text-foreground mb-4 text-2xl font-bold">{children}</h1>
@@ -232,7 +374,9 @@ const markdownComponents = {
     </h3>
   ),
   p: ({ children }: any) => (
-    <p className="text-foreground/90 mb-3 leading-relaxed">{children}</p>
+    <p className="text-foreground/90 mb-3 leading-relaxed">
+      {processChildren(children)}
+    </p>
   ),
   ul: ({ children }: any) => (
     <ul className="mb-3 list-inside list-disc space-y-1">{children}</ul>
@@ -240,7 +384,9 @@ const markdownComponents = {
   ol: ({ children }: any) => (
     <ol className="mb-3 list-inside list-decimal space-y-1">{children}</ol>
   ),
-  li: ({ children }: any) => <li className="text-foreground/90">{children}</li>,
+  li: ({ children }: any) => (
+    <li className="text-foreground/90">{processChildren(children)}</li>
+  ),
   strong: ({ children }: any) => (
     <strong className="text-foreground font-semibold">{children}</strong>
   ),
@@ -265,11 +411,13 @@ const markdownComponents = {
     </th>
   ),
   td: ({ children }: any) => (
-    <td className="text-foreground/90 px-4 py-2">{children}</td>
+    <td className="text-foreground/90 px-4 py-2">
+      {processChildren(children)}
+    </td>
   ),
   blockquote: ({ children }: any) => (
     <blockquote className="border-primary/30 bg-primary/5 my-3 border-l-4 py-2 pl-4 italic">
-      {children}
+      {processChildren(children)}
     </blockquote>
   ),
   code: ({ children, inline }: any) =>
@@ -387,21 +535,27 @@ export function RecommendationPanel({
           </Section>
         )}
 
-        {/* Alerts */}
-        {sections.alerts && (
+        {/* Alerts - Use structured alerts if available, fallback to markdown */}
+        {(recommendation.structuredAlerts || sections.alerts) && (
           <Section
             title="Alertas Importantes"
             icon={AlertTriangle}
             defaultOpen={true}
           >
-            <div className="prose prose-sm dark:prose-invert max-w-none">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={markdownComponents}
-              >
-                {sections.alerts}
-              </ReactMarkdown>
-            </div>
+            {recommendation.structuredAlerts ? (
+              <StructuredAlertsDisplay
+                alerts={recommendation.structuredAlerts}
+              />
+            ) : (
+              <div className="prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={markdownComponents}
+                >
+                  {sections.alerts}
+                </ReactMarkdown>
+              </div>
+            )}
           </Section>
         )}
 

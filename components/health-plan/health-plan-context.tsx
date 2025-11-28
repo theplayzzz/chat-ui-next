@@ -91,6 +91,7 @@ type HealthPlanAction =
   | { type: "SET_SELECTED_PLAN"; payload: string | null }
   | { type: "SET_FILTER"; payload: PlanFilter }
   | { type: "RESET" }
+  | { type: "RESET_TO_STEP"; payload: HealthPlanStep }
 
 function healthPlanReducer(
   state: HealthPlanState,
@@ -188,6 +189,41 @@ function healthPlanReducer(
     case "RESET":
       return initialState
 
+    case "RESET_TO_STEP": {
+      const targetStep = action.payload
+      // Keep completed steps before target, clear the rest
+      const newCompletedSteps = state.completedSteps.filter(s => s < targetStep)
+
+      // Clear data from target step onwards
+      const newState: HealthPlanState = {
+        ...state,
+        currentStep: targetStep,
+        completedSteps: newCompletedSteps,
+        isLoading: false,
+        error: null,
+        selectedPlanId: null
+      }
+
+      // Clear step-specific data based on target
+      if (targetStep <= 1) {
+        newState.clientInfo = null
+      }
+      if (targetStep <= 2) {
+        newState.searchResults = null
+      }
+      if (targetStep <= 3) {
+        newState.compatibilityAnalysis = null
+      }
+      if (targetStep <= 4) {
+        newState.erpPrices = null
+      }
+      if (targetStep <= 5) {
+        newState.recommendation = null
+      }
+
+      return newState
+    }
+
     default:
       return state
   }
@@ -206,6 +242,7 @@ interface HealthPlanContextValue {
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   reset: () => void
+  resetToStep: (step: HealthPlanStep) => void
 
   // Data actions
   setClientInfo: (info: PartialClientInfo) => void
@@ -267,6 +304,10 @@ export function HealthPlanProvider({
 
   const reset = useCallback(() => {
     dispatch({ type: "RESET" })
+  }, [])
+
+  const resetToStep = useCallback((step: HealthPlanStep) => {
+    dispatch({ type: "RESET_TO_STEP", payload: step })
   }, [])
 
   // Data actions
@@ -358,6 +399,7 @@ export function HealthPlanProvider({
       setLoading,
       setError,
       reset,
+      resetToStep,
       setClientInfo,
       updateClientInfo,
       setSearchResults,
@@ -378,6 +420,7 @@ export function HealthPlanProvider({
       setLoading,
       setError,
       reset,
+      resetToStep,
       setClientInfo,
       updateClientInfo,
       setSearchResults,

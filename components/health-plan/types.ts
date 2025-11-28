@@ -60,7 +60,9 @@ export type {
   AlternativesResponse,
   AlertsFormattedResponse,
   NextStepsResponse,
-  IntroResponse
+  IntroResponse,
+  StructuredAlert,
+  StructuredAlerts
 } from "@/lib/tools/health-plan/schemas/recommendation-schemas"
 
 // Orchestrator types

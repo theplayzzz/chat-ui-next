@@ -20,7 +20,8 @@ import {
   DollarSign,
   Settings2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Edit3
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -40,6 +41,7 @@ export interface ClientInfoCardProps {
   clientInfo: PartialClientInfo | null
   isCollapsed?: boolean
   onToggleCollapse?: () => void
+  onEdit?: () => void
   className?: string
   highlightFields?: string[]
 }
@@ -144,6 +146,7 @@ export function ClientInfoCard({
   clientInfo,
   isCollapsed = false,
   onToggleCollapse,
+  onEdit,
   className,
   highlightFields = []
 }: ClientInfoCardProps) {
@@ -188,22 +191,34 @@ export function ClientInfoCard({
               </Badge>
             </CardTitle>
 
-            {onToggleCollapse && (
-              <CollapsibleTrigger asChild>
+            <div className="flex items-center gap-1">
+              {onEdit && (
                 <button
-                  className="text-muted-foreground hover:text-foreground rounded-md p-1 transition-colors"
-                  aria-label={
-                    isCollapsed ? "Expandir perfil" : "Recolher perfil"
-                  }
+                  onClick={onEdit}
+                  className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md p-1 transition-colors"
+                  aria-label="Editar informações"
                 >
-                  {isCollapsed ? (
-                    <ChevronDown className="size-5" />
-                  ) : (
-                    <ChevronUp className="size-5" />
-                  )}
+                  <Edit3 className="size-4" />
                 </button>
-              </CollapsibleTrigger>
-            )}
+              )}
+
+              {onToggleCollapse && (
+                <CollapsibleTrigger asChild>
+                  <button
+                    className="text-muted-foreground hover:text-foreground rounded-md p-1 transition-colors"
+                    aria-label={
+                      isCollapsed ? "Expandir perfil" : "Recolher perfil"
+                    }
+                  >
+                    {isCollapsed ? (
+                      <ChevronDown className="size-5" />
+                    ) : (
+                      <ChevronUp className="size-5" />
+                    )}
+                  </button>
+                </CollapsibleTrigger>
+              )}
+            </div>
           </div>
         </CardHeader>
 
