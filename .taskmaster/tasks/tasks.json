@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": 1,
+        "id": "1",
         "title": "Configurar ambiente básico do agente",
         "description": "Configurar dependências essenciais para o agente de planos de saúde",
         "details": "Configurar dependências básicas: instalar OpenAI SDK com configuração padrão. Configurar variáveis de ambiente: OpenAI API key. Utilizar infraestrutura Supabase existente sem modificações. Usar embeddings OpenAI text-embedding-3-small. Implementar endpoint básico de verificação de status.",
@@ -63,7 +63,7 @@
         "expansionPrompt": "Esta tarefa envolve configuração básica e já tem subtarefas bem definidas. Manter as 4 subtarefas existentes: instalar SDK OpenAI, configurar variáveis de ambiente, implementar geração de embeddings e criar endpoint de status. Considere adicionar testes de integração como subtarefa extra."
       },
       {
-        "id": 2,
+        "id": "2",
         "title": "Estender schema do banco para sistema de recomendações multi-nicho",
         "description": "Criar/atualizar tabelas necessárias para suportar sistema genérico de recomendações que comece com agente de planos de saúde mas permita expansão para outros nichos",
         "details": "Executar migrations: ALTER TABLE collections ADD COLUMN chunk_size INT DEFAULT 4000 CHECK (chunk_size > 0), chunk_overlap INT DEFAULT 200 CHECK (chunk_overlap >= 0 AND chunk_overlap < chunk_size), collection_type TEXT CHECK (collection_type IN ('health_plan', 'insurance', 'financial', 'general')); ALTER TABLE file_items ADD COLUMN plan_metadata JSONB, ADD CONSTRAINT valid_plan_metadata CHECK (jsonb_typeof(plan_metadata) = 'object' OR plan_metadata IS NULL); CREATE INDEX idx_file_items_plan_metadata ON file_items USING gin(plan_metadata); CREATE INDEX idx_collections_type ON collections(collection_type); CREATE TABLE recommendation_systems (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), system_name VARCHAR(100) NOT NULL UNIQUE, description TEXT, config_schema JSONB NOT NULL, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE TABLE client_recommendations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, recommendation_system_id UUID NOT NULL REFERENCES recommendation_systems(id), client_info JSONB NOT NULL, analyzed_data JSONB, recommended_item JSONB, reasoning TEXT NOT NULL, confidence_score DECIMAL(3,2) CHECK (confidence_score >= 0 AND confidence_score <= 1), langsmith_run_id TEXT, status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'superseded')), created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE INDEX idx_client_recommendations_workspace ON client_recommendations(workspace_id); CREATE INDEX idx_client_recommendations_user ON client_recommendations(user_id); CREATE INDEX idx_client_recommendations_system ON client_recommendations(recommendation_system_id); CREATE INDEX idx_client_recommendations_status ON client_recommendations(status); CREATE INDEX idx_client_recommendations_confidence ON client_recommendations(confidence_score DESC); INSERT INTO recommendation_systems (system_name, description, config_schema) VALUES ('health_plan_agent', 'Sistema de recomendação de planos de saúde', '{\"required_fields\": [\"age\", \"location\", \"coverage_type\"], \"optional_fields\": [\"income\", \"family_size\", \"medical_history\"]}'); Aproveitar tabelas existentes: collections, assistant_collections, file_items, assistant_workspaces. Adicionar triggers para updated_at e validações adicionais para integridade dos dados.",
@@ -160,7 +160,7 @@
         "updatedAt": "2025-11-13T20:23:25.657Z"
       },
       {
-        "id": 3,
+        "id": "3",
         "title": "Criar assistente especializado em planos de saúde",
         "description": "Configurar assistente dedicado com prompt otimizado e associação às collections de planos",
         "details": "Criar assistente usando sistema existente com configurações específicas: nome 'Agente de Planos de Saúde', modelo GPT-4o, temperatura 0.3, prompt especializado em coleta de informações e recomendação de planos. Associar assistente a collections via assistant_collections. Configurar controle de acesso por workspace via assistant_workspaces apenas para workspaces autorizados. Utilizar sistema existing de criação/gerenciamento de assistentes.",
@@ -241,7 +241,7 @@
         "updatedAt": "2025-11-13T22:37:23.294Z"
       },
       {
-        "id": 4,
+        "id": "4",
         "title": "Implementar sistema RAG configurável para documents",
         "description": "Estender sistema de Collections existente para suportar chunking configurável específico para planos de saúde",
         "details": "Estender interface existente de Collections para adicionar configuração de chunking: campos chunk_size (500-4000 tokens) e chunk_overlap (50-500 tokens). Utilizar LangChain RecursiveCharacterTextSplitter configurável. Implementar reprocessamento automático quando parâmetros de chunk mudarem. Organizar collections por plano: 'plano_unimed_1', 'plano_bradesco_saude', 'collection_geral'. Aproveitar sistema existente de embeddings OpenAI 1536 dims e pgvector.",
@@ -320,7 +320,7 @@
         "updatedAt": "2025-11-14T20:28:49.840Z"
       },
       {
-        "id": 5,
+        "id": "5",
         "title": "Desenvolver ferramenta extractClientInfo",
         "description": "Implementar tool que extrai informações do cliente de forma conversacional usando GPT-4o",
         "details": "Criar function tool em /lib/tools/health-plan/extract-client-info.ts que usa GPT-4o para extrair: idade titular, dependentes (relação + idade), condições pré-existentes, medicamentos contínuos, cidade/região, orçamento, preferências. Retornar JSON estruturado com schema validado via Zod. Implementar validação de campos obrigatórios e identificação de informações faltantes. Integrar com Vercel AI SDK para function calling.",
@@ -422,7 +422,7 @@
         "updatedAt": "2025-11-16T14:59:08.031Z"
       },
       {
-        "id": 6,
+        "id": "6",
         "title": "Desenvolver ferramenta searchHealthPlans",
         "description": "Implementar busca inteligente em múltiplas collections de planos usando RAG",
         "details": "Criar function em /lib/tools/health-plan/search-health-plans.ts que: obtém collections do assistente via assistant_collections, executa busca vetorial em cada collection separadamente usando função existente match_file_items_openai estendida, aplica filtros por metadata (região, operadora), agrega resultados de todas collections, implementa re-ranking por relevância global. Suportar top-K configurável (10-20 por collection). Query otimizada baseada no perfil do cliente.",
@@ -500,7 +500,7 @@
         "updatedAt": "2025-11-16T19:55:19.993Z"
       },
       {
-        "id": 7,
+        "id": "7",
         "title": "Desenvolver ferramenta analyzeCompatibility",
         "description": "Implementar análise de compatibilidade entre perfil do cliente e planos usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/analyze-compatibility.ts que usa GPT-4o para: analisar elegibilidade (idade, região, condições), avaliar coberturas relevantes ao perfil, identificar exclusões importantes, calcular score 0-100, gerar justificativa detalhada, identificar alertas críticos (carências, limitações). Processar até 10 planos simultaneamente, retornar ranking ordenado por score.",
@@ -631,7 +631,7 @@
         "updatedAt": "2025-11-18T19:32:01.115Z"
       },
       {
-        "id": 8,
+        "id": "8",
         "title": "Desenvolver integração com API ERP",
         "description": "Implementar ferramenta fetchERPPrices para consultar preços atualizados de planos. Sistema completo implementado com 6 fases: configuração workspace, cliente HTTP robusto, cálculo familiar, cache inteligente, graceful degradation e suite de testes.",
         "status": "done",
@@ -723,7 +723,7 @@
         "expansionPrompt": "Dividir em: 1) Projetar interface de configuração por workspace para credenciais ERP, 2) Implementar cliente HTTP com timeout, retry e tratamento de erros, 3) Desenvolver cálculo de preços familiares (titular + dependentes), 4) Implementar sistema de cache inteligente (15 min) com invalidação, 5) Criar graceful degradation quando API falha, 6) Implementar testes com mock servers e validação de edge cases."
       },
       {
-        "id": 9,
+        "id": "9",
         "title": "Desenvolver ferramenta generateRecommendation",
         "description": "Implementar geração de recomendação humanizada usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/generate-recommendation.ts que gera: recomendação principal + justificativa, alternativas (econômica/premium), comparativo top 3 em tabela Markdown, alertas importantes (carências, exclusões), próximos passos. Usar temperatura baixa (0.1) para consistência, linguagem empática e clara, termos técnicos explicados.",
@@ -807,7 +807,7 @@
         "updatedAt": "2025-11-24T01:18:46.884Z"
       },
       {
-        "id": 10,
+        "id": "10",
         "title": "Criar orquestrador multi-step",
         "description": "Implementar API route que coordena os 5 passos do processo de recomendação",
         "details": "Criar /app/api/chat/health-plan-agent/route.ts com: execução sequencial dos 5 tools, gerenciamento de estado de sessão, streaming de respostas via Vercel AI SDK, timeout total 60s (Node.js runtime), tratamento de erros por step, logs detalhados, integração com LangSmith para rastreamento. Implementar session-manager.ts para persistir estado entre steps.",
@@ -885,7 +885,7 @@
         "updatedAt": "2025-11-27T20:43:39.734Z"
       },
       {
-        "id": 11,
+        "id": "11",
         "title": "Implementar controle de acesso por workspace",
         "description": "Configurar sistema de permissões para liberar agente apenas para workspaces autorizados",
         "details": "Utilizar sistema existente assistant_workspaces para controle de acesso. Implementar verificação automática no frontend (assistente só aparece se autorizado), validação backend (403 se não autorizado), interface admin para gerenciar workspaces autorizados. RLS do Supabase garante segurança a nível de banco. Aproveitar sistema de permissões existente da aplicação.",
@@ -955,7 +955,7 @@
         "updatedAt": "2025-11-18T01:52:17.687Z"
       },
       {
-        "id": 12,
+        "id": "12",
         "title": "Desenvolver componentes React especializados",
         "description": "Criar interface especializada para interação com agente de planos de saúde",
         "details": "Criar componentes em /components/health-plan/: health-plan-chat.tsx (wrapper principal), progress-indicator.tsx (barra 5 steps), client-info-card.tsx (resumo info coletadas), plan-comparison.tsx (tabela comparativa), recommendation-panel.tsx (recomendação final). Usar design system existente (Radix UI + Tailwind), compatível com tema escuro/claro, responsivo mobile.",
@@ -964,14 +964,112 @@
         "dependencies": [
           "10"
         ],
-        "status": "pending",
-        "subtasks": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Criar health-plan-chat.tsx como wrapper principal",
+            "description": "Desenvolver componente wrapper principal que centraliza estado e orquestra fluxo de conversação do agente de planos de saúde",
+            "dependencies": [],
+            "details": "Implementar health-plan-chat.tsx em /components/health-plan/ como componente principal que: gerencia estado centralizado do fluxo (etapa atual, dados coletados, planos analisados), integra com Vercel AI SDK useChat para comunicação com agente, renderiza sub-componentes (ProgressIndicator, ClientInfoCard, PlanComparison, RecommendationPanel) condicionalmente baseado na etapa, implementa sistema de mensagens com histórico scrollable, usa Context API ou Zustand para compartilhar estado entre componentes filhos, aplica design system Radix UI + Tailwind existente. Estado deve incluir: currentStep (1-5), clientInfo (extraído), searchResults (planos), analysisResults (compatibilidade), recommendation (final).",
+            "status": "done",
+            "testStrategy": "Testar gerenciamento de estado centralizado, validar transições entre etapas, verificar integração com useChat, confirmar renderização condicional de sub-componentes, testar persistência de estado durante navegação",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T18:27:47.713Z"
+          },
+          {
+            "id": 2,
+            "title": "Desenvolver progress-indicator.tsx para 5 etapas",
+            "description": "Criar componente de indicador de progresso visual para mostrar as 5 etapas do fluxo de recomendação",
+            "dependencies": [
+              1
+            ],
+            "details": "Implementar progress-indicator.tsx que exibe barra de progresso com 5 steps: 1) Coleta de Informações, 2) Busca de Planos, 3) Análise de Compatibilidade, 4) Cálculo de Preços, 5) Recomendação Final. Cada step deve mostrar: ícone representativo (usando Lucide React), label descritivo, status (pending/in-progress/completed). Usar Radix UI Progress + componentes customizados, animações suaves com Framer Motion ou CSS transitions, cores do Tailwind para indicar estados (gray-pending, blue-progress, green-completed), design responsivo (vertical em mobile, horizontal em desktop), integrar com estado currentStep do wrapper.",
+            "status": "done",
+            "testStrategy": "Testar renderização de todos os 5 steps, validar atualização visual ao mudar etapa, verificar animações de transição, confirmar responsividade mobile/desktop, testar cores em tema claro/escuro",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T18:28:25.679Z"
+          },
+          {
+            "id": 3,
+            "title": "Implementar client-info-card.tsx para resumo dinâmico",
+            "description": "Desenvolver card de resumo que exibe informações do cliente coletadas dinamicamente durante a conversa",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar client-info-card.tsx que exibe resumo sempre visível das informações coletadas: titular (idade), dependentes (lista com relação e idade), condições pré-existentes (badges), medicamentos contínuos (lista), localização (cidade/estado), orçamento (formatado R$), preferências (tags). Usar Radix UI Card + Badge + Separator, ícones contextuais (User, Users, Heart, Pill, MapPin, DollarSign), atualização reativa ao receber novos dados via props/context, estados de loading para campos ainda não preenchidos (skeleton UI), modo colapsável em mobile para economizar espaço, highlight visual de campos recém-atualizados (animação sutil).",
+            "status": "done",
+            "testStrategy": "Testar renderização com dados parciais, validar atualização reativa ao coletar novas informações, verificar skeleton states, confirmar formatação de valores (idade, moeda), testar colapso em mobile, validar acessibilidade de ícones",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T18:29:14.212Z"
+          },
+          {
+            "id": 4,
+            "title": "Criar plan-comparison.tsx com tabela responsiva",
+            "description": "Desenvolver componente de tabela comparativa de planos com filtros e ordenação responsiva",
+            "dependencies": [
+              1
+            ],
+            "details": "Implementar plan-comparison.tsx que exibe tabela comparativa dos top 3-5 planos analisados: colunas (Plano/Operadora, Score, Cobertura, Preço Família, Rede, Carência, Alertas), linhas com dados estruturados dos planos, score visual (progress bar ou badge colorido 0-100), preços formatados em R$, badges para alertas críticos (carência longa, exclusões importantes), filtros superiores (operadora, faixa de preço, score mínimo), ordenação por coluna (score, preço), design responsivo (tabela horizontal em desktop, cards empilhados em mobile), uso de Radix UI Table + Select para filtros, virtual scrolling se > 10 planos (react-window), exportação para PDF/imagem opcional.",
+            "status": "done",
+            "testStrategy": "Testar renderização de tabela com 3-10 planos, validar filtros e ordenação, verificar responsividade mobile (cards), confirmar formatação de scores e preços, testar performance com 20+ planos, validar acessibilidade de tabela",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T18:30:36.662Z"
+          },
+          {
+            "id": 5,
+            "title": "Desenvolver recommendation-panel.tsx com formatação rica",
+            "description": "Criar painel de recomendação final com Markdown renderizado, tabelas comparativas e alertas destacados",
+            "dependencies": [
+              1
+            ],
+            "details": "Implementar recommendation-panel.tsx que renderiza recomendação final gerada por GPT-4o: usar react-markdown ou similar para parsing Markdown, suporte a tabelas comparativas (via remark-gfm), seções estruturadas (Recomendação Principal, Alternativas, Comparativo, Alertas, Próximos Passos), alertas críticos destacados com ícones e cores (AlertTriangle em amber para importantes, AlertCircle em red para críticos), glossário de termos técnicos com tooltips (Radix UI Tooltip), botões de ação (Solicitar Cotação, Salvar Recomendação, Compartilhar), formatação de listas e bullet points, código de estilo customizado para tabelas Markdown (Tailwind prose), suporte a dark/light theme em toda renderização.",
+            "status": "done",
+            "testStrategy": "Testar renderização de Markdown complexo, validar tabelas comparativas, verificar tooltips de glossário, confirmar destacamento de alertas com cores corretas, testar botões de ação, validar prose styling em ambos temas",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T18:31:50.680Z"
+          },
+          {
+            "id": 6,
+            "title": "Garantir compatibilidade com temas e responsividade",
+            "description": "Implementar suporte completo a tema escuro/claro e responsividade mobile em todos os componentes",
+            "dependencies": [
+              2,
+              3,
+              4,
+              5
+            ],
+            "details": "Assegurar que todos componentes (health-plan-chat, progress-indicator, client-info-card, plan-comparison, recommendation-panel) funcionem perfeitamente em: tema claro (light mode) e escuro (dark mode) usando classes Tailwind dark:, breakpoints responsivos (sm, md, lg, xl) com layout adaptativo (mobile-first), testes em viewports 320px (mobile pequeno), 768px (tablet), 1024px (desktop), uso consistente de variáveis CSS do design system existente, transições suaves de tema sem flickering, imagens/ícones adaptados a cada tema (contrast ratio adequado), verificação com DevTools de responsive design, documentação de breakpoints usados.",
+            "status": "done",
+            "testStrategy": "Testar todos componentes em light/dark mode, validar layouts em 3+ viewports, verificar contrast ratio WCAG AA, confirmar transições de tema, testar em dispositivos reais (iOS/Android), validar sem flickering ao alternar tema",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T18:32:43.126Z"
+          },
+          {
+            "id": 7,
+            "title": "Implementar testes de acessibilidade e integração",
+            "description": "Desenvolver suite de testes para acessibilidade WCAG e integração entre componentes",
+            "dependencies": [
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "details": "Criar testes abrangentes em /components/health-plan/__tests__/: testes de acessibilidade com @testing-library/react + jest-axe (violações WCAG AA/AAA), roles ARIA corretos (table, progressbar, alert, tooltip), navegação por teclado (Tab, Enter, Escape), screen reader compatibility (labels, descriptions), testes de integração entre componentes (fluxo completo de 5 etapas), testes de comunicação via Context API entre wrapper e filhos, testes de performance (renderização < 100ms, updates < 50ms), snapshots visuais com Storybook + Chromatic para regressão, cobertura > 80% de branches, documentação de casos de teste no código.",
+            "status": "done",
+            "testStrategy": "Executar jest-axe em todos componentes, validar navegação por teclado em fluxo completo, testar com screen readers (NVDA/VoiceOver), verificar cobertura de testes > 80%, validar snapshots visuais, confirmar performance benchmarks",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T18:44:30.731Z"
+          }
+        ],
         "complexity": 7,
         "recommendedSubtasks": 7,
-        "expansionPrompt": "Dividir em: 1) Criar health-plan-chat.tsx como wrapper principal com estado centralizado, 2) Desenvolver progress-indicator.tsx para visualizar 5 etapas do fluxo, 3) Implementar client-info-card.tsx para resumo dinâmico, 4) Criar plan-comparison.tsx com tabela responsiva e filtros, 5) Desenvolver recommendation-panel.tsx com formatação rica, 6) Garantir compatibilidade com tema escuro/claro e responsividade, 7) Implementar testes de acessibilidade e integração entre componentes."
+        "expansionPrompt": "Dividir em: 1) Criar health-plan-chat.tsx como wrapper principal com estado centralizado, 2) Desenvolver progress-indicator.tsx para visualizar 5 etapas do fluxo, 3) Implementar client-info-card.tsx para resumo dinâmico, 4) Criar plan-comparison.tsx com tabela responsiva e filtros, 5) Desenvolver recommendation-panel.tsx com formatação rica, 6) Garantir compatibilidade com tema escuro/claro e responsividade, 7) Implementar testes de acessibilidade e integração entre componentes.",
+        "updatedAt": "2025-11-28T18:44:30.731Z"
       },
       {
-        "id": 13,
+        "id": "13",
         "title": "Implementar sistema de auditoria e compliance",
         "description": "Criar sistema de logs para compliance LGPD e auditoria de recomendações",
         "details": "Implementar registro automático em health_plan_recommendations: timestamp, workspace/usuário, informações cliente (anonimizadas se necessário), planos analisados, recomendação + justificativa, preços consultados, langsmith_run_id. Interface de consulta histórico com filtros, exportação CSV, retenção configurável (2 anos default). Criptografia em repouso via Supabase.",
@@ -984,7 +1082,7 @@
         "subtasks": []
       },
       {
-        "id": 14,
+        "id": "14",
         "title": "Integrar monitoramento LangSmith",
         "description": "Configurar observabilidade completa com LangSmith SDK para rastreamento e análise",
         "details": "Configurar LangSmith SDK: rastreamento todas chamadas LLM (GPT-4o), tracking cada step do orquestrador, métricas (latência por tool, tokens consumidos, custos, taxa sucesso/erro), dashboards performance, alertas para erros/timeouts. Implementar em cada tool individual e no orquestrador principal. Correlation ID para tracking completo da sessão.",
@@ -1001,7 +1099,7 @@
         "expansionPrompt": "Dividir em: 1) Configurar SDK LangSmith e conexão inicial, 2) Implementar tracing de todas as chamadas GPT-4o, 3) Configurar tracking detalhado do orquestrador principal, 4) Implementar métricas granulares (latência, tokens, custos), 5) Desenvolver correlation IDs para sessões completas, 6) Configurar dashboards de performance personalizados, 7) Implementar sistema de alertas para erros e timeouts, 8) Validar traces end-to-end e otimizar coleta de dados."
       },
       {
-        "id": 15,
+        "id": "15",
         "title": "Criar interface admin para gerenciamento de documentos",
         "description": "Estender interface existing de Collections para gerenciar documentos de planos com chunking configurável",
         "details": "Estender interface existing sidebar Collections: adicionar campos chunk_size/chunk_overlap configuráveis, preview como documentos serão divididos, tags/categorias para collections (plano_specific, geral), status processamento por collection, estatísticas (chunks, tokens, documentos), controle associação assistente ↔ collections. Manter drag-and-drop upload, progress bars, filtros existentes.",
@@ -1015,7 +1113,7 @@
         "subtasks": []
       },
       {
-        "id": 16,
+        "id": "16",
         "title": "Teste de Autopilot TDD",
         "description": "Task de demonstração para testar os 3 agentes do autopilot",
         "details": "",
@@ -1085,7 +1183,7 @@
         ]
       },
       {
-        "id": 17,
+        "id": "17",
         "title": "Criar interface administrativa para configuração ERP por workspace",
         "description": "Desenvolver UI completa para gerenciar credenciais da API ERP, incluindo formulário CRUD de configurações, dashboard de estatísticas do cache, histórico de chamadas à API, painel de monitoramento de health checks, validação de credenciais e gestão de permissões.",
         "details": "Implementar interface administrativa em /components/admin/erp-config/ com os seguintes componentes:\n\n1. **erp-config-form.tsx**: Formulário CRUD completo para workspace_erp_config usando helpers de db/workspace-erp-config.ts (getERPConfigByWorkspaceId, createERPConfig, updateERPConfig, deleteERPConfig). Campos: api_url (validação URL), api_key (input type password, sem exibir valor atual), custom_headers (JSON editor), timeout_ms (number, 1000-60000), max_retries (number, 0-5), cache_ttl_seconds (number, 60-86400). Botão \"Testar Conectividade\" que chama endpoint de validação usando ERPClient.fetchPrices() com dados mock.\n\n2. **cache-stats-dashboard.tsx**: Dashboard de estatísticas do cache usando dados de lib/cache/erp-cache-manager.ts. Métricas em cards: Hit Rate (%), Miss Rate (%), Total Entries, Evictions (últimas 24h). Gráfico temporal de hits/misses usando Recharts. Botão \"Limpar Cache\" que chama endpoint clear cache por workspace.\n\n3. **api-call-history.tsx**: Tabela de histórico de chamadas à API ERP. Colunas: timestamp, workspace, status (success/error), response_time_ms, cache_hit, error_message. Filtros: range de datas (react-day-picker), workspace (dropdown), status (checkboxes). Paginação server-side (20 registros por página). Implementar tabela supabase erp_api_logs via migration.\n\n4. **health-monitor-panel.tsx**: Painel de monitoramento com indicador visual (verde/amarelo/vermelho) do status da API ERP. Últimos 5 health checks com timestamps e latência. Configurar cron job (Vercel/Supabase) que executa health check a cada 5 minutos e armazena em erp_health_checks table. Alertas automáticos se taxa de erro > 20% em 1 hora.\n\n5. **erp-config-page.tsx**: Página principal em /app/[locale]/[workspaceId]/admin/erp-config/page.tsx que integra todos componentes. Verificação de permissões: apenas admins do workspace (checar role via Supabase auth.users metadata ou workspace_users table). Usar layout admin existente, Radix UI components (Dialog, Tabs, Select, Card), Tailwind classes do design system, suporte dark/light mode.\n\n**Migrations necessárias:**\n- 20251119000001_create_erp_api_logs.sql: tabela erp_api_logs (id, workspace_id, timestamp, status, response_time_ms, cache_hit, error_message, request_params JSONB)\n- 20251119000002_create_erp_health_checks.sql: tabela erp_health_checks (id, workspace_id, timestamp, status, latency_ms, error_details)\n- Ambas com RLS policies baseadas em workspace_id\n\n**API Endpoints:**\n- POST /api/admin/erp-config/test: valida credenciais chamando ERPClient\n- DELETE /api/admin/erp-config/cache/clear: limpa cache por workspace\n- GET /api/admin/erp-config/logs: retorna histórico paginado\n- GET /api/admin/erp-config/health: retorna últimos health checks",
@@ -1101,15 +1199,12 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-27T20:43:39.736Z",
+      "lastModified": "2025-11-28T18:44:30.733Z",
       "taskCount": 17,
-      "completedCount": 11,
+      "completedCount": 12,
       "tags": [
         "master"
-      ],
-      "created": "2025-11-28T11:09:24.333Z",
-      "description": "Tasks for master context",
-      "updated": "2025-11-28T11:09:24.333Z"
+      ]
     }
   }
 }
