@@ -40,8 +40,9 @@ export const createERPConfig = async (
   config: ERPConfigInsert
 ): Promise<WorkspaceERPConfig> => {
   // First, encrypt the API key
+  // Note: encrypt_api_key function may need to be created in the database
   const { data: encryptedKey, error: encryptError } = await supabase.rpc(
-    "encrypt_api_key",
+    "encrypt_api_key" as any,
     { api_key: config.api_key }
   )
 
@@ -92,8 +93,9 @@ export const updateERPConfig = async (
 
   if (updates.api_key !== undefined) {
     // Encrypt the new API key
+    // Note: encrypt_api_key function may need to be created in the database
     const { data: encryptedKey, error: encryptError } = await supabase.rpc(
-      "encrypt_api_key",
+      "encrypt_api_key" as any,
       { api_key: updates.api_key }
     )
 

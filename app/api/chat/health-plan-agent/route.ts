@@ -34,6 +34,7 @@ interface HealthPlanAgentRequest {
   workspaceId: string
   assistantId: string
   sessionId?: string // Optional - for resuming sessions
+  resetToStep?: number // Optional - for resetting to a specific step
   messages: Array<{
     role: "user" | "assistant" | "system"
     content: string

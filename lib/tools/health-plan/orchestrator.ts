@@ -14,8 +14,6 @@
  * Referência: PRD RF-008, Task #10.3
  */
 
-import { createClient } from "@supabase/supabase-js"
-import type { Database } from "@/supabase/types"
 import type {
   WorkspaceERPConfig,
   PartialClientInfo,
@@ -47,6 +45,7 @@ import {
   executeWithTimeout,
   withRetry
 } from "./error-handler"
+import { saveRecommendationAudit, type SaveAuditResult } from "./audit-logger"
 
 // =============================================================================
 // TYPES
@@ -666,109 +665,57 @@ export class HealthPlanOrchestrator {
 
   /**
    * Saves the completed recommendation to client_recommendations table
-   * with LangSmith run ID for tracing/auditability
+   * with LGPD compliance (anonymization, retention, consent)
+   * Uses the audit-logger for automatic anonymization
    */
-  private async saveToClientRecommendations(): Promise<void> {
+  private async saveToClientRecommendations(): Promise<SaveAuditResult> {
     if (!this.session?.recommendation || !this.session?.clientInfo) {
       console.log(
         "[orchestrator] Skipping client_recommendations save - no recommendation or client info"
       )
-      return
+      return { success: false, error: "No data to save", auditStatus: "failed" }
     }
 
     try {
-      const supabase = this.createSupabaseAdmin()
       const runId = this.logger.getLangSmithRunId()
-      const systemId = await this.getHealthPlanSystemId()
+      const topPlan =
+        this.session.compatibilityAnalysis?.rankedPlans?.[0] || null
 
-      if (!systemId) {
-        console.warn(
-          "[orchestrator] health_plan_agent system not found, skipping client_recommendations save"
-        )
-        return
-      }
-
-      const topPlan = this.session.compatibilityAnalysis?.rankedPlans?.[0]
-
-      const { error } = await supabase.from("client_recommendations").insert({
-        workspace_id: this.config.workspaceId,
-        user_id: this.config.userId,
-        recommendation_system_id: systemId,
-        client_info: this.session.clientInfo,
-        analyzed_data: {
-          search_results_count:
-            this.session.searchResults?.results?.length || 0,
-          compatibility_analysis: this.session.compatibilityAnalysis,
-          erp_prices: this.session.erpPrices
-        },
-        recommended_item: topPlan || null,
+      // Use audit-logger with automatic anonymization and LGPD fields
+      const result = await saveRecommendationAudit({
+        workspaceId: this.config.workspaceId,
+        userId: this.config.userId,
+        clientInfo: this.session.clientInfo,
+        analyzedPlans: this.session.compatibilityAnalysis?.rankedPlans || [],
+        recommendedPlan: topPlan,
         reasoning: this.session.recommendation.markdown,
-        confidence_score: topPlan?.score?.overall
-          ? topPlan.score.overall / 100
-          : null,
-        langsmith_run_id: runId || null,
-        status: "active"
+        langsmithRunId: runId,
+        consentGiven: true, // TODO: Get from user flow when consent UI is implemented
+        erpPrices: this.session.erpPrices,
+        searchResultsCount: this.session.searchResults?.results?.length || 0
       })
 
-      if (error) {
-        console.error(
-          "[orchestrator] Failed to save to client_recommendations:",
-          error
+      if (result.success) {
+        console.log(
+          `[orchestrator] Saved recommendation audit ${result.auditId} (runId: ${runId || "none"})`
         )
       } else {
-        console.log(
-          `[orchestrator] Saved recommendation to client_recommendations (runId: ${runId || "none"})`
-        )
+        console.error(`[orchestrator] Failed to save audit: ${result.error}`)
       }
+
+      return result
     } catch (error) {
       // Non-critical error - log but don't fail the workflow
       console.error(
         "[orchestrator] Error saving to client_recommendations:",
         error
       )
-    }
-  }
-
-  /**
-   * Gets the health_plan_agent system ID from recommendation_systems table
-   */
-  private async getHealthPlanSystemId(): Promise<string | null> {
-    try {
-      const supabase = this.createSupabaseAdmin()
-
-      const { data, error } = await supabase
-        .from("recommendation_systems")
-        .select("id")
-        .eq("system_name", "health_plan_agent")
-        .single()
-
-      if (error || !data) {
-        return null
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        auditStatus: "failed"
       }
-
-      return data.id
-    } catch {
-      return null
     }
-  }
-
-  /**
-   * Creates a Supabase admin client for server-side operations
-   */
-  private createSupabaseAdmin() {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      throw new Error("Missing Supabase environment variables")
-    }
-
-    return createClient<Database>(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
   }
 }
 

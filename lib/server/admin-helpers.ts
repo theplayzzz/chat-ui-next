@@ -26,12 +26,13 @@ function getSupabaseServerClient() {
 /**
  * Check if user is admin
  *
- * For MVP: checks if user is workspace owner
- * TODO: Implement proper role-based access control
+ * Verifies admin privileges in order:
+ * 1. Global admin (is_global_admin in profiles table)
+ * 2. Workspace owner (user_id matches workspace.user_id)
  *
  * @param userId - User ID to check
  * @param workspaceId - Workspace ID to check ownership
- * @returns true if user is admin/owner
+ * @returns true if user is global admin or workspace owner
  */
 export async function isUserAdmin(
   userId: string,
@@ -39,17 +40,29 @@ export async function isUserAdmin(
 ): Promise<boolean> {
   const supabase = getSupabaseServerClient()
 
-  const { data, error } = await supabase
+  // Check global admin first (via profiles table)
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_global_admin")
+    .eq("user_id", userId)
+    .single()
+
+  if (profile?.is_global_admin === true) {
+    return true
+  }
+
+  // Fallback: check workspace ownership
+  const { data: workspace, error } = await supabase
     .from("workspaces")
     .select("user_id")
     .eq("id", workspaceId)
     .single()
 
-  if (error || !data) {
+  if (error || !workspace) {
     return false
   }
 
-  return data.user_id === userId
+  return workspace.user_id === userId
 }
 
 /**

@@ -235,6 +235,50 @@ export type Database = {
           },
         ]
       }
+      audit_deletions_log: {
+        Row: {
+          deleted_at: string
+          deleted_by: string
+          deletion_type: string
+          id: string
+          new_anonymization_level: string | null
+          original_anonymization_level: string | null
+          original_status: string | null
+          recommendation_id: string
+          workspace_id: string
+        }
+        Insert: {
+          deleted_at?: string
+          deleted_by?: string
+          deletion_type: string
+          id?: string
+          new_anonymization_level?: string | null
+          original_anonymization_level?: string | null
+          original_status?: string | null
+          recommendation_id: string
+          workspace_id: string
+        }
+        Update: {
+          deleted_at?: string
+          deleted_by?: string
+          deletion_type?: string
+          id?: string
+          new_anonymization_level?: string | null
+          original_anonymization_level?: string | null
+          original_status?: string | null
+          recommendation_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_deletions_log_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_files: {
         Row: {
           chat_id: string
@@ -356,14 +400,19 @@ export type Database = {
       client_recommendations: {
         Row: {
           analyzed_data: Json | null
+          anonymization_level: string | null
           client_info: Json
           confidence_score: number | null
+          consent_given: boolean
+          consent_timestamp: string | null
           created_at: string | null
+          data_subject_rights_metadata: Json | null
           id: string
           langsmith_run_id: string | null
           reasoning: string
           recommendation_system_id: string
           recommended_item: Json | null
+          retention_until: string | null
           status: string | null
           updated_at: string | null
           user_id: string
@@ -371,14 +420,19 @@ export type Database = {
         }
         Insert: {
           analyzed_data?: Json | null
+          anonymization_level?: string | null
           client_info: Json
           confidence_score?: number | null
+          consent_given?: boolean
+          consent_timestamp?: string | null
           created_at?: string | null
+          data_subject_rights_metadata?: Json | null
           id?: string
           langsmith_run_id?: string | null
           reasoning: string
           recommendation_system_id: string
           recommended_item?: Json | null
+          retention_until?: string | null
           status?: string | null
           updated_at?: string | null
           user_id: string
@@ -386,14 +440,19 @@ export type Database = {
         }
         Update: {
           analyzed_data?: Json | null
+          anonymization_level?: string | null
           client_info?: Json
           confidence_score?: number | null
+          consent_given?: boolean
+          consent_timestamp?: string | null
           created_at?: string | null
+          data_subject_rights_metadata?: Json | null
           id?: string
           langsmith_run_id?: string | null
           reasoning?: string
           recommendation_system_id?: string
           recommended_item?: Json | null
+          retention_until?: string | null
           status?: string | null
           updated_at?: string | null
           user_id?: string
@@ -720,6 +779,107 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "folders_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      global_admins: {
+        Row: {
+          created_at: string | null
+          email: string
+          granted_at: string | null
+          granted_by: string | null
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          granted_at?: string | null
+          granted_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      health_plan_sessions: {
+        Row: {
+          client_info: Json | null
+          compatibility_analysis: Json | null
+          completed_at: string | null
+          created_at: string
+          current_step: number
+          erp_prices: Json | null
+          errors: Json | null
+          expires_at: string
+          id: string
+          last_updated_at: string
+          recommendation: Json | null
+          search_results: Json | null
+          started_at: string
+          updated_at: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          client_info?: Json | null
+          compatibility_analysis?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          erp_prices?: Json | null
+          errors?: Json | null
+          expires_at?: string
+          id?: string
+          last_updated_at?: string
+          recommendation?: Json | null
+          search_results?: Json | null
+          started_at?: string
+          updated_at?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          client_info?: Json | null
+          compatibility_analysis?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: number
+          erp_prices?: Json | null
+          errors?: Json | null
+          expires_at?: string
+          id?: string
+          last_updated_at?: string
+          recommendation?: Json | null
+          search_results?: Json | null
+          started_at?: string
+          updated_at?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_plan_sessions_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -1302,6 +1462,44 @@ export type Database = {
           },
         ]
       }
+      workspace_audit_config: {
+        Row: {
+          auto_anonymize_after_days: number
+          created_at: string
+          default_anonymization_level: string
+          hard_delete_enabled: boolean
+          retention_years: number
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          auto_anonymize_after_days?: number
+          created_at?: string
+          default_anonymization_level?: string
+          hard_delete_enabled?: boolean
+          retention_years?: number
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          auto_anonymize_after_days?: number
+          created_at?: string
+          default_anonymization_level?: string
+          hard_delete_enabled?: boolean
+          retention_years?: number
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_audit_config_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspaces: {
         Row: {
           created_at: string
@@ -1367,6 +1565,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      anonymize_client_info: {
+        Args: { client_info: Json; level?: string }
+        Returns: Json
+      }
+      cleanup_audit_records: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          anonymization_upgraded: number
+          hard_deleted: number
+          soft_deleted: number
+        }[]
+      }
       create_duplicate_messages_for_new_chat: {
         Args: { new_chat_id: string; new_user_id: string; old_chat_id: string }
         Returns: undefined
@@ -1394,6 +1604,15 @@ export type Database = {
       delete_storage_object_from_bucket: {
         Args: { bucket_name: string; object_path: string }
         Returns: Record<string, unknown>
+      }
+      is_global_admin: { Args: { check_user_id: string }; Returns: boolean }
+      is_global_admin_by_email: {
+        Args: { check_email: string }
+        Returns: boolean
+      }
+      is_workspace_owner: {
+        Args: { check_user_id: string; ws_id: string }
+        Returns: boolean
       }
       match_file_items_local: {
         Args: {
@@ -1432,6 +1651,7 @@ export type Database = {
         Args: { p_name: string }
         Returns: boolean
       }
+      upgrade_anonymization: { Args: { client_info: Json }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

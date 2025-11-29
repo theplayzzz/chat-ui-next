@@ -1078,8 +1078,85 @@
         "dependencies": [
           "10"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Estender tabela client_recommendations para compliance LGPD",
+            "description": "Adicionar campos de auditoria necessários à tabela client_recommendations existente para atender compliance LGPD",
+            "dependencies": [],
+            "details": "Criar migration SQL para adicionar campos: retention_until (TIMESTAMPTZ calculado como created_at + 2 anos), anonymization_level (ENUM: 'full', 'partial', 'none'), consent_given (BOOLEAN NOT NULL), consent_timestamp (TIMESTAMPTZ), data_subject_rights_metadata (JSONB para registrar exercício de direitos LGPD como portabilidade, exclusão). Adicionar índices para expires_at e retention_until para facilitar cleanup automático. Atualizar comentários da tabela para documentar propósito de compliance. Utilizar padrão existente da migration 20251113145726_create_recommendation_system_tables.sql como base.",
+            "status": "done",
+            "testStrategy": "Executar migration em ambiente de desenvolvimento, verificar criação de campos com tipos corretos, testar constraints (consent_given NOT NULL), validar índices criados com EXPLAIN ANALYZE, confirmar que dados existentes não são afetados",
+            "updatedAt": "2025-11-28T20:08:17.043Z",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implementar funções de anonimização de dados sensíveis",
+            "description": "Criar funções SQL e TypeScript para anonimizar dados de cliente conforme LGPD",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar funções SQL no Supabase: anonymize_client_info(client_info JSONB, level TEXT) que retorna JSONB com dados anonimizados (nível 'full': remove CPF, nome, endereço completo, mantém apenas faixa etária e região; 'partial': hash CPF, mantém primeiro nome, cidade). Implementar função TypeScript em lib/tools/health-plan/anonymization.ts com schemas Zod para validação. Utilizar crypto.createHash('sha256') para hashing. Garantir que langsmith_run_id sempre seja preservado para rastreabilidade técnica. Criar enum AnonymizationLevel = 'full' | 'partial' | 'none'. Implementar função isPersonalData() para identificar campos sensíveis automaticamente.",
+            "status": "done",
+            "testStrategy": "Testes unitários com dados mockados contendo CPF, nome, endereço. Verificar que 'full' remove todos dados pessoais. Verificar que 'partial' mantém dados úteis mas hasheados. Confirmar que langsmith_run_id é preservado. Testar casos edge: JSONB null, campos ausentes, estruturas aninhadas",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T20:12:21.942Z"
+          },
+          {
+            "id": 3,
+            "title": "Criar sistema automático de registro de recomendações",
+            "description": "Implementar interceptor que registra automaticamente cada recomendação gerada na tabela de auditoria",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Criar função saveRecommendationAudit em lib/tools/health-plan/audit-logger.ts que recebe: workspaceId, userId, clientInfo, analyzedPlans, recommendedPlan, reasoning, langsmithRunId, consentGiven. Aplicar anonimização automática baseada em configuração do workspace (buscar em workspace_config). Calcular retention_until = now() + 2 years (configurável via workspace_config.retention_years). Inserir em client_recommendations. Integrar no orquestrador em lib/tools/health-plan/orchestrator.ts após Step 5 (generateRecommendation). Implementar try-catch para que falha no audit não bloqueie resposta ao usuário, mas logue erro. Adicionar campo audit_status: 'success' | 'failed' nas sessions.",
+            "status": "in-progress",
+            "testStrategy": "Testar com orquestrador completo end-to-end. Verificar que registro é criado após cada recomendação. Confirmar anonimização aplicada conforme nível configurado. Simular falha no insert (RLS, constraint violation) e verificar que recomendação continua funcionando. Validar que langsmith_run_id está presente. Verificar cálculo correto de retention_until",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T20:12:22.236Z"
+          },
+          {
+            "id": 4,
+            "title": "Implementar interface de consulta de histórico de auditoria",
+            "description": "Criar componente React para consultar histórico de recomendações com filtros avançados",
+            "dependencies": [
+              3
+            ],
+            "details": "Criar componente components/admin/audit-history.tsx seguindo padrão de components/admin/workspace-permissions.tsx. Implementar filtros: período (date range picker), workspace (select), usuário (select), status (select). Criar API route app/api/admin/audit-history/route.ts com validação de permissões (apenas admins ou workspace owners). Implementar paginação server-side (limit/offset) para performance com grandes volumes. Exibir tabela com colunas: timestamp, workspace, user (anonimizado), planos analisados (count), recomendação (título do plano), confidence_score, langsmith_run_id (link clicável para LangSmith se disponível). Adicionar botão de exportação CSV. Utilizar Supabase RLS para garantir que users só veem audits dos seus workspaces.",
+            "status": "pending",
+            "testStrategy": "Testar filtros individualmente e combinados. Verificar paginação com >100 registros. Confirmar RLS: usuário comum não vê dados de outros workspaces. Testar performance com 10k registros simulados. Validar responsividade mobile. Verificar link LangSmith abre corretamente",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Implementar funcionalidade de exportação CSV com compliance",
+            "description": "Criar endpoint para exportação de dados de auditoria em formato CSV respeitando LGPD",
+            "dependencies": [
+              4
+            ],
+            "details": "Criar API route app/api/admin/audit-history/export/route.ts que gera CSV com campos: timestamp, workspace_name, user_email, client_age_range (não CPF/nome completo), analyzed_plans_count, recommended_plan_name, confidence_score, reasoning (resumido), langsmith_run_id. Aplicar mesmo nível de anonimização usado no registro. Implementar rate limiting (1 export por minuto por usuário) para evitar abuse. Usar biblioteca 'papaparse' para geração CSV. Adicionar header Content-Disposition: attachment; filename=audit-export-YYYY-MM-DD.csv. Limitar exports a 10.000 registros por vez. Seguir padrão de lib/retrieval/processing/csv.ts para processamento. Validar permissões (workspace owner ou admin).",
+            "status": "pending",
+            "testStrategy": "Testar exportação com filtros aplicados. Verificar que CSV contém apenas dados permitidos (anonimizados). Testar limite de 10k registros. Validar rate limiting com múltiplas requests consecutivas. Confirmar encoding UTF-8 para caracteres especiais. Testar abertura em Excel e Google Sheets. Verificar permissões: 403 para não autorizados",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Implementar job de limpeza automática e configuração de retenção",
+            "description": "Criar scheduled function para deletar registros expirados e interface de configuração de retenção por workspace",
+            "dependencies": [
+              3
+            ],
+            "details": "Criar Supabase Edge Function supabase/functions/cleanup-audit-records/index.ts que executa diariamente (Supabase Cron). Query: DELETE FROM client_recommendations WHERE retention_until < NOW() AND status != 'archived'. Implementar soft delete opcional: UPDATE status = 'deleted' ao invés de DELETE. Adicionar tabela workspace_audit_config com campos: workspace_id, retention_years (DEFAULT 2), auto_anonymize_after_days (DEFAULT 90), hard_delete_enabled (BOOLEAN DEFAULT false). Criar interface components/admin/audit-retention-config.tsx para workspace owners configurarem retenção. Implementar função de anonimização progressiva: após 90 dias, aplicar anonimização 'full' automaticamente mesmo se originalmente 'partial'. Registrar deletions em audit_deletions_log para compliance.",
+            "status": "done",
+            "testStrategy": "Criar registros com retention_until no passado e verificar que job os deleta. Testar soft delete vs hard delete. Configurar retenção customizada (1 ano) e verificar que é respeitada. Testar anonimização progressiva: criar registro 'partial', simular passagem de 90 dias, verificar upgrade para 'full'. Validar que audit_deletions_log registra todas deletions. Testar execução manual da Edge Function",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-28T20:28:54.676Z"
+          }
+        ],
+        "updatedAt": "2025-11-28T20:28:59.185Z"
       },
       {
         "id": 14,
@@ -1199,15 +1276,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-28T18:44:30.733Z",
+      "lastModified": "2025-11-28T20:28:59.186Z",
       "taskCount": 17,
-      "completedCount": 12,
+      "completedCount": 13,
       "tags": [
         "master"
       ],
-      "created": "2025-11-28T19:44:44.292Z",
+      "created": "2025-11-29T12:02:09.826Z",
       "description": "Tasks for master context",
-      "updated": "2025-11-28T19:44:44.292Z"
+      "updated": "2025-11-29T12:02:09.826Z"
     }
   }
 }
