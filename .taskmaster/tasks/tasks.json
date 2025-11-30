@@ -1169,11 +1169,119 @@
           "1",
           "10"
         ],
-        "status": "pending",
-        "subtasks": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Configurar SDK LangSmith e conexão inicial",
+            "description": "Instalar e configurar o LangSmith SDK no projeto, estabelecer conexão autenticada com a plataforma e validar comunicação básica",
+            "dependencies": [],
+            "details": "Instalar pacote @langsmith/sdk via npm. Configurar variáveis de ambiente LANGSMITH_API_KEY e LANGSMITH_PROJECT no .env.local. Criar arquivo de configuração lib/monitoring/langsmith-config.ts para centralizar setup. Implementar função de inicialização que valida conexão com LangSmith API. Configurar nome do projeto e metadados básicos. Testar envio de trace simples para confirmar conectividade. Documentar variáveis necessárias no README.",
+            "status": "done",
+            "testStrategy": "Validar que SDK está instalado corretamente, verificar autenticação bem-sucedida no LangSmith, confirmar que trace de teste aparece no dashboard do LangSmith, testar tratamento de erros para credenciais inválidas",
+            "updatedAt": "2025-11-29T13:25:27.020Z",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implementar tracing de todas as chamadas GPT-4o",
+            "description": "Instrumentar todas as chamadas ao GPT-4o para capturar traces automáticos com input, output, latência e metadados no LangSmith",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar wrapper centralizado lib/monitoring/openai-tracer.ts que encapsula todas chamadas OpenAI. Usar LangSmith traceable decorator para interceptar chamadas. Capturar automaticamente: prompt completo, response completa, temperatura, max_tokens, model usado, timestamp início/fim, latência total. Instrumentar todas as ferramentas que usam GPT-4o: extractClientInfo, rankPlans, generateRecommendation, orchestrator. Adicionar tags para identificar tipo de chamada (extraction, ranking, recommendation, orchestration). Implementar error tracking para falhas de API.",
+            "status": "done",
+            "testStrategy": "Executar cada tool individualmente e verificar traces no LangSmith, validar que input/output estão completos, confirmar metadados de latência e tokens, testar cenário de erro e verificar se exception é capturada no trace",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-29T13:29:33.058Z"
+          },
+          {
+            "id": 3,
+            "title": "Configurar tracking detalhado do orquestrador principal",
+            "description": "Implementar rastreamento granular de cada step do orquestrador multi-step, incluindo transições de estado e decisões de roteamento",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Criar sistema de tracking em lib/monitoring/orchestrator-tracer.ts que registra cada step do workflow. Capturar: step atual (extraction, search, ranking, recommendation), transições entre steps, tempo gasto por step, decisões de roteamento, dados passados entre steps, estado da sessão. Implementar hierarquia de spans: span principal para sessão completa, child spans para cada step, nested spans para chamadas LLM dentro de cada step. Adicionar contexto de negócio: número de planos encontrados, flags de dados faltantes, preferências do usuário.",
+            "status": "done",
+            "testStrategy": "Executar fluxo completo end-to-end e verificar hierarquia de spans no LangSmith, validar que todos os steps aparecem na ordem correta, confirmar metadados de cada step, testar ramificações condicionais do orquestrador",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-29T13:31:55.603Z"
+          },
+          {
+            "id": 4,
+            "title": "Implementar métricas granulares (latência, tokens, custos)",
+            "description": "Desenvolver sistema de coleta e agregação de métricas detalhadas sobre performance, consumo de tokens e custos operacionais",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "Criar lib/monitoring/metrics-collector.ts para agregar métricas. Implementar cálculo automático de custos baseado em tabela de preços GPT-4o (input/output tokens). Rastrear métricas por tool: latência média/p95/p99 por tool, tokens consumidos (input/output) por tool, custo estimado por execução, taxa de sucesso/erro por tool. Métricas do orquestrador: latência total da sessão, número de steps executados, distribuição de tempo entre steps. Enviar métricas como metadata nos traces LangSmith. Implementar agregação em memória para dashboard em tempo real.",
+            "status": "pending",
+            "testStrategy": "Executar 10+ sessões simuladas e verificar métricas agregadas, validar cálculo de custos comparando com fatura OpenAI, confirmar latências registradas batem com tempo real de execução, testar agregação de métricas por período",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Desenvolver correlation IDs para sessões completas",
+            "description": "Implementar sistema de correlation IDs que permita rastrear uma sessão de usuário completa através de todos os componentes e chamadas",
+            "dependencies": [
+              3
+            ],
+            "details": "Gerar UUID único no início de cada sessão de chat (correlation_id). Propagar correlation_id através de todos os components: adicionar ao contexto de cada tool, incluir em headers de chamadas LLM, armazenar em metadata de traces LangSmith, incluir em logs de aplicação. Criar índice para busca rápida por correlation_id no LangSmith. Implementar agrupamento automático de traces pela mesma sessão. Adicionar user_id se disponível para correlação adicional. Permitir busca e filtro por correlation_id no dashboard.",
+            "status": "pending",
+            "testStrategy": "Iniciar sessão de chat simulada e verificar que todos os traces têm mesmo correlation_id, buscar por correlation_id no LangSmith e confirmar que todos os eventos da sessão aparecem, testar múltiplas sessões paralelas e validar isolamento de IDs",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Configurar dashboards de performance personalizados",
+            "description": "Desenvolver dashboards customizados no LangSmith para visualizar métricas chave de performance e uso do sistema",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Criar dashboards no LangSmith UI: Dashboard 'Overview' com métricas agregadas (requests/hora, latência média, custo total, taxa de erro). Dashboard 'Tools Performance' com breakdown por tool (latência, tokens, custos por tool). Dashboard 'User Sessions' com análise de sessões (duração média, steps por sessão, taxa de conversão). Configurar visualizações: gráficos de linha para latência ao longo do tempo, heat maps para distribuição de uso, tabelas de top errors. Adicionar filtros por período, tool, status. Exportar configuração de dashboards como código.",
+            "status": "pending",
+            "testStrategy": "Gerar dados sintéticos de 100+ execuções, verificar que todos os dashboards renderizam corretamente, validar que filtros funcionam, confirmar que métricas agregadas batem com cálculos manuais, testar atualização em tempo real",
+            "parentId": "undefined"
+          },
+          {
+            "id": 7,
+            "title": "Implementar sistema de alertas para erros e timeouts",
+            "description": "Configurar alertas automáticos para detectar e notificar sobre erros críticos, timeouts e degradação de performance",
+            "dependencies": [
+              4,
+              6
+            ],
+            "details": "Configurar regras de alerta no LangSmith: erro rate > 5% em janela de 5 minutos, latência p95 > 10 segundos, custo por hora > threshold configurado, timeout em qualquer tool. Implementar notificações via webhook para Slack/email. Criar categorias de severidade: critical (erro rate alto, timeouts frequentes), warning (latência elevada, custos acima do normal), info (anomalias detectadas). Adicionar runbook links nos alertas para troubleshooting. Configurar silenciamento de alertas durante manutenção programada.",
+            "status": "pending",
+            "testStrategy": "Simular cenários de erro (forçar falhas em tools) e verificar disparo de alertas, testar detecção de timeouts, validar notificações chegam corretamente, confirmar que thresholds configurados funcionam, testar silenciamento de alertas",
+            "parentId": "undefined"
+          },
+          {
+            "id": 8,
+            "title": "Validar traces end-to-end e otimizar coleta de dados",
+            "description": "Realizar validação completa do sistema de observabilidade e otimizar overhead de coleta para minimizar impacto em performance",
+            "dependencies": [
+              2,
+              3,
+              4,
+              5,
+              6,
+              7
+            ],
+            "details": "Executar testes end-to-end completos e validar: todos os traces aparecem corretamente, hierarquia de spans está correta, correlation IDs funcionam, métricas são precisas, dashboards refletem dados reais, alertas disparam apropriadamente. Medir overhead de observabilidade: latência adicionada pelo tracing, memória consumida, impacto em throughput. Otimizar: implementar sampling para alto volume (trace 100% errors, 10% success), fazer batch de envio de métricas, comprimir payloads grandes, implementar circuit breaker se LangSmith estiver indisponível. Documentar configuração completa e troubleshooting guide.",
+            "status": "pending",
+            "testStrategy": "Executar 50+ sessões reais simuladas e validar 100% de traces corretos, medir overhead de latência (deve ser < 100ms), testar cenário de LangSmith offline e confirmar graceful degradation, validar sampling funciona corretamente, revisar documentação com outro desenvolvedor",
+            "parentId": "undefined"
+          }
+        ],
         "complexity": 8,
         "recommendedSubtasks": 8,
-        "expansionPrompt": "Dividir em: 1) Configurar SDK LangSmith e conexão inicial, 2) Implementar tracing de todas as chamadas GPT-4o, 3) Configurar tracking detalhado do orquestrador principal, 4) Implementar métricas granulares (latência, tokens, custos), 5) Desenvolver correlation IDs para sessões completas, 6) Configurar dashboards de performance personalizados, 7) Implementar sistema de alertas para erros e timeouts, 8) Validar traces end-to-end e otimizar coleta de dados."
+        "expansionPrompt": "Dividir em: 1) Configurar SDK LangSmith e conexão inicial, 2) Implementar tracing de todas as chamadas GPT-4o, 3) Configurar tracking detalhado do orquestrador principal, 4) Implementar métricas granulares (latência, tokens, custos), 5) Desenvolver correlation IDs para sessões completas, 6) Configurar dashboards de performance personalizados, 7) Implementar sistema de alertas para erros e timeouts, 8) Validar traces end-to-end e otimizar coleta de dados.",
+        "updatedAt": "2025-11-29T13:46:38.286Z"
       },
       {
         "id": 15,
@@ -1276,15 +1384,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-28T20:28:59.186Z",
+      "lastModified": "2025-11-29T13:46:38.289Z",
       "taskCount": 17,
-      "completedCount": 13,
+      "completedCount": 14,
       "tags": [
         "master"
       ],
-      "created": "2025-11-29T12:02:09.826Z",
+      "created": "2025-11-30T20:46:59.901Z",
       "description": "Tasks for master context",
-      "updated": "2025-11-29T12:02:09.826Z"
+      "updated": "2025-11-30T20:46:59.901Z"
     }
   }
 }
