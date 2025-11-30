@@ -130,7 +130,7 @@ export function createTracedOpenAI(
     }
 
     // Execute the actual OpenAI call
-    let response: OpenAI.Chat.Completions.ChatCompletion
+    let response: OpenAI.Chat.Completions.ChatCompletion | undefined
     let error: Error | undefined
 
     try {
@@ -254,7 +254,7 @@ export async function traceOpenAICall<T>(
   }
 
   // Execute
-  let result: T
+  let result: T | undefined
   let error: Error | undefined
 
   try {

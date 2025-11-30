@@ -1373,26 +1373,94 @@
         "description": "Desenvolver UI completa para gerenciar credenciais da API ERP, incluindo formulário CRUD de configurações, dashboard de estatísticas do cache, histórico de chamadas à API, painel de monitoramento de health checks, validação de credenciais e gestão de permissões.",
         "details": "Implementar interface administrativa em /components/admin/erp-config/ com os seguintes componentes:\n\n1. **erp-config-form.tsx**: Formulário CRUD completo para workspace_erp_config usando helpers de db/workspace-erp-config.ts (getERPConfigByWorkspaceId, createERPConfig, updateERPConfig, deleteERPConfig). Campos: api_url (validação URL), api_key (input type password, sem exibir valor atual), custom_headers (JSON editor), timeout_ms (number, 1000-60000), max_retries (number, 0-5), cache_ttl_seconds (number, 60-86400). Botão \"Testar Conectividade\" que chama endpoint de validação usando ERPClient.fetchPrices() com dados mock.\n\n2. **cache-stats-dashboard.tsx**: Dashboard de estatísticas do cache usando dados de lib/cache/erp-cache-manager.ts. Métricas em cards: Hit Rate (%), Miss Rate (%), Total Entries, Evictions (últimas 24h). Gráfico temporal de hits/misses usando Recharts. Botão \"Limpar Cache\" que chama endpoint clear cache por workspace.\n\n3. **api-call-history.tsx**: Tabela de histórico de chamadas à API ERP. Colunas: timestamp, workspace, status (success/error), response_time_ms, cache_hit, error_message. Filtros: range de datas (react-day-picker), workspace (dropdown), status (checkboxes). Paginação server-side (20 registros por página). Implementar tabela supabase erp_api_logs via migration.\n\n4. **health-monitor-panel.tsx**: Painel de monitoramento com indicador visual (verde/amarelo/vermelho) do status da API ERP. Últimos 5 health checks com timestamps e latência. Configurar cron job (Vercel/Supabase) que executa health check a cada 5 minutos e armazena em erp_health_checks table. Alertas automáticos se taxa de erro > 20% em 1 hora.\n\n5. **erp-config-page.tsx**: Página principal em /app/[locale]/[workspaceId]/admin/erp-config/page.tsx que integra todos componentes. Verificação de permissões: apenas admins do workspace (checar role via Supabase auth.users metadata ou workspace_users table). Usar layout admin existente, Radix UI components (Dialog, Tabs, Select, Card), Tailwind classes do design system, suporte dark/light mode.\n\n**Migrations necessárias:**\n- 20251119000001_create_erp_api_logs.sql: tabela erp_api_logs (id, workspace_id, timestamp, status, response_time_ms, cache_hit, error_message, request_params JSONB)\n- 20251119000002_create_erp_health_checks.sql: tabela erp_health_checks (id, workspace_id, timestamp, status, latency_ms, error_details)\n- Ambas com RLS policies baseadas em workspace_id\n\n**API Endpoints:**\n- POST /api/admin/erp-config/test: valida credenciais chamando ERPClient\n- DELETE /api/admin/erp-config/cache/clear: limpa cache por workspace\n- GET /api/admin/erp-config/logs: retorna histórico paginado\n- GET /api/admin/erp-config/health: retorna últimos health checks",
         "testStrategy": "Testes unitários: componentes React com Testing Library (formulário, validações, filtros). Testes de integração: fluxo completo CRUD usando db helpers, verificar permissões (admin vs não-admin), testar endpoint de validação de credenciais com mock ERPClient. Testes E2E: criar configuração via UI, testar conectividade, verificar dashboard de cache atualiza após chamadas à API, filtrar histórico por data/status, confirmar health monitor exibe status correto. Testes de segurança: validar RLS bloqueia acesso cross-workspace, confirmar api_key criptografada no banco (pgp_sym_encrypt), verificar apenas admins acessam rota. Teste de responsividade: validar UI mobile/desktop. Coverage mínimo: 80% nos componentes principais.",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
           "8",
           "11"
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Criar migrations para tabelas erp_api_logs e erp_health_checks",
+            "description": "Implementar migrations SQL para criar as tabelas de logs de API e health checks do sistema ERP",
+            "dependencies": [],
+            "details": "Criar duas migrations:\n\n1. **20251119000001_create_erp_api_logs.sql**: Tabela para armazenar histórico de chamadas à API ERP:\n   - Colunas: id (uuid, PK), workspace_id (uuid, FK), timestamp (timestamptz), status (text), response_time_ms (int), cache_hit (boolean), error_message (text), request_params (jsonb)\n   - Índices: idx_erp_api_logs_workspace_id, idx_erp_api_logs_timestamp, idx_erp_api_logs_status\n   - RLS policy: permitir SELECT/INSERT apenas para usuários do workspace correspondente\n   - Habilitar RLS na tabela\n\n2. **20251119000002_create_erp_health_checks.sql**: Tabela para monitoramento de saúde:\n   - Colunas: id (uuid, PK), workspace_id (uuid, FK), timestamp (timestamptz), status (text), latency_ms (int), error_details (jsonb)\n   - Índices: idx_erp_health_checks_workspace_id, idx_erp_health_checks_timestamp\n   - RLS policy: permitir SELECT apenas para usuários do workspace\n   - Habilitar RLS na tabela\n\nAmbas com created_at timestamp padrão e foreign keys para workspaces com ON DELETE CASCADE.",
+            "status": "done",
+            "testStrategy": "Executar migrations localmente com 'supabase migration up', validar estrutura das tabelas com \\d+ no psql, testar RLS policies inserindo dados de teste, verificar índices criados com EXPLAIN ANALYZE, confirmar cascata de deleção ao remover workspace",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-30T21:35:21.848Z"
+          },
+          {
+            "id": 2,
+            "title": "Criar componente erp-config-form.tsx com formulário CRUD completo",
+            "description": "Desenvolver formulário React para gerenciar configurações ERP do workspace com validação completa",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar /components/admin/erp-config/erp-config-form.tsx:\n\n**Campos do formulário:**\n- api_url: Input text com validação de URL (usar zod ou validator.js)\n- api_key: Input type=\"password\" que não exibe valor atual (placeholder \"****** (não modificar se não quiser alterar)\")\n- custom_headers: Textarea para JSON com syntax highlighting (opcional: usar JSON editor library como react-json-view-lite)\n- timeout_ms: Number input com range 1000-60000, step 1000, default 10000\n- max_retries: Number input com range 0-5, default 2\n- cache_ttl_seconds: Number input com range 60-86400, default 900 (15min)\n\n**Funcionalidades:**\n- useEffect para carregar config existente via getERPConfigByWorkspaceId\n- Botão \"Salvar\" que chama createERPConfig ou updateERPConfig conforme necessário\n- Botão \"Testar Conectividade\" que faz POST /api/admin/erp-config/test com dados do form\n- Botão \"Excluir Configuração\" (confirm dialog) que chama deleteERPConfig\n- Validação client-side com react-hook-form + zod\n- Feedback visual de loading, success e error states\n- Usar componentes Radix UI existentes (Label, Input, Button, Alert)\n- Suporte dark/light mode com Tailwind classes",
+            "status": "done",
+            "testStrategy": "Testes unitários com Testing Library: renderizar formulário vazio, preencher campos e validar submit, testar validação de URL inválida, verificar que api_key não exibe valor ao editar, simular erro de API e verificar mensagem. Teste de integração: criar config completo e verificar salvamento no banco",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-30T21:39:03.042Z"
+          },
+          {
+            "id": 3,
+            "title": "Implementar cache-stats-dashboard.tsx com métricas e gráfico",
+            "description": "Criar dashboard visual de estatísticas do cache ERP usando dados do erp-price-cache",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar /components/admin/erp-config/cache-stats-dashboard.tsx:\n\n**Métricas em cards (4 cards em grid):**\n- Hit Rate: exibir % com cor (verde se >70%, amarelo se 40-70%, vermelho se <40%)\n- Miss Rate: exibir % complementar ao Hit Rate\n- Total Entries: número total de entradas no cache\n- Evictions (24h): número de evictions (pode ser total ou implementar filtro temporal)\n\n**Gráfico temporal:**\n- Usar Recharts LineChart ou AreaChart\n- Eixo X: timestamp (últimas 24h em intervalos de 1h)\n- Eixo Y: contagem de hits e misses\n- Duas linhas: hits (verde) e misses (vermelho)\n- Dados obtidos via GET /api/admin/erp-config/stats?period=24h\n\n**Ações:**\n- Botão \"Limpar Cache\" que chama DELETE /api/admin/erp-config/cache/clear com confirmação\n- Auto-refresh a cada 30s usando useEffect + setInterval\n\n**Estilo:**\n- Cards com Radix UI Card component\n- Ícones do @tabler/icons-react (IconChartLine, IconDatabase, IconRefresh)\n- Responsive grid (grid-cols-1 md:grid-cols-2 lg:grid-cols-4)\n- Skeleton loading state enquanto carrega dados",
+            "status": "done",
+            "testStrategy": "Testes unitários: renderizar com dados mock, verificar cálculo correto de percentuais, testar mudança de cor baseada em thresholds. Testes de integração: verificar chamada ao endpoint de stats, validar formatação de dados para Recharts, simular limpeza de cache e verificar reload",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-30T21:40:32.558Z"
+          },
+          {
+            "id": 4,
+            "title": "Desenvolver api-call-history.tsx com tabela paginada e filtros",
+            "description": "Criar componente de histórico de chamadas à API ERP com filtros avançados e paginação server-side",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar /components/admin/erp-config/api-call-history.tsx:\n\n**Tabela de dados:**\n- Colunas: Timestamp (formatado com date-fns), Workspace, Status (badge colorido), Response Time (ms), Cache Hit (ícone check/x), Error Message (truncado com tooltip)\n- Dados de erp_api_logs via GET /api/admin/erp-config/logs\n- Paginação server-side: 20 registros por página\n- Ordenação por timestamp DESC (mais recentes primeiro)\n\n**Filtros:**\n- Range de datas: usar Radix UI Popover + date picker (pode usar react-day-picker ou shadcn date-range-picker)\n- Workspace: Dropdown/Select com lista de workspaces\n- Status: Checkboxes para success/error/timeout\n- Botão \"Aplicar Filtros\" e \"Limpar Filtros\"\n\n**Componentes:**\n- Radix UI Table primitives ou HTML table estilizado\n- Radix UI Select para workspace filter\n- Radix UI Checkbox para status filters\n- Paginação com botões Previous/Next + info \"Página X de Y\"\n\n**Estilo:**\n- Tabela responsiva com scroll horizontal em mobile\n- Status badges: verde (success), vermelho (error), amarelo (timeout)\n- Hover row highlight\n- Empty state quando sem dados",
+            "status": "done",
+            "testStrategy": "Testes unitários: renderizar tabela com dados mock, verificar formatação de timestamp, testar aplicação de filtros, validar paginação. Testes de integração: buscar dados reais do endpoint, aplicar filtro de data e verificar query params, testar navegação entre páginas",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-30T21:42:13.710Z"
+          },
+          {
+            "id": 5,
+            "title": "Criar health-monitor-panel.tsx e implementar endpoints de API",
+            "description": "Desenvolver painel de monitoramento de saúde da API ERP e endpoints backend necessários",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "**Componente /components/admin/erp-config/health-monitor-panel.tsx:**\n- Indicador visual de status: círculo grande (verde: healthy, amarelo: degraded, vermelho: down)\n- Tabela dos últimos 5 health checks: timestamp, latency_ms, status\n- Card de alertas: exibir warning se taxa de erro > 20% na última hora\n- Auto-refresh a cada 60s\n\n**Página principal /app/[locale]/[workspaceId]/admin/erp-config/page.tsx:**\n- Layout com Radix UI Tabs para organizar seções: \"Configuração\", \"Cache\", \"Histórico\", \"Monitoramento\"\n- Verificação de permissões: chamar helper isUserAdmin antes de renderizar\n- Integrar todos os 4 componentes criados nas subtarefas anteriores\n- Breadcrumb navigation\n- Título da página com ícone\n\n**API Endpoints a criar:**\n\n1. **POST /api/admin/erp-config/test**: Valida credenciais chamando ERPClient.fetchPrices com dados mock\n2. **DELETE /api/admin/erp-config/cache/clear**: Chama erpPriceCache.invalidateCache(workspaceId)\n3. **GET /api/admin/erp-config/logs**: Retorna histórico paginado de erp_api_logs com filtros\n4. **GET /api/admin/erp-config/health**: Retorna últimos health checks de erp_health_checks\n5. **GET /api/admin/erp-config/stats**: Retorna estatísticas do cache via erpPriceCache.getCacheStats()\n\nTodos endpoints devem:\n- Validar autenticação com validateUserAuthentication\n- Verificar permissão admin com isUserAdmin\n- Incluir error handling e logs apropriados",
+            "status": "done",
+            "testStrategy": "Testes E2E: acessar página como admin e verificar renderização de todos componentes, acessar como não-admin e confirmar bloqueio, testar cada endpoint de API individualmente, simular health check failure e verificar alerta visual. Testes unitários: verificar lógica de cálculo de taxa de erro, validar formatação de dados de health checks",
+            "parentId": "undefined",
+            "updatedAt": "2025-11-30T22:05:48.351Z"
+          }
+        ],
+        "updatedAt": "2025-11-30T22:05:48.351Z"
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-29T13:46:38.289Z",
+      "lastModified": "2025-11-30T22:05:48.353Z",
       "taskCount": 17,
-      "completedCount": 14,
+      "completedCount": 15,
       "tags": [
         "master"
       ],
-      "created": "2025-11-30T20:46:59.901Z",
+      "created": "2025-11-30T23:17:32.035Z",
       "description": "Tasks for master context",
-      "updated": "2025-11-30T20:46:59.901Z"
+      "updated": "2025-11-30T23:17:32.035Z"
     }
   }
 }

@@ -603,6 +603,88 @@ export type Database = {
           },
         ]
       }
+      erp_api_logs: {
+        Row: {
+          cache_hit: boolean
+          created_at: string
+          error_message: string | null
+          id: string
+          request_params: Json | null
+          response_time_ms: number | null
+          status: string
+          timestamp: string
+          workspace_id: string
+        }
+        Insert: {
+          cache_hit?: boolean
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          request_params?: Json | null
+          response_time_ms?: number | null
+          status: string
+          timestamp?: string
+          workspace_id: string
+        }
+        Update: {
+          cache_hit?: boolean
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          request_params?: Json | null
+          response_time_ms?: number | null
+          status?: string
+          timestamp?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_api_logs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_health_checks: {
+        Row: {
+          created_at: string
+          error_details: Json | null
+          id: string
+          latency_ms: number | null
+          status: string
+          timestamp: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          error_details?: Json | null
+          id?: string
+          latency_ms?: number | null
+          status: string
+          timestamp?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          error_details?: Json | null
+          id?: string
+          latency_ms?: number | null
+          status?: string
+          timestamp?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_health_checks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       file_items: {
         Row: {
           content: string
@@ -1500,6 +1582,56 @@ export type Database = {
           },
         ]
       }
+      workspace_erp_config: {
+        Row: {
+          api_url: string
+          cache_ttl_minutes: number | null
+          created_at: string
+          custom_headers: Json | null
+          encrypted_api_key: string
+          id: string
+          is_active: boolean | null
+          retry_attempts: number | null
+          timeout_ms: number | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          api_url: string
+          cache_ttl_minutes?: number | null
+          created_at?: string
+          custom_headers?: Json | null
+          encrypted_api_key: string
+          id?: string
+          is_active?: boolean | null
+          retry_attempts?: number | null
+          timeout_ms?: number | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          api_url?: string
+          cache_ttl_minutes?: number | null
+          created_at?: string
+          custom_headers?: Json | null
+          encrypted_api_key?: string
+          id?: string
+          is_active?: boolean | null
+          retry_attempts?: number | null
+          timeout_ms?: number | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_erp_config_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workspaces: {
         Row: {
           created_at: string
@@ -1569,18 +1701,31 @@ export type Database = {
         Args: { client_info: Json; level?: string }
         Returns: Json
       }
+      calculate_erp_health_status: {
+        Args: { p_window_hours?: number; p_workspace_id: string }
+        Returns: string
+      }
       cleanup_audit_records: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           anonymization_upgraded: number
           hard_deleted: number
           soft_deleted: number
         }[]
       }
+      cleanup_old_erp_api_logs: {
+        Args: { days_to_keep?: number }
+        Returns: number
+      }
+      cleanup_old_erp_health_checks: {
+        Args: { days_to_keep?: number }
+        Returns: number
+      }
       create_duplicate_messages_for_new_chat: {
         Args: { new_chat_id: string; new_user_id: string; old_chat_id: string }
         Returns: undefined
       }
+      decrypt_api_key: { Args: { encrypted_key: string }; Returns: string }
       delete_message_including_and_after: {
         Args: {
           p_chat_id: string
@@ -1604,6 +1749,20 @@ export type Database = {
       delete_storage_object_from_bucket: {
         Args: { bucket_name: string; object_path: string }
         Returns: Record<string, unknown>
+      }
+      encrypt_api_key: { Args: { api_key: string }; Returns: string }
+      get_erp_health_metrics: {
+        Args: { p_hours?: number; p_workspace_id: string }
+        Returns: {
+          avg_latency_ms: number
+          current_status: string
+          degraded_count: number
+          down_count: number
+          healthy_count: number
+          max_latency_ms: number
+          min_latency_ms: number
+          total_checks: number
+        }[]
       }
       is_global_admin: { Args: { check_user_id: string }; Returns: boolean }
       is_global_admin_by_email: {

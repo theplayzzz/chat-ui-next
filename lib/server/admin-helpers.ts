@@ -27,7 +27,7 @@ function getSupabaseServerClient() {
  * Check if user is admin
  *
  * Verifies admin privileges in order:
- * 1. Global admin (is_global_admin in profiles table)
+ * 1. Global admin (via global_admins table or RPC function)
  * 2. Workspace owner (user_id matches workspace.user_id)
  *
  * @param userId - User ID to check
@@ -40,14 +40,12 @@ export async function isUserAdmin(
 ): Promise<boolean> {
   const supabase = getSupabaseServerClient()
 
-  // Check global admin first (via profiles table)
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_global_admin")
-    .eq("user_id", userId)
-    .single()
+  // Check global admin first (via RPC function)
+  const { data: isGlobalAdmin } = await supabase.rpc("is_global_admin", {
+    check_user_id: userId
+  })
 
-  if (profile?.is_global_admin === true) {
+  if (isGlobalAdmin === true) {
     return true
   }
 

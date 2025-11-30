@@ -8,17 +8,85 @@ import {
   ERPResponseSchema,
   ERPPriceItem
 } from "@/lib/tools/health-plan/schemas/erp-response-schema"
+import { createClient } from "@supabase/supabase-js"
+import type { Database } from "@/supabase/types"
+
+// =============================================================================
+// AUTO-LOGGING TYPES
+// =============================================================================
+
+interface APILogEntry {
+  workspace_id: string
+  status: "success" | "error" | "timeout"
+  response_time_ms: number
+  cache_hit: boolean
+  error_message?: string
+  request_params?: Record<string, unknown>
+}
 
 /**
  * HTTP client for ERP API integration with robust error handling and retry logic
+ * Task #17.2: Added auto-logging to erp_api_logs table
  */
 export class ERPClient {
   private config: WorkspaceERPConfig
   private decryptedApiKey: string
+  private supabaseAdmin: ReturnType<typeof createClient<Database>> | null = null
 
   constructor(config: WorkspaceERPConfig, decryptedApiKey: string) {
     this.config = config
     this.decryptedApiKey = decryptedApiKey
+    this.initSupabaseAdmin()
+  }
+
+  /**
+   * Initialize Supabase admin client for logging
+   * Uses service role key for bypassing RLS
+   */
+  private initSupabaseAdmin(): void {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+      if (supabaseUrl && supabaseServiceKey) {
+        this.supabaseAdmin = createClient<Database>(
+          supabaseUrl,
+          supabaseServiceKey,
+          {
+            auth: {
+              autoRefreshToken: false,
+              persistSession: false
+            }
+          }
+        )
+      }
+    } catch (error) {
+      console.warn("[ERPClient] Failed to initialize Supabase admin:", error)
+    }
+  }
+
+  /**
+   * Log API call to erp_api_logs table
+   * Non-blocking - errors are logged but don't affect main flow
+   */
+  private async logAPICall(entry: APILogEntry): Promise<void> {
+    if (!this.supabaseAdmin) {
+      return // Silently skip if no admin client
+    }
+
+    try {
+      await this.supabaseAdmin.from("erp_api_logs").insert({
+        workspace_id: entry.workspace_id,
+        status: entry.status,
+        response_time_ms: entry.response_time_ms,
+        cache_hit: entry.cache_hit,
+        error_message: entry.error_message || null,
+        request_params: (entry.request_params as Record<string, string>) || null
+      })
+    } catch (error) {
+      // Non-blocking - just log the error
+      console.error("[ERPClient] Failed to log API call:", error)
+    }
   }
 
   /**
@@ -67,6 +135,15 @@ export class ERPClient {
           `[ERPClient] Success after ${attempt} attempt(s) in ${duration}ms`
         )
 
+        // Auto-log successful call
+        this.logAPICall({
+          workspace_id: this.config.workspace_id,
+          status: "success",
+          response_time_ms: duration,
+          cache_hit: false,
+          request_params: { plan_ids: planIds, attempt }
+        })
+
         return {
           success: true,
           data: erpResponse.data,
@@ -93,6 +170,18 @@ export class ERPClient {
       `[ERPClient] All ${maxAttempts} attempts failed after ${duration}ms`,
       lastError
     )
+
+    // Auto-log failed call
+    const logStatus: "error" | "timeout" =
+      lastError?.code === "TIMEOUT" ? "timeout" : "error"
+    this.logAPICall({
+      workspace_id: this.config.workspace_id,
+      status: logStatus,
+      response_time_ms: duration,
+      cache_hit: false,
+      error_message: lastError?.message,
+      request_params: { plan_ids: planIds, attempts: maxAttempts }
+    })
 
     return {
       success: false,

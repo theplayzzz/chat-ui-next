@@ -187,11 +187,12 @@ export interface WorkspaceERPConfig {
   id: string
   workspace_id: string
   api_url: string
-  api_key_encrypted: string
+  encrypted_api_key: string
   custom_headers: Record<string, string>
   timeout_ms: number
   retry_attempts: number
   cache_ttl_minutes: number
+  is_active: boolean
   created_at: string
   updated_at: string
 }

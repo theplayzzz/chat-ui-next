@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/erp-health-check",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

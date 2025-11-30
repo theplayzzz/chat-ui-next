@@ -54,7 +54,7 @@ export const createERPConfig = async (
   const insertData: TablesInsert<"workspace_erp_config"> = {
     workspace_id: config.workspace_id,
     api_url: config.api_url,
-    api_key_encrypted: encryptedKey,
+    encrypted_api_key: encryptedKey,
     custom_headers: config.custom_headers || {},
     timeout_ms: config.timeout_ms || 10000,
     retry_attempts: config.retry_attempts || 2,
@@ -103,7 +103,7 @@ export const updateERPConfig = async (
       throw new Error(`Error encrypting API key: ${encryptError.message}`)
     }
 
-    updateData.api_key_encrypted = encryptedKey
+    updateData.encrypted_api_key = encryptedKey
   }
 
   if (updates.custom_headers !== undefined) {
@@ -172,7 +172,7 @@ export const getDecryptedAPIKey = async (
   }
 
   const { data: decryptedKey, error } = await supabase.rpc("decrypt_api_key", {
-    encrypted_key: config.api_key_encrypted
+    encrypted_key: config.encrypted_api_key
   })
 
   if (error) {
