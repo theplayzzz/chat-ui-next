@@ -4,10 +4,18 @@
  * Extrai informações estruturadas do cliente usando GPT-4o
  * com structured output e validação via Zod
  *
+ * Integração LangSmith: traceable para observabilidade
+ *
  * Referência: PRD RF-002 (linhas 56-77)
  */
 
 import OpenAI from "openai"
+import {
+  traceable,
+  createTracedOpenAI,
+  addRunMetadata,
+  WORKFLOW_STEP_NAMES
+} from "@/lib/monitoring/langsmith-setup"
 import {
   ClientInfoSchema,
   PartialClientInfoSchema,
@@ -34,14 +42,10 @@ import type {
 } from "./types"
 
 /**
- * Tool principal para extração de informações do cliente
- *
- * @param params - Parâmetros incluindo mensagens e informações atuais
- * @param apiKey - OpenAI API key
- * @param model - Modelo a ser usado (default: EXTRACTION_MODEL_CONFIG.model)
- * @returns Informações extraídas, campos faltantes e status de completude
+ * Implementação interna da extração de informações do cliente
+ * Envolvida por traceable para observabilidade LangSmith
  */
-export async function extractClientInfo(
+async function extractClientInfoInternal(
   params: ExtractClientInfoParams,
   apiKey: string,
   model?: string
@@ -58,12 +62,17 @@ export async function extractClientInfo(
     !!params.currentInfo
   )
 
+  // Adicionar metadata ao trace atual
+  addRunMetadata({
+    messageCount: params.messages?.length || 0,
+    hasCurrentInfo: !!params.currentInfo,
+    model: modelToUse
+  })
+
   try {
-    // 1. Configurar OpenAI client
+    // 1. Configurar OpenAI client com tracing automático
     console.log("[extract-client-info] 🔧 Configuring OpenAI client...")
-    const openai = new OpenAI({
-      apiKey: apiKey
-    })
+    const openai = createTracedOpenAI({ apiKey })
 
     // 2. Construir prompt com histórico de conversa
     const messages = buildExtractionPrompt(params.messages)
@@ -422,6 +431,38 @@ export const extractClientInfoFunctionSchema: OpenAI.Chat.Completions.ChatComple
       }
     }
   }
+
+// =============================================================================
+// FUNÇÃO EXPORTADA COM TRACEABLE
+// =============================================================================
+
+/**
+ * Tool principal para extração de informações do cliente
+ * Envolvida com traceable para observabilidade LangSmith
+ *
+ * @param params - Parâmetros incluindo mensagens e informações atuais
+ * @param apiKey - OpenAI API key
+ * @param model - Modelo a ser usado (default: EXTRACTION_MODEL_CONFIG.model)
+ * @returns Informações extraídas, campos faltantes e status de completude
+ */
+export const extractClientInfo = traceable(
+  async (
+    params: ExtractClientInfoParams,
+    apiKey: string,
+    model?: string
+  ): Promise<ExtractClientInfoResponse> => {
+    return extractClientInfoInternal(params, apiKey, model)
+  },
+  {
+    name: WORKFLOW_STEP_NAMES.EXTRACT_CLIENT_INFO,
+    run_type: "chain",
+    tags: ["health-plan", "step-1", "extraction"],
+    metadata: {
+      step: 1,
+      description: "Extrai informações estruturadas do cliente usando GPT-4o"
+    }
+  }
+)
 
 /**
  * Wrapper simplificado para uso em API routes

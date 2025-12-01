@@ -1,296 +1,296 @@
-# Health Plan Agent - extractClientInfo Tool
+# Health Plan Agent
 
-Ferramenta de extração de informações do cliente para recomendação de planos de saúde usando GPT-4o com structured output.
+Agente de recomendação de planos de saúde com workflow multi-step e observabilidade via LangSmith.
 
-## 📁 Estrutura
+## Arquitetura
 
 ```
 lib/tools/health-plan/
-├── extract-client-info.ts           # Implementação principal da tool
-├── schemas/
-│   └── client-info-schema.ts       # Schema Zod completo e validações
-├── prompts/
-│   └── extraction-prompts.ts       # Prompts otimizados para GPT-4o
-├── validators/
-│   └── missing-fields-detector.ts  # Validação e detecção de campos
-├── types.ts                        # Types compartilhados
-├── __tests__/
-│   └── extract-client-info.test.ts # Testes completos
-└── README.md                       # Esta documentação
+├── orchestrator.ts              # Orquestrador do workflow multi-step
+├── extract-client-info.ts       # Step 1: Extração de informações do cliente
+├── search-health-plans.ts       # Step 2: Busca RAG de planos
+├── analyze-compatibility.ts     # Step 3: Análise de compatibilidade
+├── fetch-erp-prices.ts          # Step 4: Consulta de preços no ERP
+├── generate-recommendation.ts   # Step 5: Geração de recomendação humanizada
+├── session-manager.ts           # Gerenciamento de sessão
+├── error-handler.ts             # Tratamento de erros e retries
+├── logger.ts                    # Logging estruturado
+├── audit-logger.ts              # Auditoria LGPD
+├── types.ts                     # Types compartilhados
+├── schemas/                     # Schemas Zod
+│   ├── client-info-schema.ts
+│   └── recommendation-schemas.ts
+├── prompts/                     # Prompts para GPT
+│   ├── extraction-prompts.ts
+│   └── recommendation-prompts.ts
+├── templates/                   # Templates de resposta
+│   └── recommendation-template.ts
+├── validators/                  # Validadores
+│   └── missing-fields-detector.ts
+└── __tests__/                   # Testes unitários
 ```
 
-## 🚀 Como Usar
+## Workflow de 5 Steps
 
-### Exemplo Básico
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Health Plan Agent Workflow                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────┐ │
+│  │ 1. Extract       │────▶│ 2. Search        │────▶│ 3. Analyze   │ │
+│  │    Client Info   │     │    Health Plans  │     │ Compatibility│ │
+│  │    (GPT-4o)      │     │    (RAG)         │     │    (GPT-4o)  │ │
+│  └──────────────────┘     └──────────────────┘     └──────────────┘ │
+│                                                            │        │
+│                                                            ▼        │
+│  ┌──────────────────┐     ┌──────────────────┐     ┌──────────────┐ │
+│  │ 5. Generate      │◀────│ 4. Fetch         │◀────│              │ │
+│  │    Recommendation│     │    ERP Prices    │     │              │ │
+│  │    (GPT-4o)      │     │    (HTTP API)    │     │              │ │
+│  └──────────────────┘     └──────────────────┘     └──────────────┘ │
+│                                                                      │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### Step 1: extractClientInfo
+- Extrai informações estruturadas do cliente via GPT-4o
+- Campos: idade, cidade, estado, orçamento, dependentes, condições pré-existentes
+- Retorna se as informações estão completas ou próxima pergunta
+
+### Step 2: searchHealthPlans
+- Busca RAG em múltiplas collections do Supabase
+- Usa embeddings OpenAI para similaridade semântica
+- Retorna planos compatíveis com perfil do cliente
+
+### Step 3: analyzeCompatibility
+- Análise de compatibilidade via GPT-4o
+- Scoring multi-dimensional (cobertura, preço, rede, etc.)
+- Ranking dos melhores planos
+
+### Step 4: fetchERPPrices
+- Consulta preços no sistema ERP da corretora
+- Cache com TTL configurável
+- Fallback para preços estimados
+
+### Step 5: generateRecommendation
+- Geração de recomendação humanizada via GPT-4o
+- Inclui tabela comparativa, alertas e próximos passos
+- Glossário de termos técnicos
+
+## Observabilidade (LangSmith)
+
+### Integração Automática
+
+Cada step é automaticamente rastreado no LangSmith usando o padrão oficial do SDK:
 
 ```typescript
-import { extractFromConversation } from "@/lib/tools/health-plan/extract-client-info"
+import { traceable } from "@/lib/monitoring/langsmith-setup"
 
-const messages = [
+export const extractClientInfo = traceable(
+  async (params, apiKey) => {
+    // Implementação
+  },
   {
-    role: "user",
-    content: "Tenho 35 anos e moro em São Paulo. Posso pagar R$ 800 por mês."
+    name: "extractClientInfo",
+    run_type: "chain",
+    tags: ["health-plan", "step-1"]
   }
-]
-
-const result = await extractFromConversation(
-  messages,
-  process.env.OPENAI_API_KEY!
 )
-
-console.log(result.clientInfo) // { age: 35, city: "São Paulo", state: "SP", budget: 800 }
-console.log(result.isComplete) // true
-console.log(result.completeness) // 70 (porcentagem)
-console.log(result.missingFields) // ["dependentes", "condições pré-existentes", ...]
 ```
 
-### Extração Incremental
+### Hierarquia de Traces
 
-```typescript
-// Primeira chamada
-const result1 = await extractFromConversation(
-  [{ role: "user", content: "Tenho 35 anos" }],
-  apiKey
-)
-
-// Segunda chamada (merge automático)
-const result2 = await extractFromConversation(
-  [
-    { role: "user", content: "Tenho 35 anos" },
-    { role: "assistant", content: "E em qual cidade você mora?" },
-    { role: "user", content: "São Paulo, capital" }
-  ],
-  apiKey,
-  result1.clientInfo // Passa info anterior
-)
-
-console.log(result2.clientInfo)
-// { age: 35, city: "São Paulo", state: "SP" }
+```
+health-plan-agent (route handler)
+├── extractClientInfo (step 1)
+│   └── OpenAI chat completion (auto-traced via wrapOpenAI)
+├── searchHealthPlans (step 2)
+│   └── OpenAI embeddings (auto-traced)
+├── analyzeCompatibility (step 3)
+│   └── OpenAI chat completion (auto-traced)
+├── fetchERPPrices (step 4)
+└── generateRecommendation (step 5)
+    └── OpenAI chat completion (auto-traced)
 ```
 
-## 📊 Schema de Dados
+### Agrupamento por Chat
 
-### ClientInfo Completo
+Todas as interações do mesmo chat são agrupadas usando `session_id`:
 
 ```typescript
-interface ClientInfo {
-  // Campos obrigatórios
-  age: number // 0-120
-  city: string
-  state: string // Sigla 2 letras (ex: SP, RJ)
-  budget: number // Valor positivo em reais
+import { setSessionId } from "@/lib/monitoring/langsmith-setup"
 
-  // Campos opcionais
-  dependents?: Array<{
-    relationship: "spouse" | "child" | "parent" | "other"
-    age: number
+// No route handler
+if (chatId) {
+  setSessionId(chatId)
+}
+```
+
+### Métricas de Negócio
+
+Métricas de negócio são adicionadas ao trace:
+
+```typescript
+import { addRunMetadata } from "@/lib/monitoring/langsmith-setup"
+
+addRunMetadata({
+  businessMetrics: {
+    plansFound: 15,
+    plansAnalyzed: 5,
+    topPlanScore: 87,
+    clientCompleteness: 85
+  }
+})
+```
+
+## API
+
+### Endpoint Principal
+
+```
+POST /api/chat/health-plan-agent
+```
+
+### Request Body
+
+```typescript
+interface HealthPlanAgentRequest {
+  workspaceId: string        // ID do workspace
+  assistantId: string        // ID do assistente
+  chatId?: string            // ID do chat (para agrupamento LangSmith)
+  sessionId?: string         // ID da sessão (para retomada)
+  resetToStep?: number       // Resetar para step específico (1-5)
+  model?: string             // Modelo GPT (default: gpt-4o-mini)
+  messages: Array<{
+    role: "user" | "assistant" | "system"
+    content: string
   }>
-  preExistingConditions?: string[]
-  medications?: string[]
-  preferences?: {
-    networkType?: "broad" | "restricted"
-    coParticipation?: boolean
-    specificHospitals?: string[]
-  }
-
-  // Metadata (auto-gerado)
-  metadata?: {
-    extractedAt: string
-    schemaVersion: string
-    completeness: number
-  }
 }
 ```
 
-## 🧪 Testes
+### Response
 
-### Executar Testes
+Streaming de texto com progresso e recomendação final.
 
-```bash
-npm test lib/tools/health-plan/__tests__/extract-client-info.test.ts
+### Headers de Resposta
+
+```
+X-Session-Id: uuid          // ID da sessão para retomada
+X-Execution-Time: 5432      // Tempo de execução em ms
 ```
 
-### Cobertura de Testes
-
-- ✅ Parsing de JSON válido e inválido
-- ✅ Validação Zod (valores válidos e inválidos)
-- ✅ Detecção de campos faltantes
-- ✅ Merge de informações incrementais
-- ✅ Validação de completude
-- ✅ Regras de negócio (warnings)
-- ✅ Cenários complexos (famílias grandes, múltiplas condições)
-- ✅ Valores edge (idade 0, 120, budget negativo)
-
-## 🎯 Casos de Uso
-
-### Caso 1: Informação Completa em Uma Mensagem
-
-**Input:**
-```
-"Tenho 42 anos, moro em Belo Horizonte, MG.
-Quero incluir minha esposa de 38 anos e dois filhos de 10 e 7 anos.
-Meu orçamento é R$ 1500."
-```
-
-**Output:**
-```json
-{
-  "age": 42,
-  "city": "Belo Horizonte",
-  "state": "MG",
-  "budget": 1500,
-  "dependents": [
-    { "relationship": "spouse", "age": 38 },
-    { "relationship": "child", "age": 10 },
-    { "relationship": "child", "age": 7 }
-  ],
-  "isComplete": true,
-  "completeness": 80
-}
-```
-
-### Caso 2: Informação com Condições Médicas
-
-**Input:**
-```
-"Tenho 28 anos, Rio de Janeiro.
-Tenho diabetes tipo 2 e tomo metformina.
-Posso pagar 600 reais."
-```
-
-**Output:**
-```json
-{
-  "age": 28,
-  "city": "Rio de Janeiro",
-  "state": "RJ",
-  "budget": 600,
-  "preExistingConditions": ["diabetes tipo 2"],
-  "medications": ["metformina"],
-  "isComplete": true,
-  "completeness": 85
-}
-```
-
-### Caso 3: Linguagem Informal
-
-**Input:**
-```
-"Opa, tenho 38, tô em Sampa, com a patroa de 35 e o moleque de 6.
-Consigo pagar uns 900 mangos."
-```
-
-**Output:**
-```json
-{
-  "age": 38,
-  "city": "São Paulo",
-  "state": "SP",
-  "budget": 900,
-  "dependents": [
-    { "relationship": "spouse", "age": 35 },
-    { "relationship": "child", "age": 6 }
-  ]
-}
-```
-
-## ⚠️ Casos Edge Conhecidos
-
-### 1. Orçamento Ambíguo
-
-**Input:** "Entre 500 e 800 reais"
-**Comportamento:** Extrai média (650)
-
-### 2. Múltiplos Dependentes da Mesma Relação
-
-**Input:** "Três filhos de 15, 12 e 8 anos"
-**Comportamento:** Cria 3 objetos dependentes com relationship: "child"
-
-### 3. Estado por Extenso
-
-**Input:** "Moro em São Paulo" (cidade e estado)
-**Comportamento:** Tenta identificar sigla automaticamente (SP)
-
-### 4. Condições Pré-Existentes Vagas
-
-**Input:** "Problemas cardíacos"
-**Comportamento:** Mantém descrição original
-
-## 🔧 Configuração
+## Configuração
 
 ### Variáveis de Ambiente
 
 ```bash
-OPENAI_API_KEY=sk-...  # Obrigatório
+# Obrigatórias
+OPENAI_API_KEY=sk-...
+
+# LangSmith (opcional, mas recomendado)
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=lsv2_...
+LANGSMITH_PROJECT=health-plan-agent
+
+# Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://...
+SUPABASE_SERVICE_ROLE_KEY=...
 ```
 
-### Parâmetros do Modelo GPT-4o
+### Timeouts por Step
 
-- **Model:** `gpt-4o`
-- **Temperature:** `0.2` (consistência)
-- **Max Tokens:** `4096`
-- **Response Format:** `json_object`
+| Step | Timeout | Descrição |
+|------|---------|-----------|
+| 1    | 10s     | extractClientInfo |
+| 2    | 15s     | searchHealthPlans |
+| 3    | 20s     | analyzeCompatibility |
+| 4    | 10s     | fetchERPPrices |
+| 5    | 20s     | generateRecommendation |
 
-## 📈 Métricas de Performance
+## Uso
 
-### Benchmarks Esperados
+### Exemplo Básico
 
-- ✅ Acurácia de extração: **95%+**
-- ✅ Detecção de campos faltantes: **100%**
-- ✅ Tempo de resposta: **< 3 segundos**
-- ✅ Custo por extração: **~$0.01** (GPT-4o)
+```typescript
+import { HealthPlanOrchestrator } from "@/lib/tools/health-plan/orchestrator"
 
-### Limitações Conhecidas
+const orchestrator = new HealthPlanOrchestrator({
+  workspaceId: "uuid",
+  userId: "uuid",
+  assistantId: "uuid",
+  openaiApiKey: process.env.OPENAI_API_KEY!,
+  chatId: "uuid" // Para agrupamento LangSmith
+})
 
-1. **Dependentes sem idade explícita**: Se o usuário não mencionar idade, não será incluído
-2. **Medicamentos genéricos**: Nomes informais podem ser mantidos como fornecidos
-3. **Preferências implícitas**: Só captura preferências explicitamente mencionadas
-4. **Multi-idioma**: Otimizado para português brasileiro
+// Streaming de resposta
+for await (const chunk of orchestrator.executeWorkflow(messages)) {
+  console.log(chunk)
+}
+```
 
-## 🐛 Troubleshooting
+### Retomada de Sessão
 
-### Erro: "JSON inválido"
+```typescript
+const orchestrator = new HealthPlanOrchestrator({
+  sessionId: "existing-session-uuid", // Retoma sessão existente
+  // ... outras configs
+})
+```
 
-**Causa:** GPT-4o retornou texto não-JSON
-**Solução:** Verificar se `response_format: { type: "json_object" }` está configurado
+### Reset para Step Específico
 
-### Erro: Schema validation failed
+```typescript
+const orchestrator = new HealthPlanOrchestrator({
+  resetToStep: 3, // Refaz análise de compatibilidade
+  // ... outras configs
+})
+```
 
-**Causa:** Dados extraídos não batem com schema Zod
-**Solução:** Revisar prompt para garantir formato correto
+## Testes
 
-### Warning: Orçamento insuficiente
+```bash
+# Testes unitários
+npm test lib/tools/health-plan/__tests__/
 
-**Causa:** Budget per capita < R$ 200
-**Comportamento:** Apenas warning, não bloqueia
+# Testes específicos
+npm test lib/tools/health-plan/__tests__/extract-client-info.test.ts
+npm test lib/tools/health-plan/__tests__/generate-recommendation.test.ts
+```
 
-## 🔄 Próximos Passos (Integração)
+## Módulo de Monitoramento
 
-1. **Integrar com orquestrador** (Task #10)
-   - Adicionar como Step 1 do fluxo
-   - Salvar estado na sessão
+O módulo `lib/monitoring/` fornece as ferramentas de observabilidade:
 
-2. **Criar API endpoint** (Task #10)
-   - Route: `/api/chat/health-plan-agent/extract`
-   - Autenticação via Supabase
+```typescript
+// Importação principal
+import {
+  traceable,
+  createTracedOpenAI,
+  addRunMetadata,
+  setSessionId,
+  getCurrentRunTree
+} from "@/lib/monitoring"
+```
 
-3. **Frontend components** (Task #12)
-   - ClientInfoCard para exibir dados coletados
-   - Progress indicator (completeness%)
+### Arquivos Principais
 
-4. **Testes E2E** (Task #6)
-   - Integração com API real
-   - Validação end-to-end
+| Arquivo | Descrição |
+|---------|-----------|
+| `langsmith-setup.ts` | Setup principal com `wrapOpenAI` e `traceable` |
+| `langsmith-config.ts` | Configuração e health check |
+| `metrics-collector.ts` | Coleta de métricas e custos |
+| `alerts.ts` | Sistema de alertas |
+| `correlation.ts` | Gerenciamento de correlation IDs |
 
-## 📚 Referências
+## Referências
 
-- **PRD:** `/.taskmaster/docs/health-plan-agent-prd.md` (RF-002)
-- **Task Master:** Task #5 (subtasks 5.1-5.7)
-- **Schema Zod:** [Zod Documentation](https://zod.dev)
-- **OpenAI API:** [Function Calling Guide](https://platform.openai.com/docs/guides/function-calling)
+- **PRD:** `/.taskmaster/docs/health-plan-agent-prd.md`
+- **LangSmith SDK:** [langsmith-sdk](https://github.com/langchain-ai/langsmith-sdk)
+- **OpenAI API:** [platform.openai.com/docs](https://platform.openai.com/docs)
 
 ---
 
-**Status:** ✅ Implementação Completa
-**Última Atualização:** 2025-11-16
-**Autor:** Claude Code (Task Master AI)
+**Status:** Produção
+**Última Atualização:** 2025-12-01
+**Versão:** 2.0.0

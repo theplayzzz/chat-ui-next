@@ -8,12 +8,20 @@
  * 4. fetchERPPrices - Consulta de preços no ERP
  * 5. generateRecommendation - Geração de recomendação humanizada
  *
+ * Integração LangSmith: traceable para observabilidade completa
+ *
  * Referência: PRD RF-008 (Orquestrador Multi-Step)
  * Task Master: Task #10
  */
 
 import { NextRequest } from "next/server"
 import { StreamingTextResponse } from "ai"
+import {
+  traceable,
+  getCurrentRunTree,
+  addRunMetadata,
+  setSessionId
+} from "@/lib/monitoring/langsmith-setup"
 import { getServerProfile } from "@/lib/server/server-chat-helpers"
 import { getERPConfigByWorkspaceId } from "@/db/workspace-erp-config"
 import { HealthPlanOrchestrator } from "@/lib/tools/health-plan/orchestrator"
@@ -38,6 +46,129 @@ interface HealthPlanAgentRequest {
     content: string
   }>
 }
+
+/**
+ * Handler principal com tracing LangSmith
+ * Envolvido com traceable para observabilidade completa
+ */
+const handleHealthPlanRequest = traceable(
+  async (
+    body: HealthPlanAgentRequest,
+    profile: { user_id: string; openai_api_key: string },
+    startTime: number
+  ): Promise<{
+    stream: ReadableStream
+    sessionId: string
+    executionTime: number
+  }> => {
+    const {
+      workspaceId,
+      assistantId,
+      chatId,
+      messages,
+      sessionId,
+      resetToStep,
+      model
+    } = body
+
+    // Configurar session_id para agrupar traces por chat no LangSmith
+    if (chatId) {
+      setSessionId(chatId)
+    }
+
+    // Adicionar metadata ao trace
+    addRunMetadata({
+      workspaceId,
+      assistantId,
+      chatId: chatId || "new-chat",
+      userId: profile.user_id,
+      messageCount: messages.length,
+      model: model || "gpt-5-mini",
+      hasSessionId: !!sessionId,
+      resetToStep: resetToStep || null
+    })
+
+    // Get ERP configuration for workspace (optional)
+    let erpConfig: WorkspaceERPConfig | null = null
+    try {
+      erpConfig = await getERPConfigByWorkspaceId(workspaceId)
+    } catch (error) {
+      console.warn(
+        `[health-plan-agent] Failed to fetch ERP config for workspace ${workspaceId}:`,
+        error
+      )
+    }
+
+    // Initialize orchestrator
+    console.log("[route] 🔧 Initializing orchestrator...")
+    const orchestrator = new HealthPlanOrchestrator({
+      sessionId: sessionId || undefined,
+      workspaceId,
+      userId: profile.user_id,
+      assistantId,
+      chatId: chatId || undefined,
+      openaiApiKey: profile.openai_api_key,
+      erpConfig: erpConfig || undefined,
+      resetToStep:
+        resetToStep && resetToStep >= 1 && resetToStep <= 5
+          ? (resetToStep as 1 | 2 | 3 | 4 | 5)
+          : undefined,
+      model: model || undefined
+    })
+
+    // Execute workflow with streaming
+    console.log("[route] 🎬 Starting workflow execution with streaming...")
+    const stream = new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder()
+        let chunkCount = 0
+
+        try {
+          for await (const chunk of orchestrator.executeWorkflow(messages)) {
+            chunkCount++
+            if (chunkCount <= 5 || chunkCount % 10 === 0) {
+              console.log(
+                `[route] 📦 Chunk ${chunkCount}:`,
+                chunk.substring(0, 100)
+              )
+            }
+            controller.enqueue(encoder.encode(chunk))
+          }
+          console.log(
+            `[route] ✅ Workflow completed, total chunks: ${chunkCount}`
+          )
+          controller.close()
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error occurred"
+          console.error("[route] ❌ Workflow error:", error)
+
+          controller.enqueue(
+            encoder.encode(
+              `\n\n❌ **Erro**: ${errorMessage}\n\nPor favor, tente novamente ou entre em contato com o suporte.`
+            )
+          )
+          controller.close()
+        }
+      }
+    })
+
+    return {
+      stream,
+      sessionId: orchestrator.getSessionId(),
+      executionTime: Date.now() - startTime
+    }
+  },
+  {
+    name: "health-plan-agent",
+    run_type: "chain",
+    tags: ["health-plan", "api", "workflow"],
+    metadata: {
+      description: "API endpoint para recomendação de planos de saúde",
+      version: "2.0.0"
+    }
+  }
+)
 
 /**
  * POST /api/chat/health-plan-agent
@@ -150,9 +281,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 4. Get user ID from profile
-    const userId = profile.user_id
-
+    // 4. Validate OpenAI API key
     if (!profile.openai_api_key) {
       return new Response(
         JSON.stringify({
@@ -167,94 +296,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 5. Get ERP configuration for workspace (optional)
-    let erpConfig: WorkspaceERPConfig | null = null
-    try {
-      erpConfig = await getERPConfigByWorkspaceId(workspaceId)
-    } catch (error) {
-      console.warn(
-        `[health-plan-agent] Failed to fetch ERP config for workspace ${workspaceId}:`,
-        error
-      )
-      // Continue without ERP - prices will be unavailable
-    }
-
-    // 6. Initialize orchestrator
-    console.log("[route] Step 6: Initializing orchestrator...")
-    console.log("[route] 🔧 Orchestrator config:", {
-      userId,
-      workspaceId,
-      assistantId,
-      chatId: chatId || "new chat",
-      hasOpenAIKey: !!profile.openai_api_key,
-      hasERPConfig: !!erpConfig,
-      model: model || "default"
-    })
-    const orchestrator = new HealthPlanOrchestrator({
-      sessionId: sessionId || undefined,
-      workspaceId,
-      userId,
-      assistantId,
-      chatId: chatId || undefined, // For LangSmith trace grouping
-      openaiApiKey: profile.openai_api_key,
-      erpConfig: erpConfig || undefined,
-      // Allow explicit reset to a previous step (1-5)
-      resetToStep:
-        resetToStep && resetToStep >= 1 && resetToStep <= 5
-          ? (resetToStep as 1 | 2 | 3 | 4 | 5)
-          : undefined,
-      // Model to use for all AI operations (default: gpt-5-mini)
-      model: model || undefined
-    })
-
-    // 7. Execute workflow with streaming
-    console.log("[route] Step 7: Starting workflow execution with streaming...")
-    const stream = new ReadableStream({
-      async start(controller) {
-        const encoder = new TextEncoder()
-        let chunkCount = 0
-
-        try {
-          console.log("[route] 🎬 Workflow generator started")
-          for await (const chunk of orchestrator.executeWorkflow(messages)) {
-            chunkCount++
-            if (chunkCount <= 5 || chunkCount % 10 === 0) {
-              console.log(
-                `[route] 📦 Chunk ${chunkCount}:`,
-                chunk.substring(0, 100)
-              )
-            }
-            controller.enqueue(encoder.encode(chunk))
-          }
-          console.log(
-            `[route] ✅ Workflow completed, total chunks: ${chunkCount}`
-          )
-          controller.close()
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error occurred"
-          console.error("[route] ❌ Workflow error:", error)
-
-          // Send error message to client
-          controller.enqueue(
-            encoder.encode(
-              `\n\n❌ **Erro**: ${errorMessage}\n\nPor favor, tente novamente ou entre em contato com o suporte.`
-            )
-          )
-          controller.close()
-        }
-      }
-    })
-
-    const executionTime = Date.now() - startTime
-    console.log(
-      `[health-plan-agent] Request completed in ${executionTime}ms for workspace ${workspaceId}`
+    // 5. Execute workflow via traceable handler
+    console.log("[route] Step 5: Executing traceable handler...")
+    const result = await handleHealthPlanRequest(
+      body,
+      { user_id: profile.user_id, openai_api_key: profile.openai_api_key },
+      startTime
     )
 
-    return new StreamingTextResponse(stream, {
+    console.log(
+      `[health-plan-agent] Request completed in ${result.executionTime}ms for workspace ${workspaceId}`
+    )
+
+    return new StreamingTextResponse(result.stream, {
       headers: {
-        "X-Session-Id": orchestrator.getSessionId(),
-        "X-Execution-Time": executionTime.toString()
+        "X-Session-Id": result.sessionId,
+        "X-Execution-Time": result.executionTime.toString()
       }
     })
   } catch (error) {

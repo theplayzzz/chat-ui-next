@@ -4,11 +4,19 @@
  * Busca inteligente em múltiplas collections de planos de saúde usando RAG
  * com aggregação e re-ranking global
  *
+ * Integração LangSmith: traceable para observabilidade
+ *
  * Referência: PRD RF-003 - Busca em múltiplas collections
  */
 
 import OpenAI from "openai"
 import { createClient } from "@supabase/supabase-js"
+import {
+  traceable,
+  createTracedOpenAI,
+  addRunMetadata,
+  WORKFLOW_STEP_NAMES
+} from "@/lib/monitoring/langsmith-setup"
 import type { Database } from "@/supabase/types"
 import type { PartialClientInfo } from "./schemas/client-info-schema"
 import type {
@@ -119,13 +127,10 @@ async function getHealthPlanCollections(
 }
 
 /**
- * Tool principal para busca de planos de saúde
- *
- * @param params - Parâmetros incluindo assistantId, clientInfo e filtros
- * @param apiKey - OpenAI API key para geração de embeddings
- * @returns Resultados ranqueados de planos de saúde
+ * Implementação interna da busca de planos de saúde
+ * Envolvida por traceable para observabilidade LangSmith
  */
-export async function searchHealthPlans(
+async function searchHealthPlansInternal(
   params: SearchHealthPlansParams,
   apiKey: string
 ): Promise<SearchHealthPlansResponse> {
@@ -134,6 +139,15 @@ export async function searchHealthPlans(
   console.log("[search-health-plans] ========================================")
   console.log("[search-health-plans] 🔍 searchHealthPlans called")
   console.log("[search-health-plans] 📋 Params:", {
+    assistantId: params.assistantId,
+    topK: params.topK || 10,
+    hasFilters: !!params.filters,
+    clientAge: params.clientInfo?.age,
+    clientState: params.clientInfo?.state
+  })
+
+  // Adicionar metadata ao trace atual
+  addRunMetadata({
     assistantId: params.assistantId,
     topK: params.topK || 10,
     hasFilters: !!params.filters,
@@ -181,10 +195,8 @@ export async function searchHealthPlans(
     const searchQuery = buildSearchQuery(params.clientInfo)
     console.log(`[searchHealthPlans] Query construída: ${searchQuery}`)
 
-    // 4. Configurar OpenAI client
-    const openai = new OpenAI({
-      apiKey: apiKey
-    })
+    // 4. Configurar OpenAI client com tracing automático
+    const openai = createTracedOpenAI({ apiKey })
 
     // 5. Gerar embedding da query
     const embedding = await generateEmbedding(searchQuery, openai)
@@ -234,6 +246,36 @@ export async function searchHealthPlans(
     )
   }
 }
+
+// =============================================================================
+// FUNÇÃO EXPORTADA COM TRACEABLE
+// =============================================================================
+
+/**
+ * Tool principal para busca de planos de saúde
+ * Envolvida com traceable para observabilidade LangSmith
+ *
+ * @param params - Parâmetros incluindo assistantId, clientInfo e filtros
+ * @param apiKey - OpenAI API key para geração de embeddings
+ * @returns Resultados ranqueados de planos de saúde
+ */
+export const searchHealthPlans = traceable(
+  async (
+    params: SearchHealthPlansParams,
+    apiKey: string
+  ): Promise<SearchHealthPlansResponse> => {
+    return searchHealthPlansInternal(params, apiKey)
+  },
+  {
+    name: WORKFLOW_STEP_NAMES.SEARCH_HEALTH_PLANS,
+    run_type: "retriever",
+    tags: ["health-plan", "step-2", "rag", "search"],
+    metadata: {
+      step: 2,
+      description: "Busca inteligente em múltiplas collections usando RAG"
+    }
+  }
+)
 
 /**
  * Constrói query otimizada a partir do perfil do cliente

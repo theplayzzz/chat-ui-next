@@ -38,7 +38,7 @@ import { searchHealthPlans } from "./search-health-plans"
 import { analyzeCompatibility } from "./analyze-compatibility"
 import { fetchERPPrices } from "./fetch-erp-prices"
 import { generateRecommendation } from "./generate-recommendation"
-import { HealthPlanLogger, createLogger } from "./logger"
+import { SimpleLogger, createSimpleLogger, maskSensitiveData } from "./logger"
 import {
   ErrorHandler,
   TimeoutError,
@@ -46,7 +46,10 @@ import {
   withRetry
 } from "./error-handler"
 import { saveRecommendationAudit, type SaveAuditResult } from "./audit-logger"
-import { getOrCreateChatTraceId, setChatTraceId } from "./chat-trace-manager"
+import {
+  addRunMetadata,
+  getCurrentRunTree
+} from "@/lib/monitoring/langsmith-setup"
 
 // =============================================================================
 // TYPES
@@ -122,7 +125,7 @@ const STEP_PROGRESS: Record<WorkflowStep, string> = {
 export class HealthPlanOrchestrator {
   private config: OrchestratorConfig
   private session: SessionState | null = null
-  private logger: HealthPlanLogger | null = null
+  private logger: SimpleLogger | null = null
   private errorHandler: ErrorHandler
 
   constructor(config: OrchestratorConfig) {
@@ -140,72 +143,17 @@ export class HealthPlanOrchestrator {
   }
 
   /**
-   * Initializes the logger with chat-level trace hierarchy
-   *
-   * Hierarchy:
-   * - Trace (per chat) - stored in chats.langsmith_trace_id
-   *   - Run (per interaction) - created fresh for each message
-   *     - Steps (workflow steps)
+   * Initializes the simple logger for console output.
+   * LangSmith tracing is now handled automatically by traceable wrappers.
    */
-  private async initializeLogger(): Promise<void> {
-    let traceId: string | undefined
-    let isNewTrace = false
-
-    // Get or create trace ID for the chat
-    if (this.config.chatId) {
-      try {
-        const traceInfo = await getOrCreateChatTraceId(this.config.chatId)
-        traceId = traceInfo.traceId
-        isNewTrace = traceInfo.isNewTrace
-        console.log("[orchestrator] 🔍 Trace ID for chat:", {
-          chatId: this.config.chatId,
-          traceId,
-          isNewTrace
-        })
-      } catch (error) {
-        console.warn(
-          "[orchestrator] Failed to get chat trace ID, will create new:",
-          error
-        )
-        // Continue without trace ID - logger will create a new one
-      }
-    } else {
-      console.log(
-        "[orchestrator] No chatId provided, creating new trace for this interaction"
-      )
-    }
-
-    // Create logger with trace hierarchy
-    // Each interaction creates a new run under the chat's trace
-    this.logger = createLogger(
+  private initializeLogger(): void {
+    this.logger = createSimpleLogger(
       this.config.workspaceId,
       this.config.userId,
-      this.session?.sessionId,
-      traceId,
-      this.config.chatId
+      this.session?.sessionId
     )
 
-    // If we created a new trace, save it to the chat
-    if (this.config.chatId && this.logger.isNewTrace()) {
-      const newTraceId = this.logger.getLangSmithTraceId()
-      if (newTraceId) {
-        console.log(
-          "[orchestrator] 💾 Saving new LangSmith trace ID to chat:",
-          newTraceId
-        )
-        try {
-          await setChatTraceId(this.config.chatId, newTraceId)
-        } catch (error) {
-          console.warn("[orchestrator] Failed to save trace ID to chat:", error)
-        }
-      }
-    }
-
-    console.log("[orchestrator] 📊 Logger initialized with:", {
-      traceId: this.logger.getLangSmithTraceId(),
-      runId: this.logger.getLangSmithRunId(),
-      isNewTrace: this.logger.isNewTrace()
-    })
+    console.log("[orchestrator] 📊 Logger initialized")
   }
 
   /**
@@ -242,8 +190,9 @@ export class HealthPlanOrchestrator {
 
       console.log("[orchestrator] ✅ Session ready:", this.session.sessionId)
 
-      // Initialize logger with session context (reuses existing langSmithRunId if available)
-      await this.initializeLogger()
+      // Initialize simple logger for console output
+      // LangSmith tracing is handled automatically by traceable wrappers
+      this.initializeLogger()
       this.logger!.logWorkflowStart()
 
       // Determine starting step based on session state
@@ -1005,9 +954,34 @@ export class HealthPlanOrchestrator {
     }
 
     try {
-      const runId = this.logger?.getLangSmithRunId()
+      // Get run ID from LangSmith's current run tree
+      let runId: string | undefined
+      try {
+        const runTree = getCurrentRunTree()
+        runId = runTree?.id
+      } catch {
+        // Not in a traced context
+      }
+
       const topPlan =
         this.session.compatibilityAnalysis?.rankedPlans?.[0] || null
+
+      // Add business metrics to the current trace
+      const businessMetrics = {
+        plansFound: this.session.searchResults?.results?.length || 0,
+        plansAnalyzed:
+          this.session.compatibilityAnalysis?.rankedPlans?.length || 0,
+        topPlanScore: topPlan?.score?.overall,
+        recommendedPlanId: topPlan?.planId,
+        clientCompleteness: this.calculateClientCompleteness(),
+        hasERPPrices: !!this.session.erpPrices?.success
+      }
+
+      try {
+        addRunMetadata({ businessMetrics })
+      } catch {
+        // Not in a traced context
+      }
 
       // Use audit-logger with automatic anonymization and LGPD fields
       const result = await saveRecommendationAudit({
@@ -1044,6 +1018,42 @@ export class HealthPlanOrchestrator {
         auditStatus: "failed"
       }
     }
+  }
+
+  /**
+   * Calculates client info completeness percentage
+   */
+  private calculateClientCompleteness(): number {
+    if (!this.session?.clientInfo) return 0
+
+    const requiredFields = ["age", "state", "city", "budget"]
+    const optionalFields = [
+      "profession",
+      "coverage",
+      "preExistingConditions",
+      "dependents"
+    ]
+
+    let filledRequired = 0
+    let filledOptional = 0
+
+    for (const field of requiredFields) {
+      if ((this.session.clientInfo as any)[field] !== undefined) {
+        filledRequired++
+      }
+    }
+
+    for (const field of optionalFields) {
+      if ((this.session.clientInfo as any)[field] !== undefined) {
+        filledOptional++
+      }
+    }
+
+    // Required fields are 70% of score, optional are 30%
+    const requiredScore = (filledRequired / requiredFields.length) * 70
+    const optionalScore = (filledOptional / optionalFields.length) * 30
+
+    return Math.round(requiredScore + optionalScore)
   }
 }
 

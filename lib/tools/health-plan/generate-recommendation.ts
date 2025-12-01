@@ -3,11 +3,19 @@
  *
  * Gera recomendações humanizadas de planos de saúde usando GPT-4o
  *
+ * Integração LangSmith: traceable para observabilidade
+ *
  * Referência: PRD health-plan-agent-prd.md (RF-007)
  * Task Master: Task #9
  */
 
 import OpenAI from "openai"
+import {
+  traceable,
+  createTracedOpenAI,
+  addRunMetadata,
+  WORKFLOW_STEP_NAMES
+} from "@/lib/monitoring/langsmith-setup"
 import type { ClientInfo } from "./schemas/client-info-schema"
 import type {
   RankedAnalysis,
@@ -105,14 +113,14 @@ function findPlanPrice(
 }
 
 /**
- * Cria cliente OpenAI
+ * Cria cliente OpenAI com tracing automático LangSmith
  */
 function createOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY não configurada")
   }
-  return new OpenAI({ apiKey })
+  return createTracedOpenAI({ apiKey })
 }
 
 // =============================================================================
@@ -761,12 +769,10 @@ function generateNextStepsFallback(clientInfo: ClientInfo): NextStepsSection {
 // =============================================================================
 
 /**
- * Gera recomendação completa
- * Orquestra todas as seções e retorna documento Markdown
- *
- * @implements Subtask 9.5 (função principal)
+ * Implementação interna da geração de recomendação
+ * Envolvida por traceable para observabilidade LangSmith
  */
-export async function generateRecommendation(
+async function generateRecommendationInternal(
   params: GenerateRecommendationParams,
   model?: string
 ): Promise<GenerateRecommendationResult> {
@@ -789,6 +795,16 @@ export async function generateRecommendation(
       explainTechnicalTerms: true
     }
   } = params
+
+  // Adicionar metadata ao trace atual
+  addRunMetadata({
+    rankedPlansCount: rankedAnalysis?.rankedPlans?.length || 0,
+    hasERPPrices: !!erpPrices?.success,
+    includeAlternatives: options.includeAlternatives,
+    includeAlerts: options.includeAlerts,
+    includeNextSteps: options.includeNextSteps,
+    model: modelToUse
+  })
 
   console.log("[generate-recommendation] 📋 Params:", {
     rankedPlansCount: rankedAnalysis?.rankedPlans?.length || 0,
@@ -981,6 +997,35 @@ export async function generateRecommendation(
     }
   }
 }
+
+// =============================================================================
+// FUNÇÃO EXPORTADA COM TRACEABLE
+// =============================================================================
+
+/**
+ * Gera recomendação completa
+ * Orquestra todas as seções e retorna documento Markdown
+ * Envolvida com traceable para observabilidade LangSmith
+ *
+ * @implements Subtask 9.5 (função principal)
+ */
+export const generateRecommendation = traceable(
+  async (
+    params: GenerateRecommendationParams,
+    model?: string
+  ): Promise<GenerateRecommendationResult> => {
+    return generateRecommendationInternal(params, model)
+  },
+  {
+    name: WORKFLOW_STEP_NAMES.GENERATE_RECOMMENDATION,
+    run_type: "chain",
+    tags: ["health-plan", "step-5", "recommendation", "generation"],
+    metadata: {
+      step: 5,
+      description: "Gera recomendações humanizadas usando GPT-4o"
+    }
+  }
+)
 
 // =============================================================================
 // EXPORTS

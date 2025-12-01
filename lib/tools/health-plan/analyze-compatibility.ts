@@ -4,11 +4,19 @@
  * Analisa a compatibilidade entre perfil do cliente e planos de saúde
  * usando GPT-4o para análise semântica profunda.
  *
+ * Integração LangSmith: traceable para observabilidade
+ *
  * Referência: PRD health-plan-agent-prd.md (RF-005)
  * Task Master: Task #7 (Desenvolver ferramenta analyzeCompatibility)
  */
 
 import OpenAI from "openai"
+import {
+  traceable,
+  createTracedOpenAI,
+  addRunMetadata,
+  WORKFLOW_STEP_NAMES
+} from "@/lib/monitoring/langsmith-setup"
 import type { ClientInfo } from "./schemas/client-info-schema"
 import type { HealthPlanSearchResult } from "./types"
 import { getModelParams } from "./prompts/extraction-prompts"
@@ -1546,10 +1554,10 @@ export async function analyzePlansBatch(
 }
 
 /**
- * Função principal de análise de compatibilidade
- * @implements Subtask 7.8 (ranking e alertas)
+ * Implementação interna de análise de compatibilidade
+ * Envolvida por traceable para observabilidade LangSmith
  */
-export async function analyzeCompatibility(
+async function analyzeCompatibilityInternal(
   params: AnalyzeCompatibilityParams,
   openaiApiKey: string,
   model?: string
@@ -1569,6 +1577,15 @@ export async function analyzeCompatibility(
     topK: params.options?.topK || 5
   })
 
+  // Adicionar metadata ao trace atual
+  addRunMetadata({
+    plansCount: params.plans?.length || 0,
+    clientAge: params.clientInfo?.age,
+    hasPreExistingConditions:
+      !!params.clientInfo?.preExistingConditions?.length,
+    model: modelToUse
+  })
+
   // Validar parâmetros
   const validation = validateAnalysisParams(params)
   if (!validation.valid) {
@@ -1581,8 +1598,8 @@ export async function analyzeCompatibility(
 
   console.log("[analyze-compatibility] ✅ Parameters validated")
 
-  // Inicializar cliente OpenAI
-  const openaiClient = new OpenAI({ apiKey: openaiApiKey })
+  // Inicializar cliente OpenAI com tracing automático
+  const openaiClient = createTracedOpenAI({ apiKey: openaiApiKey })
 
   // Executar análise em lote
   console.log("[analyze-compatibility] 🔄 Starting batch analysis...")
@@ -1600,3 +1617,33 @@ export async function analyzeCompatibility(
 
   return result
 }
+
+// =============================================================================
+// FUNÇÃO EXPORTADA COM TRACEABLE
+// =============================================================================
+
+/**
+ * Função principal de análise de compatibilidade
+ * Envolvida com traceable para observabilidade LangSmith
+ *
+ * @implements Subtask 7.8 (ranking e alertas)
+ */
+export const analyzeCompatibility = traceable(
+  async (
+    params: AnalyzeCompatibilityParams,
+    openaiApiKey: string,
+    model?: string
+  ): Promise<RankedAnalysis> => {
+    return analyzeCompatibilityInternal(params, openaiApiKey, model)
+  },
+  {
+    name: WORKFLOW_STEP_NAMES.ANALYZE_COMPATIBILITY,
+    run_type: "chain",
+    tags: ["health-plan", "step-3", "compatibility", "analysis"],
+    metadata: {
+      step: 3,
+      description:
+        "Analisa compatibilidade usando GPT-4o para análise semântica"
+    }
+  }
+)

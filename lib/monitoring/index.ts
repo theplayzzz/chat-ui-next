@@ -6,6 +6,43 @@
  * Referência: PRD RF-013, Task #14
  */
 
+// =============================================================================
+// LANGSMITH SETUP (RECOMMENDED - Nova API)
+// =============================================================================
+
+export {
+  // Cliente OpenAI com tracing
+  createTracedOpenAI,
+  createSimpleTracedOpenAI,
+  // Traceable e helpers
+  traceable,
+  getCurrentRunTree,
+  RunTree,
+  wrapOpenAI,
+  // Helpers para steps
+  createStepTraceOptions,
+  addRunMetadata,
+  addRunTags,
+  setSessionId,
+  // Configuração
+  checkLangSmithConfig,
+  validateAndLogConfig,
+  // Constantes
+  WORKFLOW_STEP_NAMES,
+  STEP_RUN_TYPES,
+  LANGSMITH_DEFAULTS,
+  // Types
+  type LangSmithRunType,
+  type TraceableOptions,
+  type ConfigCheckResult,
+  type TracedOpenAIConfig,
+  type TracedOpenAIClient
+} from "./langsmith-setup"
+
+// =============================================================================
+// LANGSMITH CONFIG (Legacy - manter para compatibilidade)
+// =============================================================================
+
 // LangSmith configuration
 export {
   getLangSmithClient,
@@ -18,38 +55,15 @@ export {
   type HealthCheckResult
 } from "./langsmith-config"
 
-// OpenAI tracing
-export {
-  OpenAITracer,
-  tracedOpenAICall,
-  createOpenAITracer,
-  type RunType,
-  type ToolName,
-  type TraceMetadata,
-  type TraceResult
-} from "./openai-tracer"
-
-// Traced OpenAI client
-export {
-  createTracedOpenAI,
-  traceOpenAICall,
-  extractTokenUsage,
-  type TracingContext,
-  type TokenUsage,
-  type CallMetrics
-} from "./traced-openai"
-
-// Orchestrator tracing
-export {
-  OrchestratorTracer,
-  createOrchestratorTracer,
-  traceStep,
-  STEP_NAMES,
-  type WorkflowStepName,
-  type WorkflowBusinessContext,
-  type StepTraceResult,
-  type SessionTraceSummary
-} from "./orchestrator-tracer"
+// =============================================================================
+// DEPRECATED - Use langsmith-setup.ts instead
+// =============================================================================
+// The following modules are deprecated:
+// - openai-tracer.ts - Use wrapOpenAI from langsmith-setup
+// - traced-openai.ts - Use createTracedOpenAI from langsmith-setup
+// - orchestrator-tracer.ts - Use traceable wrappers on individual functions
+//
+// Migration: See langsmith-setup.ts for the new pattern using official SDK
 
 // Correlation ID management
 export {

@@ -1,19 +1,19 @@
 /**
  * Health Plan Logger
  *
- * Provides structured logging and LangSmith tracing for the
- * health plan recommendation workflow.
+ * Provides structured logging for the health plan recommendation workflow.
  *
  * Features:
  * - Structured JSON logs for debugging
  * - Sensitive data masking
- * - LangSmith integration for tracing
  * - Performance metrics
+ *
+ * Note: LangSmith tracing is now handled automatically by traceable wrappers.
+ * See lib/monitoring/langsmith-setup.ts for the new pattern.
  *
  * Referência: PRD RF-008, Task #10.5
  */
 
-import { Client as LangSmithClient } from "langsmith"
 import type { WorkflowStep } from "./session-manager"
 
 // =============================================================================
@@ -152,44 +152,24 @@ export function maskSensitiveData(data: any, depth: number = 0): any {
 }
 
 // =============================================================================
-// LOGGER CLASS
+// SIMPLE LOGGER CLASS (Console output only)
 // =============================================================================
 
 /**
- * Health Plan Logger
+ * Simple Logger
  *
- * Provides structured logging with sensitive data masking
+ * Provides structured console logging with sensitive data masking.
+ * LangSmith tracing is now handled automatically by traceable wrappers.
  */
-export class HealthPlanLogger {
+export class SimpleLogger {
   private workspaceId: string
   private userId: string
   private sessionId?: string
-  private langSmithTracer?: LangSmithTracer
 
-  constructor(
-    workspaceId: string,
-    userId: string,
-    sessionId?: string,
-    traceId?: string,
-    chatId?: string
-  ) {
+  constructor(workspaceId: string, userId: string, sessionId?: string) {
     this.workspaceId = workspaceId
     this.userId = userId
     this.sessionId = sessionId
-
-    // Initialize LangSmith tracer if API key is available
-    if (process.env.LANGSMITH_API_KEY) {
-      try {
-        this.langSmithTracer = new LangSmithTracer(
-          workspaceId,
-          userId,
-          traceId,
-          chatId
-        )
-      } catch (error) {
-        console.warn("[logger] Failed to initialize LangSmith tracer:", error)
-      }
-    }
   }
 
   /**
@@ -197,28 +177,6 @@ export class HealthPlanLogger {
    */
   setSessionId(sessionId: string): void {
     this.sessionId = sessionId
-    this.langSmithTracer?.setSessionId(sessionId)
-  }
-
-  /**
-   * Gets the LangSmith trace ID (chat-level, if available)
-   */
-  getLangSmithTraceId(): string | undefined {
-    return this.langSmithTracer?.getTraceId()
-  }
-
-  /**
-   * Gets the LangSmith run ID (interaction-level, if available)
-   */
-  getLangSmithRunId(): string | undefined {
-    return this.langSmithTracer?.getRunId()
-  }
-
-  /**
-   * Returns whether this is a new trace (new chat)
-   */
-  isNewTrace(): boolean {
-    return this.langSmithTracer?.isNewTraceCreated() ?? true
   }
 
   /**
@@ -228,8 +186,6 @@ export class HealthPlanLogger {
     this.log("INFO", "workflow_start", {
       message: "Health plan recommendation workflow started"
     })
-
-    this.langSmithTracer?.startRun()
   }
 
   /**
@@ -249,8 +205,6 @@ export class HealthPlanLogger {
         error: this.formatError(error)
       })
     }
-
-    this.langSmithTracer?.endRun(success, durationMs, error)
   }
 
   /**
@@ -264,8 +218,6 @@ export class HealthPlanLogger {
       stepName: STEP_NAMES[step],
       inputs: maskedInputs
     })
-
-    this.langSmithTracer?.logStep(step, STEP_NAMES[step], "start", maskedInputs)
   }
 
   /**
@@ -280,14 +232,6 @@ export class HealthPlanLogger {
       durationMs,
       outputSummary: this.summarizeOutput(maskedOutputs)
     })
-
-    this.langSmithTracer?.logStep(
-      step,
-      STEP_NAMES[step],
-      "end",
-      maskedOutputs,
-      durationMs
-    )
   }
 
   /**
@@ -300,14 +244,6 @@ export class HealthPlanLogger {
       durationMs,
       error: this.formatError(error)
     })
-
-    this.langSmithTracer?.logStep(
-      step,
-      STEP_NAMES[step],
-      "error",
-      { error: error.message },
-      durationMs
-    )
   }
 
   /**
@@ -425,293 +361,39 @@ export class HealthPlanLogger {
 }
 
 // =============================================================================
-// LANGSMITH TRACER
+// LEGACY LOGGER (kept for backwards compatibility)
 // =============================================================================
 
 /**
- * LangSmith Tracer for observability
- *
- * Hierarchy:
- * - Trace (per chat) - stored in chats.langsmith_trace_id
- *   - Run (per interaction window) - created each time user sends a message
- *     - Step 1, Step 2, ... (workflow steps)
+ * @deprecated Use SimpleLogger instead. LangSmith tracing is now handled by traceable wrappers.
  */
-export class LangSmithTracer {
-  private client: LangSmithClient | null = null
-  private traceId: string // Chat-level trace (parent of all runs)
-  private runId: string // Current interaction run (child of trace)
-  private workspaceId: string
-  private userId: string
-  private sessionId?: string
-  private chatId?: string
-  private startTime?: number
-  private stepRunIds: Map<number, string> = new Map()
-  private isNewTrace: boolean = true
-
+export class HealthPlanLogger extends SimpleLogger {
   constructor(
     workspaceId: string,
     userId: string,
-    traceId?: string,
-    chatId?: string
+    sessionId?: string,
+    _traceId?: string,
+    _chatId?: string
   ) {
-    this.workspaceId = workspaceId
-    this.userId = userId
-    this.chatId = chatId
-
-    // Use existing trace ID if provided (same chat), otherwise create new
-    if (traceId) {
-      this.traceId = traceId
-      this.isNewTrace = false
-    } else {
-      this.traceId = crypto.randomUUID()
-      this.isNewTrace = true
-    }
-
-    // Always create a new run ID for each interaction window
-    this.runId = crypto.randomUUID()
-
-    const apiKey = process.env.LANGSMITH_API_KEY
-    const project = process.env.LANGSMITH_PROJECT || "health-plan-agent"
-
-    console.log("[langsmith-tracer] Initializing with:", {
-      hasApiKey: !!apiKey,
-      project,
-      traceId: this.traceId,
-      runId: this.runId,
-      isNewTrace: this.isNewTrace,
-      chatId: this.chatId
-    })
-
-    if (apiKey) {
-      try {
-        this.client = new LangSmithClient({ apiKey })
-        console.log("[langsmith-tracer] Client initialized successfully")
-      } catch (error) {
-        console.error("[langsmith-tracer] Failed to initialize client:", error)
-        this.client = null
-      }
-    } else {
-      console.warn(
-        "[langsmith-tracer] No LANGSMITH_API_KEY found in environment"
-      )
-    }
+    super(workspaceId, userId, sessionId)
+    console.warn(
+      "[logger] HealthPlanLogger is deprecated. Use SimpleLogger instead."
+    )
   }
 
-  /**
-   * Returns whether this is a new trace (new chat)
-   */
-  isNewTraceCreated(): boolean {
-    return this.isNewTrace
+  /** @deprecated No longer needed - LangSmith tracing is automatic */
+  getLangSmithTraceId(): string | undefined {
+    return undefined
   }
 
-  /**
-   * Sets session ID
-   */
-  setSessionId(sessionId: string): void {
-    this.sessionId = sessionId
+  /** @deprecated No longer needed - LangSmith tracing is automatic */
+  getLangSmithRunId(): string | undefined {
+    return undefined
   }
 
-  /**
-   * Gets the trace ID (chat-level, parent of runs)
-   */
-  getTraceId(): string {
-    return this.traceId
-  }
-
-  /**
-   * Gets the run ID (interaction-level, parent of steps)
-   */
-  getRunId(): string {
-    return this.runId
-  }
-
-  /**
-   * Starts a new run under the trace
-   * Always creates a new run for each interaction window
-   */
-  async startRun(): Promise<void> {
-    if (!this.client) {
-      console.warn(
-        "[langsmith-tracer] Cannot start run - client not initialized"
-      )
-      return
-    }
-
-    this.startTime = Date.now()
-    const projectName = process.env.LANGSMITH_PROJECT || "health-plan-agent"
-
-    // First, create the trace if it's new
-    if (this.isNewTrace) {
-      console.log("[langsmith-tracer] Creating NEW trace for chat:", {
-        traceId: this.traceId,
-        chatId: this.chatId,
-        project: projectName
-      })
-
-      try {
-        await this.client.createRun({
-          id: this.traceId,
-          name: "health-plan-chat",
-          run_type: "chain",
-          project_name: projectName,
-          inputs: {
-            chatId: this.chatId,
-            workspaceId: this.workspaceId,
-            startedAt: new Date().toISOString()
-          },
-          extra: {
-            metadata: {
-              userId: this.userId,
-              chatId: this.chatId,
-              type: "chat-trace",
-              version: "1.0.0"
-            }
-          }
-        })
-        console.log(
-          "[langsmith-tracer] Trace created successfully:",
-          this.traceId
-        )
-      } catch (error) {
-        console.error("[langsmith-tracer] Failed to create trace:", error)
-      }
-    }
-
-    // Always create a new run as child of the trace
-    console.log("[langsmith-tracer] Creating NEW run under trace:", {
-      runId: this.runId,
-      traceId: this.traceId,
-      project: projectName,
-      workspaceId: this.workspaceId
-    })
-
-    try {
-      await this.client.createRun({
-        id: this.runId,
-        parent_run_id: this.traceId, // Run is child of trace
-        name: "health-plan-interaction",
-        run_type: "chain",
-        project_name: projectName,
-        inputs: {
-          workspaceId: this.workspaceId,
-          sessionId: this.sessionId,
-          interactionStartedAt: new Date().toISOString()
-        },
-        extra: {
-          metadata: {
-            userId: this.userId,
-            chatId: this.chatId,
-            traceId: this.traceId,
-            type: "interaction-run",
-            version: "1.0.0"
-          }
-        }
-      })
-      console.log("[langsmith-tracer] Run created successfully:", this.runId)
-    } catch (error) {
-      console.error("[langsmith-tracer] Failed to create run:", error)
-    }
-  }
-
-  /**
-   * Logs a step
-   */
-  async logStep(
-    step: number,
-    stepName: string,
-    status: "start" | "end" | "error",
-    data?: any,
-    durationMs?: number
-  ): Promise<void> {
-    if (!this.client) return
-
-    const projectName = process.env.LANGSMITH_PROJECT || "health-plan-agent"
-
-    try {
-      if (status === "start") {
-        // Generate a proper UUID for child run
-        const stepRunId = crypto.randomUUID()
-        this.stepRunIds.set(step, stepRunId)
-
-        console.log(`[langsmith-tracer] Creating step ${step} run:`, stepRunId)
-
-        // Ensure inputs is never undefined/null - LangSmith shows "No data" for undefined
-        const maskedData = maskSensitiveData(data)
-        const inputs =
-          maskedData && Object.keys(maskedData).length > 0
-            ? maskedData
-            : { _empty: true, _reason: "No input data provided" }
-
-        await this.client.createRun({
-          id: stepRunId,
-          parent_run_id: this.runId,
-          name: stepName,
-          run_type: "tool",
-          project_name: projectName,
-          inputs
-        })
-      } else {
-        const stepRunId = this.stepRunIds.get(step)
-        if (!stepRunId) {
-          console.warn(`[langsmith-tracer] No run ID found for step ${step}`)
-          return
-        }
-
-        console.log(`[langsmith-tracer] Ending step ${step} run:`, stepRunId)
-
-        await this.client.updateRun(stepRunId, {
-          outputs:
-            status === "error" ? { error: data } : maskSensitiveData(data),
-          end_time: new Date().toISOString(),
-          error: status === "error" ? data?.error : undefined,
-          extra: durationMs ? { runtime_ms: durationMs } : undefined
-        })
-      }
-    } catch (error) {
-      console.error("[langsmith-tracer] Failed to log step:", error)
-    }
-  }
-
-  /**
-   * Ends the current run (interaction)
-   * Each interaction creates a new run, so we always end it
-   * The trace (chat-level) is NOT ended - it stays open for future interactions
-   */
-  async endRun(
-    success: boolean,
-    durationMs: number,
-    error?: unknown
-  ): Promise<void> {
-    if (!this.client) return
-
-    try {
-      // End the run (interaction level)
-      await this.client.updateRun(this.runId, {
-        outputs: success
-          ? { success: true, durationMs, completedSteps: this.stepRunIds.size }
-          : { success: false, error: error ? String(error) : undefined },
-        end_time: new Date().toISOString(),
-        error: error ? String(error) : undefined,
-        extra: {
-          runtime_ms: durationMs,
-          sessionId: this.sessionId,
-          chatId: this.chatId
-        }
-      })
-      console.log("[langsmith-tracer] Run ended successfully:", this.runId)
-
-      // Note: We do NOT end the trace here - it stays open for future interactions
-      // The trace represents the entire chat conversation
-    } catch (err: any) {
-      // Handle 409 conflict gracefully - run was already ended
-      if (err?.status === 409) {
-        console.log(
-          "[langsmith-tracer] Run already ended (409 conflict), ignoring"
-        )
-      } else {
-        console.warn("[langsmith-tracer] Failed to end run:", err)
-      }
-    }
+  /** @deprecated No longer needed - LangSmith tracing is automatic */
+  isNewTrace(): boolean {
+    return true
   }
 }
 
@@ -720,27 +402,36 @@ export class LangSmithTracer {
 // =============================================================================
 
 /**
- * Creates a new logger instance
+ * Creates a new simple logger instance
  *
  * @param workspaceId - Workspace ID
  * @param userId - User ID
  * @param sessionId - Session ID (optional)
- * @param traceId - LangSmith trace ID for the chat (optional, creates new if not provided)
- * @param chatId - Chat ID for grouping traces (optional)
+ */
+export function createSimpleLogger(
+  workspaceId: string,
+  userId: string,
+  sessionId?: string
+): SimpleLogger {
+  return new SimpleLogger(workspaceId, userId, sessionId)
+}
+
+/**
+ * @deprecated Use createSimpleLogger instead
  */
 export function createLogger(
   workspaceId: string,
   userId: string,
   sessionId?: string,
-  traceId?: string,
-  chatId?: string
+  _traceId?: string,
+  _chatId?: string
 ): HealthPlanLogger {
-  return new HealthPlanLogger(workspaceId, userId, sessionId, traceId, chatId)
+  return new HealthPlanLogger(workspaceId, userId, sessionId)
 }
 
 /**
  * Creates a no-op logger for testing
  */
-export function createNoopLogger(): HealthPlanLogger {
-  return new HealthPlanLogger("test-workspace", "test-user")
+export function createNoopLogger(): SimpleLogger {
+  return new SimpleLogger("test-workspace", "test-user")
 }
