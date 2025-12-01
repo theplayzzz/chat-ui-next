@@ -4,14 +4,25 @@ import { ChatbotUISVG } from "@/components/icons/chatbotui-svg"
 import { IconArrowRight } from "@tabler/icons-react"
 import { useTheme } from "next-themes"
 import Link from "next/link"
+import { useEffect, useState } from "react"
 
 export default function HomePage() {
   const { theme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <div className="flex size-full flex-col items-center justify-center">
       <div>
-        <ChatbotUISVG theme={theme === "dark" ? "dark" : "light"} scale={0.3} />
+        {mounted && (
+          <ChatbotUISVG
+            theme={theme === "dark" ? "dark" : "light"}
+            scale={0.3}
+          />
+        )}
       </div>
 
       <div className="mt-2 text-4xl font-bold">Chatbot UI</div>

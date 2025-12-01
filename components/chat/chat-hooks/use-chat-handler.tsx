@@ -22,6 +22,37 @@ import {
   validateChatSettings
 } from "../chat-helpers"
 
+/**
+ * Checks if the assistant is a health plan recommendation assistant.
+ * Detection is based on assistant name patterns.
+ */
+function isHealthPlanAssistant(
+  assistant: Tables<"assistants"> | null
+): boolean {
+  if (!assistant) return false
+
+  const name = assistant.name.toLowerCase()
+  const description = (assistant.description || "").toLowerCase()
+
+  // Detect health plan assistant by name or description patterns
+  const healthPlanPatterns = [
+    "health plan",
+    "health-plan",
+    "healthplan",
+    "plano de saúde",
+    "plano de saude",
+    "planos de saúde",
+    "planos de saude",
+    "health_plan",
+    "saúde",
+    "saude"
+  ]
+
+  return healthPlanPatterns.some(
+    pattern => name.includes(pattern) || description.includes(pattern)
+  )
+}
+
 export const useChatHandler = () => {
   const router = useRouter()
 
@@ -272,7 +303,49 @@ export const useChatHandler = () => {
 
       let generatedText = ""
 
-      if (selectedTools.length > 0) {
+      // Check if this is a health plan assistant - use specialized API route
+      if (isHealthPlanAssistant(selectedAssistant)) {
+        setToolInUse("Health Plan Agent")
+
+        const formattedMessages = await buildFinalMessages(
+          payload,
+          profile!,
+          chatImages
+        )
+
+        // Call the specialized health plan agent API
+        const response = await fetch("/api/chat/health-plan-agent", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            workspaceId: selectedWorkspace!.id,
+            assistantId: selectedAssistant!.id,
+            messages: formattedMessages.map(msg => ({
+              role: msg.role,
+              content:
+                typeof msg.content === "string"
+                  ? msg.content
+                  : JSON.stringify(msg.content)
+            }))
+          })
+        })
+
+        setToolInUse("none")
+
+        generatedText = await processResponse(
+          response,
+          isRegeneration
+            ? payload.chatMessages[payload.chatMessages.length - 1]
+            : tempAssistantChatMessage,
+          true,
+          newAbortController,
+          setFirstTokenReceived,
+          setChatMessages,
+          setToolInUse
+        )
+      } else if (selectedTools.length > 0) {
         setToolInUse("Tools")
 
         const formattedMessages = await buildFinalMessages(
