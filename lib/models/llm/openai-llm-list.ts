@@ -2,7 +2,56 @@ import { LLM } from "@/types"
 
 const OPENAI_PLATORM_LINK = "https://platform.openai.com/docs/overview"
 
-// OpenAI Models (UPDATED 1/25/24) -----------------------------
+// OpenAI Models (UPDATED 12/01/25) -----------------------------
+
+// GPT-5 (ADDED 12/01/25)
+const GPT5: LLM = {
+  modelId: "gpt-5",
+  modelName: "GPT-5",
+  provider: "openai",
+  hostedId: "gpt-5",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 1.25,
+    outputCost: 10
+  }
+}
+
+// GPT-5 Mini (ADDED 12/01/25)
+const GPT5Mini: LLM = {
+  modelId: "gpt-5-mini",
+  modelName: "GPT-5 Mini",
+  provider: "openai",
+  hostedId: "gpt-5-mini",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 0.25,
+    outputCost: 2
+  }
+}
+
+// GPT-5 Nano (ADDED 12/01/25)
+const GPT5Nano: LLM = {
+  modelId: "gpt-5-nano",
+  modelName: "GPT-5 Nano",
+  provider: "openai",
+  hostedId: "gpt-5-nano",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 0.05,
+    outputCost: 0.4
+  }
+}
+
 const GPT4o: LLM = {
   modelId: "gpt-4o",
   modelName: "GPT-4o",
@@ -82,6 +131,9 @@ const GPT3_5Turbo: LLM = {
 }
 
 export const OPENAI_LLM_LIST: LLM[] = [
+  GPT5,
+  GPT5Mini,
+  GPT5Nano,
   GPT4o,
   GPT4Turbo,
   GPT4Vision,

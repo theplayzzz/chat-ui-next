@@ -170,7 +170,8 @@ export class HealthPlanLogger {
     workspaceId: string,
     userId: string,
     sessionId?: string,
-    existingLangSmithRunId?: string
+    traceId?: string,
+    chatId?: string
   ) {
     this.workspaceId = workspaceId
     this.userId = userId
@@ -182,7 +183,8 @@ export class HealthPlanLogger {
         this.langSmithTracer = new LangSmithTracer(
           workspaceId,
           userId,
-          existingLangSmithRunId
+          traceId,
+          chatId
         )
       } catch (error) {
         console.warn("[logger] Failed to initialize LangSmith tracer:", error)
@@ -199,10 +201,24 @@ export class HealthPlanLogger {
   }
 
   /**
-   * Gets the LangSmith run ID (if available)
+   * Gets the LangSmith trace ID (chat-level, if available)
+   */
+  getLangSmithTraceId(): string | undefined {
+    return this.langSmithTracer?.getTraceId()
+  }
+
+  /**
+   * Gets the LangSmith run ID (interaction-level, if available)
    */
   getLangSmithRunId(): string | undefined {
     return this.langSmithTracer?.getRunId()
+  }
+
+  /**
+   * Returns whether this is a new trace (new chat)
+   */
+  isNewTrace(): boolean {
+    return this.langSmithTracer?.isNewTraceCreated() ?? true
   }
 
   /**
@@ -414,29 +430,45 @@ export class HealthPlanLogger {
 
 /**
  * LangSmith Tracer for observability
+ *
+ * Hierarchy:
+ * - Trace (per chat) - stored in chats.langsmith_trace_id
+ *   - Run (per interaction window) - created each time user sends a message
+ *     - Step 1, Step 2, ... (workflow steps)
  */
 export class LangSmithTracer {
   private client: LangSmithClient | null = null
-  private runId: string
+  private traceId: string // Chat-level trace (parent of all runs)
+  private runId: string // Current interaction run (child of trace)
   private workspaceId: string
   private userId: string
   private sessionId?: string
+  private chatId?: string
   private startTime?: number
   private stepRunIds: Map<number, string> = new Map()
-  private isResumedRun: boolean = false
+  private isNewTrace: boolean = true
 
-  constructor(workspaceId: string, userId: string, existingRunId?: string) {
+  constructor(
+    workspaceId: string,
+    userId: string,
+    traceId?: string,
+    chatId?: string
+  ) {
     this.workspaceId = workspaceId
     this.userId = userId
+    this.chatId = chatId
 
-    // Use existing run ID if provided (resuming session), otherwise create new
-    if (existingRunId) {
-      this.runId = existingRunId
-      this.isResumedRun = true
+    // Use existing trace ID if provided (same chat), otherwise create new
+    if (traceId) {
+      this.traceId = traceId
+      this.isNewTrace = false
     } else {
-      this.runId = crypto.randomUUID()
-      this.isResumedRun = false
+      this.traceId = crypto.randomUUID()
+      this.isNewTrace = true
     }
+
+    // Always create a new run ID for each interaction window
+    this.runId = crypto.randomUUID()
 
     const apiKey = process.env.LANGSMITH_API_KEY
     const project = process.env.LANGSMITH_PROJECT || "health-plan-agent"
@@ -444,8 +476,10 @@ export class LangSmithTracer {
     console.log("[langsmith-tracer] Initializing with:", {
       hasApiKey: !!apiKey,
       project,
+      traceId: this.traceId,
       runId: this.runId,
-      isResumedRun: this.isResumedRun
+      isNewTrace: this.isNewTrace,
+      chatId: this.chatId
     })
 
     if (apiKey) {
@@ -464,10 +498,10 @@ export class LangSmithTracer {
   }
 
   /**
-   * Returns whether this is a new run or a resumed one
+   * Returns whether this is a new trace (new chat)
    */
-  isNewRun(): boolean {
-    return !this.isResumedRun
+  isNewTraceCreated(): boolean {
+    return this.isNewTrace
   }
 
   /**
@@ -478,14 +512,22 @@ export class LangSmithTracer {
   }
 
   /**
-   * Gets the run ID
+   * Gets the trace ID (chat-level, parent of runs)
+   */
+  getTraceId(): string {
+    return this.traceId
+  }
+
+  /**
+   * Gets the run ID (interaction-level, parent of steps)
    */
   getRunId(): string {
     return this.runId
   }
 
   /**
-   * Starts a new run or resumes an existing one
+   * Starts a new run under the trace
+   * Always creates a new run for each interaction window
    */
   async startRun(): Promise<void> {
     if (!this.client) {
@@ -498,18 +540,47 @@ export class LangSmithTracer {
     this.startTime = Date.now()
     const projectName = process.env.LANGSMITH_PROJECT || "health-plan-agent"
 
-    // If resuming an existing run, don't create a new one - just continue adding steps
-    if (this.isResumedRun) {
-      console.log("[langsmith-tracer] Resuming existing run:", {
-        runId: this.runId,
-        project: projectName,
-        workspaceId: this.workspaceId
+    // First, create the trace if it's new
+    if (this.isNewTrace) {
+      console.log("[langsmith-tracer] Creating NEW trace for chat:", {
+        traceId: this.traceId,
+        chatId: this.chatId,
+        project: projectName
       })
-      return
+
+      try {
+        await this.client.createRun({
+          id: this.traceId,
+          name: "health-plan-chat",
+          run_type: "chain",
+          project_name: projectName,
+          inputs: {
+            chatId: this.chatId,
+            workspaceId: this.workspaceId,
+            startedAt: new Date().toISOString()
+          },
+          extra: {
+            metadata: {
+              userId: this.userId,
+              chatId: this.chatId,
+              type: "chat-trace",
+              version: "1.0.0"
+            }
+          }
+        })
+        console.log(
+          "[langsmith-tracer] Trace created successfully:",
+          this.traceId
+        )
+      } catch (error) {
+        console.error("[langsmith-tracer] Failed to create trace:", error)
+      }
     }
 
-    console.log("[langsmith-tracer] Starting NEW run:", {
+    // Always create a new run as child of the trace
+    console.log("[langsmith-tracer] Creating NEW run under trace:", {
       runId: this.runId,
+      traceId: this.traceId,
       project: projectName,
       workspaceId: this.workspaceId
     })
@@ -517,16 +588,21 @@ export class LangSmithTracer {
     try {
       await this.client.createRun({
         id: this.runId,
-        name: "health-plan-recommendation",
+        parent_run_id: this.traceId, // Run is child of trace
+        name: "health-plan-interaction",
         run_type: "chain",
         project_name: projectName,
         inputs: {
           workspaceId: this.workspaceId,
-          sessionId: this.sessionId
+          sessionId: this.sessionId,
+          interactionStartedAt: new Date().toISOString()
         },
         extra: {
           metadata: {
             userId: this.userId,
+            chatId: this.chatId,
+            traceId: this.traceId,
+            type: "interaction-run",
             version: "1.0.0"
           }
         }
@@ -597,7 +673,9 @@ export class LangSmithTracer {
   }
 
   /**
-   * Ends the run
+   * Ends the current run (interaction)
+   * Each interaction creates a new run, so we always end it
+   * The trace (chat-level) is NOT ended - it stays open for future interactions
    */
   async endRun(
     success: boolean,
@@ -607,17 +685,32 @@ export class LangSmithTracer {
     if (!this.client) return
 
     try {
+      // End the run (interaction level)
       await this.client.updateRun(this.runId, {
-        outputs: success ? { success: true, durationMs } : { success: false },
+        outputs: success
+          ? { success: true, durationMs, completedSteps: this.stepRunIds.size }
+          : { success: false, error: error ? String(error) : undefined },
         end_time: new Date().toISOString(),
         error: error ? String(error) : undefined,
         extra: {
           runtime_ms: durationMs,
-          sessionId: this.sessionId
+          sessionId: this.sessionId,
+          chatId: this.chatId
         }
       })
-    } catch (err) {
-      console.warn("[langsmith-tracer] Failed to end run:", err)
+      console.log("[langsmith-tracer] Run ended successfully:", this.runId)
+
+      // Note: We do NOT end the trace here - it stays open for future interactions
+      // The trace represents the entire chat conversation
+    } catch (err: any) {
+      // Handle 409 conflict gracefully - run was already ended
+      if (err?.status === 409) {
+        console.log(
+          "[langsmith-tracer] Run already ended (409 conflict), ignoring"
+        )
+      } else {
+        console.warn("[langsmith-tracer] Failed to end run:", err)
+      }
     }
   }
 }
@@ -628,19 +721,21 @@ export class LangSmithTracer {
 
 /**
  * Creates a new logger instance
+ *
+ * @param workspaceId - Workspace ID
+ * @param userId - User ID
+ * @param sessionId - Session ID (optional)
+ * @param traceId - LangSmith trace ID for the chat (optional, creates new if not provided)
+ * @param chatId - Chat ID for grouping traces (optional)
  */
 export function createLogger(
   workspaceId: string,
   userId: string,
   sessionId?: string,
-  existingLangSmithRunId?: string
+  traceId?: string,
+  chatId?: string
 ): HealthPlanLogger {
-  return new HealthPlanLogger(
-    workspaceId,
-    userId,
-    sessionId,
-    existingLangSmithRunId
-  )
+  return new HealthPlanLogger(workspaceId, userId, sessionId, traceId, chatId)
 }
 
 /**

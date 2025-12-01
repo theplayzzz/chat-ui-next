@@ -253,10 +253,11 @@ export const EDGE_CASE_EXAMPLES = {
 }
 
 /**
- * Configurações recomendadas de GPT-4o para extração
+ * Configurações recomendadas do modelo para extração
+ * (default: gpt-5-mini para balanço custo/qualidade)
  */
 export const EXTRACTION_MODEL_CONFIG = {
-  model: "gpt-4o" as const,
+  model: "gpt-5-mini" as const,
   temperature: 0.2,
   maxTokens: 4096,
   responseFormat: { type: "json_object" as const }
@@ -278,4 +279,63 @@ export function buildExtractionPrompt(
       content: msg.content
     }))
   ]
+}
+
+/**
+ * Verifica se o modelo é GPT-5 (requer max_completion_tokens e temperature=1)
+ */
+export function isGPT5Model(model: string): boolean {
+  return (
+    model.startsWith("gpt-5") ||
+    model.startsWith("o1") ||
+    model.startsWith("o3")
+  )
+}
+
+/**
+ * Retorna os parâmetros de tokens corretos para o modelo
+ * GPT-5 e modelos "o1/o3" usam max_completion_tokens
+ * Modelos anteriores usam max_tokens
+ */
+export function getTokenParams(
+  model: string,
+  maxTokens: number
+): { max_tokens?: number; max_completion_tokens?: number } {
+  if (isGPT5Model(model)) {
+    return { max_completion_tokens: maxTokens }
+  }
+  return { max_tokens: maxTokens }
+}
+
+/**
+ * Retorna a temperatura correta para o modelo
+ * GPT-5 e modelos "o1/o3" só suportam temperature=1
+ * Modelos anteriores aceitam qualquer valor
+ */
+export function getTemperatureParam(
+  model: string,
+  desiredTemperature: number
+): number {
+  if (isGPT5Model(model)) {
+    return 1 // GPT-5 só suporta temperature=1
+  }
+  return desiredTemperature
+}
+
+/**
+ * Retorna todos os parâmetros específicos do modelo de uma vez
+ * Útil para simplificar as chamadas OpenAI
+ */
+export function getModelParams(
+  model: string,
+  options: { maxTokens: number; temperature: number }
+): {
+  temperature: number
+  max_tokens?: number
+  max_completion_tokens?: number
+} {
+  return {
+    temperature: getTemperatureParam(model, options.temperature),
+    ...getTokenParams(model, options.maxTokens)
+  }
 }

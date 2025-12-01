@@ -335,6 +335,7 @@ export const useChatHandler = () => {
         const requestBody = {
           workspaceId: selectedWorkspace!.id,
           assistantId: selectedAssistant!.id,
+          chatId: currentChat?.id, // Pass chat ID for LangSmith trace grouping
           messages: formattedMessages.map(msg => ({
             role: msg.role,
             content:
@@ -349,6 +350,7 @@ export const useChatHandler = () => {
           {
             workspaceId: requestBody.workspaceId,
             assistantId: requestBody.assistantId,
+            chatId: requestBody.chatId || "new chat",
             messageCount: requestBody.messages.length,
             lastMessage: requestBody.messages[
               requestBody.messages.length - 1

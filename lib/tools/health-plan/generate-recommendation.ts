@@ -15,6 +15,7 @@ import type {
   CategorizedAlert
 } from "./analyze-compatibility"
 import type { ERPPriceResult, PriceBreakdown } from "./types"
+import { getModelParams } from "./prompts/extraction-prompts"
 import {
   MainRecommendationResponseSchema,
   AlternativesResponseSchema,
@@ -73,10 +74,14 @@ export interface GenerateRecommendationParams {
 }
 
 /**
+ * Modelo default para geração de recomendações
+ */
+const DEFAULT_RECOMMENDATION_MODEL = "gpt-5-mini"
+
+/**
  * Configuração do modelo GPT
  */
 const GPT_CONFIG = {
-  model: "gpt-4o" as const,
   temperature: 0.1, // Baixa para consistência
   maxTokens: 1500
 }
@@ -122,19 +127,23 @@ export async function generateIntro(
   clientInfo: ClientInfo,
   totalPlansAnalyzed: number,
   topScore: number,
-  openai: OpenAI
+  openai: OpenAI,
+  model?: string
 ): Promise<RecommendationIntro> {
+  const modelToUse = model || DEFAULT_RECOMMENDATION_MODEL
   const prompt = createIntroPrompt(clientInfo, totalPlansAnalyzed, topScore)
 
   try {
     const completion = await openai.chat.completions.create({
-      model: GPT_CONFIG.model,
+      model: modelToUse,
       messages: [
         { role: "system", content: RECOMMENDATION_SYSTEM_PROMPT },
         { role: "user", content: prompt }
       ],
-      temperature: GPT_CONFIG.temperature,
-      max_tokens: 500,
+      ...getModelParams(modelToUse, {
+        temperature: GPT_CONFIG.temperature,
+        maxTokens: 500
+      }),
       response_format: { type: "json_object" }
     })
 
@@ -168,8 +177,10 @@ export async function generateMainRecommendation(
   clientInfo: ClientInfo,
   recommendedPlan: PlanCompatibilityAnalysis,
   monthlyPrice: number | undefined,
-  openai: OpenAI
+  openai: OpenAI,
+  model?: string
 ): Promise<MainRecommendation> {
+  const modelToUse = model || DEFAULT_RECOMMENDATION_MODEL
   const prompt = createMainRecommendationPrompt(
     clientInfo,
     recommendedPlan,
@@ -178,13 +189,15 @@ export async function generateMainRecommendation(
 
   try {
     const completion = await openai.chat.completions.create({
-      model: GPT_CONFIG.model,
+      model: modelToUse,
       messages: [
         { role: "system", content: RECOMMENDATION_SYSTEM_PROMPT },
         { role: "user", content: prompt }
       ],
-      temperature: GPT_CONFIG.temperature,
-      max_tokens: GPT_CONFIG.maxTokens,
+      ...getModelParams(modelToUse, {
+        temperature: GPT_CONFIG.temperature,
+        maxTokens: GPT_CONFIG.maxTokens
+      }),
       response_format: { type: "json_object" }
     })
 
@@ -246,8 +259,10 @@ export async function generateAlternatives(
     budget?: number
     premium?: number
   },
-  openai?: OpenAI
+  openai?: OpenAI,
+  model?: string
 ): Promise<AlternativesSection> {
+  const modelToUse = model || DEFAULT_RECOMMENDATION_MODEL
   // Verifica se há alternativas diferentes do recomendado
   const hasBudget = budgetPlan && budgetPlan.planId !== recommendedPlan.planId
   const hasPremium =
@@ -283,13 +298,15 @@ export async function generateAlternatives(
 
   try {
     const completion = await openai.chat.completions.create({
-      model: GPT_CONFIG.model,
+      model: modelToUse,
       messages: [
         { role: "system", content: RECOMMENDATION_SYSTEM_PROMPT },
         { role: "user", content: prompt }
       ],
-      temperature: GPT_CONFIG.temperature,
-      max_tokens: GPT_CONFIG.maxTokens,
+      ...getModelParams(modelToUse, {
+        temperature: GPT_CONFIG.temperature,
+        maxTokens: GPT_CONFIG.maxTokens
+      }),
       response_format: { type: "json_object" }
     })
 
@@ -485,8 +502,10 @@ export async function generateAlertsSection(
   clientInfo: ClientInfo,
   alerts: CategorizedAlert[],
   recommendedPlanName: string,
-  openai?: OpenAI
+  openai?: OpenAI,
+  model?: string
 ): Promise<AlertsSection> {
+  const modelToUse = model || DEFAULT_RECOMMENDATION_MODEL
   if (alerts.length === 0) {
     return {
       hasCriticalAlerts: false,
@@ -509,13 +528,15 @@ export async function generateAlertsSection(
 
   try {
     const completion = await openai.chat.completions.create({
-      model: GPT_CONFIG.model,
+      model: modelToUse,
       messages: [
         { role: "system", content: ALERTS_SYSTEM_PROMPT },
         { role: "user", content: prompt }
       ],
-      temperature: GPT_CONFIG.temperature,
-      max_tokens: GPT_CONFIG.maxTokens,
+      ...getModelParams(modelToUse, {
+        temperature: GPT_CONFIG.temperature,
+        maxTokens: GPT_CONFIG.maxTokens
+      }),
       response_format: { type: "json_object" }
     })
 
@@ -609,8 +630,11 @@ export async function generateNextSteps(
   clientInfo: ClientInfo,
   recommendedPlanName: string,
   operadora?: string,
-  openai?: OpenAI
+  openai?: OpenAI,
+  model?: string
 ): Promise<NextStepsSection> {
+  const modelToUse = model || DEFAULT_RECOMMENDATION_MODEL
+
   // Se não temos OpenAI client, gera fallback
   if (!openai) {
     return generateNextStepsFallback(clientInfo)
@@ -624,13 +648,15 @@ export async function generateNextSteps(
 
   try {
     const completion = await openai.chat.completions.create({
-      model: GPT_CONFIG.model,
+      model: modelToUse,
       messages: [
         { role: "system", content: RECOMMENDATION_SYSTEM_PROMPT },
         { role: "user", content: prompt }
       ],
-      temperature: GPT_CONFIG.temperature,
-      max_tokens: GPT_CONFIG.maxTokens,
+      ...getModelParams(modelToUse, {
+        temperature: GPT_CONFIG.temperature,
+        maxTokens: GPT_CONFIG.maxTokens
+      }),
       response_format: { type: "json_object" }
     })
 
@@ -741,14 +767,17 @@ function generateNextStepsFallback(clientInfo: ClientInfo): NextStepsSection {
  * @implements Subtask 9.5 (função principal)
  */
 export async function generateRecommendation(
-  params: GenerateRecommendationParams
+  params: GenerateRecommendationParams,
+  model?: string
 ): Promise<GenerateRecommendationResult> {
+  const modelToUse = model || DEFAULT_RECOMMENDATION_MODEL
   const startTime = Date.now()
 
   console.log(
     "[generate-recommendation] ========================================"
   )
   console.log("[generate-recommendation] ✨ generateRecommendation called")
+  console.log("[generate-recommendation] 🤖 Using model:", modelToUse)
 
   const {
     rankedAnalysis,
@@ -792,7 +821,8 @@ export async function generateRecommendation(
       clientProfile,
       rankedAnalysis.metadata.totalPlansAnalyzed,
       recommendedPlan.score.overall,
-      openai
+      openai,
+      modelToUse
     )
 
     // 2. Gera recomendação principal
@@ -800,7 +830,8 @@ export async function generateRecommendation(
       clientProfile,
       recommendedPlan,
       recommendedPrice,
-      openai
+      openai,
+      modelToUse
     )
 
     // 3. Gera alternativas (se solicitado)
@@ -816,7 +847,8 @@ export async function generateRecommendation(
           budget: budgetPrice,
           premium: premiumPrice
         },
-        openai
+        openai,
+        modelToUse
       )
     }
 
@@ -838,7 +870,8 @@ export async function generateRecommendation(
         clientProfile,
         recommendedAlerts,
         recommendedPlan.planName,
-        openai
+        openai,
+        modelToUse
       )
     }
 
@@ -853,7 +886,8 @@ export async function generateRecommendation(
         clientProfile,
         recommendedPlan.planName,
         recommendedPlan.operadora,
-        openai
+        openai,
+        modelToUse
       )
     }
 
@@ -916,7 +950,7 @@ export async function generateRecommendation(
       metadata: {
         generatedAt,
         version: "1.0.0",
-        modelUsed: GPT_CONFIG.model,
+        modelUsed: modelToUse,
         executionTimeMs
       }
     }
@@ -940,7 +974,7 @@ export async function generateRecommendation(
       metadata: {
         generatedAt: new Date().toISOString(),
         version: "1.0.0",
-        modelUsed: GPT_CONFIG.model,
+        modelUsed: modelToUse,
         executionTimeMs
       },
       error: `Erro ao gerar recomendação: ${errorMessage}`

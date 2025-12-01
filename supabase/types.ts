@@ -328,6 +328,7 @@ export type Database = {
           id: string
           include_profile_context: boolean
           include_workspace_instructions: boolean
+          langsmith_trace_id: string | null
           model: string
           name: string
           prompt: string
@@ -346,6 +347,7 @@ export type Database = {
           id?: string
           include_profile_context: boolean
           include_workspace_instructions: boolean
+          langsmith_trace_id?: string | null
           model: string
           name: string
           prompt: string
@@ -364,6 +366,7 @@ export type Database = {
           id?: string
           include_profile_context?: boolean
           include_workspace_instructions?: boolean
+          langsmith_trace_id?: string | null
           model?: string
           name?: string
           prompt?: string
@@ -915,6 +918,7 @@ export type Database = {
           errors: Json | null
           expires_at: string
           id: string
+          langsmith_run_id: string | null
           last_updated_at: string
           recommendation: Json | null
           search_results: Json | null
@@ -933,6 +937,7 @@ export type Database = {
           errors?: Json | null
           expires_at?: string
           id?: string
+          langsmith_run_id?: string | null
           last_updated_at?: string
           recommendation?: Json | null
           search_results?: Json | null
@@ -951,6 +956,7 @@ export type Database = {
           errors?: Json | null
           expires_at?: string
           id?: string
+          langsmith_run_id?: string | null
           last_updated_at?: string
           recommendation?: Json | null
           search_results?: Json | null

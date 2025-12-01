@@ -11,6 +11,7 @@
 import OpenAI from "openai"
 import type { ClientInfo } from "./schemas/client-info-schema"
 import type { HealthPlanSearchResult } from "./types"
+import { getModelParams } from "./prompts/extraction-prompts"
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -289,6 +290,11 @@ export const LIMITS = {
  * Versão do schema de análise
  */
 export const ANALYSIS_VERSION = "1.0.0"
+
+/**
+ * Modelo default para análise de compatibilidade
+ */
+export const DEFAULT_ANALYSIS_MODEL = "gpt-5-mini"
 
 // =============================================================================
 // HELPER FUNCTIONS
@@ -878,13 +884,16 @@ export function generateExecutiveSummary(
  * @param plans - Planos já analisados individualmente
  * @param clientInfo - Informações do cliente
  * @param executionTimeMs - Tempo total de execução
+ * @param model - Modelo usado na análise (opcional)
  * @returns RankedAnalysis completo com todas as agregações
  */
 export function generateRanking(
   plans: PlanCompatibilityAnalysis[],
   clientInfo: ClientInfo,
-  executionTimeMs: number
+  executionTimeMs: number,
+  model?: string
 ): RankedAnalysis {
+  const modelUsed = model || DEFAULT_ANALYSIS_MODEL
   // 1. Ordenar planos por score de compatibilidade
   const rankedPlans = rankPlansByCompatibility(plans)
 
@@ -940,7 +949,7 @@ export function generateRanking(
     metadata: {
       totalPlansAnalyzed: rankedPlans.length,
       analysisVersion: "1.0.0",
-      modelUsed: "gpt-4o"
+      modelUsed
     }
   }
 }
@@ -983,8 +992,10 @@ export function validateAnalysisParams(params: AnalyzeCompatibilityParams): {
 export async function analyzeEligibility(
   clientInfo: ClientInfo,
   planDocuments: HealthPlanSearchResult[],
-  openaiClient: OpenAI
+  openaiClient: OpenAI,
+  model?: string
 ): Promise<EligibilityAnalysis> {
+  const modelToUse = model || DEFAULT_ANALYSIS_MODEL
   const { createEligibilityAnalysisPrompt } = await import(
     "./prompts/compatibility-prompts"
   )
@@ -1001,9 +1012,9 @@ export async function analyzeEligibility(
   const prompt = createEligibilityAnalysisPrompt(clientInfo, combinedDocuments)
 
   try {
-    // Chama GPT-4o com response_format: json_object
+    // Chama modelo com response_format: json_object
     const completion = await openaiClient.chat.completions.create({
-      model: "gpt-4o",
+      model: modelToUse,
       messages: [
         {
           role: "system",
@@ -1015,8 +1026,7 @@ export async function analyzeEligibility(
           content: prompt
         }
       ],
-      temperature: 0.2, // Baixa para consistência
-      max_tokens: 2000,
+      ...getModelParams(modelToUse, { temperature: 0.2, maxTokens: 2000 }),
       response_format: { type: "json_object" }
     })
 
@@ -1061,8 +1071,10 @@ export async function analyzeEligibility(
 export async function evaluateCoverages(
   clientInfo: ClientInfo,
   planDocuments: HealthPlanSearchResult[],
-  openaiClient: OpenAI
+  openaiClient: OpenAI,
+  model?: string
 ): Promise<CoverageEvaluation> {
+  const modelToUse = model || DEFAULT_ANALYSIS_MODEL
   const { createCoverageEvaluationPrompt } = await import(
     "./prompts/compatibility-prompts"
   )
@@ -1078,7 +1090,7 @@ export async function evaluateCoverages(
 
   try {
     const completion = await openaiClient.chat.completions.create({
-      model: "gpt-4o",
+      model: modelToUse,
       messages: [
         {
           role: "system",
@@ -1090,14 +1102,13 @@ export async function evaluateCoverages(
           content: prompt
         }
       ],
-      temperature: 0.2,
-      max_tokens: 3000,
+      ...getModelParams(modelToUse, { temperature: 0.2, maxTokens: 3000 }),
       response_format: { type: "json_object" }
     })
 
     const responseText = completion.choices[0]?.message?.content
     if (!responseText) {
-      throw new Error("Resposta vazia do GPT-4o")
+      throw new Error("Resposta vazia do modelo")
     }
 
     const responseJson = JSON.parse(responseText)
@@ -1144,8 +1155,10 @@ export async function evaluateCoverages(
 export async function detectExclusionsAndLimitations(
   clientInfo: ClientInfo,
   planDocuments: HealthPlanSearchResult[],
-  openaiClient: OpenAI
+  openaiClient: OpenAI,
+  model?: string
 ): Promise<ExclusionAlert[]> {
+  const modelToUse = model || DEFAULT_ANALYSIS_MODEL
   const { createExclusionsDetectionPrompt } = await import(
     "./prompts/compatibility-prompts"
   )
@@ -1161,7 +1174,7 @@ export async function detectExclusionsAndLimitations(
 
   try {
     const completion = await openaiClient.chat.completions.create({
-      model: "gpt-4o",
+      model: modelToUse,
       messages: [
         {
           role: "system",
@@ -1173,8 +1186,7 @@ export async function detectExclusionsAndLimitations(
           content: prompt
         }
       ],
-      temperature: 0.2,
-      max_tokens: 2500,
+      ...getModelParams(modelToUse, { temperature: 0.2, maxTokens: 2500 }),
       response_format: { type: "json_object" }
     })
 
@@ -1219,8 +1231,10 @@ export async function detectExclusionsAndLimitations(
 export async function generateDetailedReasoning(
   clientInfo: ClientInfo,
   analysis: Omit<PlanCompatibilityAnalysis, "reasoning">,
-  openaiClient: OpenAI
+  openaiClient: OpenAI,
+  model?: string
 ): Promise<string> {
+  const modelToUse = model || DEFAULT_ANALYSIS_MODEL
   const { createDetailedReasoningPrompt } = await import(
     "./prompts/compatibility-prompts"
   )
@@ -1238,7 +1252,7 @@ export async function generateDetailedReasoning(
 
   try {
     const completion = await openaiClient.chat.completions.create({
-      model: "gpt-4o",
+      model: modelToUse,
       messages: [
         {
           role: "system",
@@ -1250,8 +1264,7 @@ export async function generateDetailedReasoning(
           content: prompt
         }
       ],
-      temperature: 0.5, // Um pouco mais alta para naturalidade
-      max_tokens: 500
+      ...getModelParams(modelToUse, { temperature: 0.5, maxTokens: 500 })
     })
 
     const reasoning = completion.choices[0]?.message?.content?.trim()
@@ -1284,8 +1297,10 @@ async function analyzeSinglePlan(
   options?: {
     detailedReasoning?: boolean
     timeoutMs?: number
+    model?: string
   }
 ): Promise<PlanCompatibilityAnalysis> {
+  const modelToUse = options?.model || DEFAULT_ANALYSIS_MODEL
   const startTime = Date.now()
 
   try {
@@ -1293,21 +1308,24 @@ async function analyzeSinglePlan(
     const eligibility = await analyzeEligibility(
       clientInfo,
       plan.documents,
-      openaiClient
+      openaiClient,
+      modelToUse
     )
 
     // 2. Avaliação de coberturas
     const coverage = await evaluateCoverages(
       clientInfo,
       plan.documents,
-      openaiClient
+      openaiClient,
+      modelToUse
     )
 
     // 3. Detecção de exclusões
     const alerts = await detectExclusionsAndLimitations(
       clientInfo,
       plan.documents,
-      openaiClient
+      openaiClient,
+      modelToUse
     )
 
     // 4. Cálculo de scores
@@ -1389,7 +1407,8 @@ async function analyzeSinglePlan(
       reasoning = await generateDetailedReasoning(
         clientInfo,
         preliminaryAnalysis,
-        openaiClient
+        openaiClient,
+        modelToUse
       )
     } else {
       // Justificativa simples
@@ -1443,8 +1462,10 @@ async function analyzeSinglePlan(
  */
 export async function analyzePlansBatch(
   params: AnalyzeCompatibilityParams,
-  openaiClient: OpenAI
+  openaiClient: OpenAI,
+  model?: string
 ): Promise<RankedAnalysis> {
+  const modelToUse = model || DEFAULT_ANALYSIS_MODEL
   const startTime = Date.now()
 
   // Limita concorrência para não sobrecarregar a API
@@ -1466,7 +1487,8 @@ export async function analyzePlansBatch(
       Promise.race([
         analyzeSinglePlan(plan, params.clientInfo, openaiClient, {
           detailedReasoning: params.options?.detailedReasoning ?? true,
-          timeoutMs
+          timeoutMs,
+          model: modelToUse
         }),
         new Promise<PlanCompatibilityAnalysis>((_, reject) =>
           setTimeout(
@@ -1515,7 +1537,12 @@ export async function analyzePlansBatch(
 
   // Usa a função generateRanking para criar o ranking completo
   // com alertas categorizados, badges e sumário executivo
-  return generateRanking(validPlans, params.clientInfo, executionTimeMs)
+  return generateRanking(
+    validPlans,
+    params.clientInfo,
+    executionTimeMs,
+    modelToUse
+  )
 }
 
 /**
@@ -1524,8 +1551,10 @@ export async function analyzePlansBatch(
  */
 export async function analyzeCompatibility(
   params: AnalyzeCompatibilityParams,
-  openaiApiKey: string
+  openaiApiKey: string,
+  model?: string
 ): Promise<RankedAnalysis> {
+  const modelToUse = model || DEFAULT_ANALYSIS_MODEL
   const startTime = Date.now()
 
   console.log(
@@ -1557,7 +1586,8 @@ export async function analyzeCompatibility(
 
   // Executar análise em lote
   console.log("[analyze-compatibility] 🔄 Starting batch analysis...")
-  const result = await analyzePlansBatch(params, openaiClient)
+  console.log("[analyze-compatibility] 🤖 Using model:", modelToUse)
+  const result = await analyzePlansBatch(params, openaiClient, modelToUse)
 
   const executionTime = Date.now() - startTime
   console.log("[analyze-compatibility] ✅ Analysis complete:", {

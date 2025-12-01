@@ -29,8 +29,10 @@ export const maxDuration = 60
 interface HealthPlanAgentRequest {
   workspaceId: string
   assistantId: string
+  chatId?: string // Optional - for LangSmith trace grouping per chat
   sessionId?: string // Optional - for resuming sessions
   resetToStep?: number // Optional - for resetting to a specific step
+  model?: string // Optional - model to use (default: gpt-5-mini)
   messages: Array<{
     role: "user" | "assistant" | "system"
     content: string
@@ -88,15 +90,25 @@ export async function POST(request: NextRequest) {
     }
 
     // 3. Validate required fields
-    const { workspaceId, assistantId, messages, sessionId, resetToStep } = body
+    const {
+      workspaceId,
+      assistantId,
+      chatId,
+      messages,
+      sessionId,
+      resetToStep,
+      model
+    } = body
 
     console.log("[route] Step 3: Request parsed successfully")
     console.log("[route] 📋 Request details:", {
       workspaceId,
       assistantId,
+      chatId: chatId || "new chat",
       messageCount: messages?.length,
       sessionId: sessionId || "new session",
-      resetToStep: resetToStep || "none"
+      resetToStep: resetToStep || "none",
+      model: model || "default (gpt-5-mini)"
     })
 
     if (!workspaceId) {
@@ -173,21 +185,26 @@ export async function POST(request: NextRequest) {
       userId,
       workspaceId,
       assistantId,
+      chatId: chatId || "new chat",
       hasOpenAIKey: !!profile.openai_api_key,
-      hasERPConfig: !!erpConfig
+      hasERPConfig: !!erpConfig,
+      model: model || "default"
     })
     const orchestrator = new HealthPlanOrchestrator({
       sessionId: sessionId || undefined,
       workspaceId,
       userId,
       assistantId,
+      chatId: chatId || undefined, // For LangSmith trace grouping
       openaiApiKey: profile.openai_api_key,
       erpConfig: erpConfig || undefined,
       // Allow explicit reset to a previous step (1-5)
       resetToStep:
         resetToStep && resetToStep >= 1 && resetToStep <= 5
           ? (resetToStep as 1 | 2 | 3 | 4 | 5)
-          : undefined
+          : undefined,
+      // Model to use for all AI operations (default: gpt-5-mini)
+      model: model || undefined
     })
 
     // 7. Execute workflow with streaming

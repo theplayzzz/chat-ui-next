@@ -46,6 +46,7 @@ import {
   withRetry
 } from "./error-handler"
 import { saveRecommendationAudit, type SaveAuditResult } from "./audit-logger"
+import { getOrCreateChatTraceId, setChatTraceId } from "./chat-trace-manager"
 
 // =============================================================================
 // TYPES
@@ -62,11 +63,21 @@ export interface OrchestratorConfig {
   openaiApiKey: string
   erpConfig?: WorkspaceERPConfig
   /**
+   * Chat ID for LangSmith trace grouping.
+   * Each chat gets a unique trace ID, with runs as children.
+   */
+  chatId?: string
+  /**
    * Force workflow to restart from a specific step.
    * Useful when client info changes and previous results are invalidated.
    * Steps 2-5 require client info to be complete.
    */
   resetToStep?: WorkflowStep
+  /**
+   * Model to use for all AI operations.
+   * Defaults to 'gpt-5-mini' if not specified.
+   */
+  model?: string
 }
 
 /**
@@ -122,43 +133,79 @@ export class HealthPlanOrchestrator {
       workspaceId: config.workspaceId,
       userId: config.userId,
       assistantId: config.assistantId,
+      chatId: config.chatId || "new chat",
       hasERPConfig: !!config.erpConfig,
       sessionId: config.sessionId || "will be created"
     })
   }
 
   /**
-   * Initializes the logger with session context
-   * Called after session is loaded to use existing langSmithRunId if available
+   * Initializes the logger with chat-level trace hierarchy
+   *
+   * Hierarchy:
+   * - Trace (per chat) - stored in chats.langsmith_trace_id
+   *   - Run (per interaction) - created fresh for each message
+   *     - Steps (workflow steps)
    */
   private async initializeLogger(): Promise<void> {
-    // Create logger with session's existing langSmithRunId if available
+    let traceId: string | undefined
+    let isNewTrace = false
+
+    // Get or create trace ID for the chat
+    if (this.config.chatId) {
+      try {
+        const traceInfo = await getOrCreateChatTraceId(this.config.chatId)
+        traceId = traceInfo.traceId
+        isNewTrace = traceInfo.isNewTrace
+        console.log("[orchestrator] 🔍 Trace ID for chat:", {
+          chatId: this.config.chatId,
+          traceId,
+          isNewTrace
+        })
+      } catch (error) {
+        console.warn(
+          "[orchestrator] Failed to get chat trace ID, will create new:",
+          error
+        )
+        // Continue without trace ID - logger will create a new one
+      }
+    } else {
+      console.log(
+        "[orchestrator] No chatId provided, creating new trace for this interaction"
+      )
+    }
+
+    // Create logger with trace hierarchy
+    // Each interaction creates a new run under the chat's trace
     this.logger = createLogger(
       this.config.workspaceId,
       this.config.userId,
       this.session?.sessionId,
-      this.session?.langSmithRunId
+      traceId,
+      this.config.chatId
     )
 
-    // If this is a new run (no existing langSmithRunId), save the new runId to session
-    if (this.session && !this.session.langSmithRunId) {
-      const newRunId = this.logger.getLangSmithRunId()
-      if (newRunId) {
+    // If we created a new trace, save it to the chat
+    if (this.config.chatId && this.logger.isNewTrace()) {
+      const newTraceId = this.logger.getLangSmithTraceId()
+      if (newTraceId) {
         console.log(
-          "[orchestrator] 💾 Saving new LangSmith runId to session:",
-          newRunId
+          "[orchestrator] 💾 Saving new LangSmith trace ID to chat:",
+          newTraceId
         )
-        await updateSession(this.session.sessionId, {
-          langSmithRunId: newRunId
-        })
-        this.session.langSmithRunId = newRunId
+        try {
+          await setChatTraceId(this.config.chatId, newTraceId)
+        } catch (error) {
+          console.warn("[orchestrator] Failed to save trace ID to chat:", error)
+        }
       }
-    } else if (this.session?.langSmithRunId) {
-      console.log(
-        "[orchestrator] ♻️ Reusing existing LangSmith runId:",
-        this.session.langSmithRunId
-      )
     }
+
+    console.log("[orchestrator] 📊 Logger initialized with:", {
+      traceId: this.logger.getLangSmithTraceId(),
+      runId: this.logger.getLangSmithRunId(),
+      isNewTrace: this.logger.isNewTrace()
+    })
   }
 
   /**
@@ -652,7 +699,8 @@ export class HealthPlanOrchestrator {
         messages,
         currentInfo: this.session?.clientInfo
       },
-      this.config.openaiApiKey
+      this.config.openaiApiKey,
+      this.config.model
     )
 
     console.log("[orchestrator] 📋 extractClientInfo result:", {
@@ -740,7 +788,8 @@ export class HealthPlanOrchestrator {
           timeoutMs: 15_000
         }
       },
-      this.config.openaiApiKey
+      this.config.openaiApiKey,
+      this.config.model
     )
 
     console.log("[orchestrator] 📊 analyzeCompatibility result:", {
@@ -889,16 +938,19 @@ export class HealthPlanOrchestrator {
       topPlan: this.session.compatibilityAnalysis.rankedPlans?.[0]?.planName
     })
 
-    const result = await generateRecommendation({
-      rankedAnalysis: this.session.compatibilityAnalysis,
-      erpPrices: this.session.erpPrices || undefined,
-      options: {
-        includeAlternatives: true,
-        includeAlerts: true,
-        includeNextSteps: true,
-        explainTechnicalTerms: true
-      }
-    })
+    const result = await generateRecommendation(
+      {
+        rankedAnalysis: this.session.compatibilityAnalysis,
+        erpPrices: this.session.erpPrices || undefined,
+        options: {
+          includeAlternatives: true,
+          includeAlerts: true,
+          includeNextSteps: true,
+          explainTechnicalTerms: true
+        }
+      },
+      this.config.model
+    )
 
     console.log("[orchestrator] ✨ generateRecommendation result:", {
       success: result.success,

@@ -25,7 +25,8 @@ import {
 import {
   EXTRACTION_SYSTEM_PROMPT,
   EXTRACTION_MODEL_CONFIG,
-  buildExtractionPrompt
+  buildExtractionPrompt,
+  getModelParams
 } from "./prompts/extraction-prompts"
 import type {
   ExtractClientInfoParams,
@@ -37,12 +38,15 @@ import type {
  *
  * @param params - Parâmetros incluindo mensagens e informações atuais
  * @param apiKey - OpenAI API key
+ * @param model - Modelo a ser usado (default: EXTRACTION_MODEL_CONFIG.model)
  * @returns Informações extraídas, campos faltantes e status de completude
  */
 export async function extractClientInfo(
   params: ExtractClientInfoParams,
-  apiKey: string
+  apiKey: string,
+  model?: string
 ): Promise<ExtractClientInfoResponse> {
+  const modelToUse = model || EXTRACTION_MODEL_CONFIG.model
   console.log("[extract-client-info] ========================================")
   console.log("[extract-client-info] 📋 extractClientInfo called")
   console.log(
@@ -71,16 +75,15 @@ export async function extractClientInfo(
         "Com base na conversa acima, extraia todas as informações disponíveis do cliente em formato JSON estruturado. Se alguma informação obrigatória estiver faltando, retorne null para esse campo."
     })
 
-    // 4. Chamar GPT-4o com structured output
-    console.log(
-      "[extract-client-info] 🤖 Calling GPT-4o with model:",
-      EXTRACTION_MODEL_CONFIG.model
-    )
+    // 4. Chamar modelo com structured output
+    console.log("[extract-client-info] 🤖 Calling model:", modelToUse)
     const response = await openai.chat.completions.create({
-      model: EXTRACTION_MODEL_CONFIG.model,
+      model: modelToUse,
       messages: messages,
-      temperature: EXTRACTION_MODEL_CONFIG.temperature,
-      max_tokens: EXTRACTION_MODEL_CONFIG.maxTokens,
+      ...getModelParams(modelToUse, {
+        temperature: EXTRACTION_MODEL_CONFIG.temperature,
+        maxTokens: EXTRACTION_MODEL_CONFIG.maxTokens
+      }),
       response_format: EXTRACTION_MODEL_CONFIG.responseFormat
     })
 
@@ -112,7 +115,10 @@ export async function extractClientInfo(
         console.log(
           "[extract-client-info] ⚠️ Validation failed on first interaction, returning initial question"
         )
-        const initialQuestion = await generateInitialQuestion(openai)
+        const initialQuestion = await generateInitialQuestion(
+          openai,
+          modelToUse
+        )
         return {
           clientInfo: {},
           missingFields: ["idade", "cidade", "estado", "orçamento mensal"],
@@ -128,10 +134,10 @@ export async function extractClientInfo(
       )
     }
 
-    let clientInfo = parseResult.data
+    let clientInfo = parseResult.data || {}
 
     // 7. Merge com informações existentes (se houver)
-    if (params.currentInfo) {
+    if (params.currentInfo && Object.keys(params.currentInfo).length > 0) {
       clientInfo = mergeClientInfo(params.currentInfo, clientInfo)
     }
 
@@ -155,7 +161,8 @@ export async function extractClientInfo(
         nextQuestion = await generateNextQuestion(
           nextField.field,
           clientInfo,
-          openai
+          openai,
+          modelToUse
         )
       }
     }
@@ -203,12 +210,14 @@ export async function extractClientInfo(
  * @param field - Campo que precisa ser coletado
  * @param currentInfo - Informações já coletadas
  * @param openai - OpenAI client
+ * @param model - Modelo a ser usado
  * @returns Pergunta natural e empática
  */
 async function generateNextQuestion(
   field: string,
   currentInfo: PartialClientInfo,
-  openai: OpenAI
+  openai: OpenAI,
+  model: string
 ): Promise<string> {
   // Se não há NENHUM campo obrigatório preenchido, usar pergunta inicial consolidada
   const hasAnyRequired =
@@ -221,7 +230,7 @@ async function generateNextQuestion(
     console.log(
       "[generateNextQuestion] No required fields found, using consolidated initial question"
     )
-    return generateInitialQuestion(openai)
+    return generateInitialQuestion(openai, model)
   }
 
   // Perguntas ajustadas para quando já há dados parciais (tom "falta apenas X")
@@ -248,7 +257,7 @@ async function generateNextQuestion(
   // Caso contrário, gerar pergunta contextual com GPT
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: model,
       messages: [
         {
           role: "system",
@@ -260,8 +269,7 @@ async function generateNextQuestion(
           content: `Preciso coletar a informação: "${field}". Informações já coletadas: ${JSON.stringify(currentInfo)}. Gere uma pergunta natural e empática.`
         }
       ],
-      temperature: 0.7,
-      max_tokens: 100
+      ...getModelParams(model, { temperature: 0.7, maxTokens: 100 })
     })
 
     return (
@@ -279,9 +287,13 @@ async function generateNextQuestion(
  * de uma vez na primeira interação
  *
  * @param openai - OpenAI client
+ * @param model - Modelo a ser usado
  * @returns Pergunta consolidada amigável
  */
-async function generateInitialQuestion(openai: OpenAI): Promise<string> {
+async function generateInitialQuestion(
+  openai: OpenAI,
+  model: string
+): Promise<string> {
   const defaultQuestion = `Olá! Para encontrar os melhores planos de saúde para você, preciso de algumas informações básicas:
 
 📋 **Informações necessárias:**
@@ -295,7 +307,7 @@ Pode compartilhar essas informações? Pode ser de forma natural, sem se preocup
 
   try {
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: model,
       messages: [
         {
           role: "system",
@@ -308,8 +320,7 @@ Pode compartilhar essas informações? Pode ser de forma natural, sem se preocup
             "Gere a pergunta inicial consolidada pedindo idade, cidade, estado e orçamento de forma natural e amigável."
         }
       ],
-      temperature: 0.7,
-      max_tokens: 250
+      ...getModelParams(model, { temperature: 0.7, maxTokens: 250 })
     })
 
     return response.choices[0]?.message?.content || defaultQuestion

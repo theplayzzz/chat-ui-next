@@ -220,9 +220,20 @@ export function getNextFieldToCollect(
  * @returns Informações merged
  */
 export function mergeClientInfo(
-  existing: PartialClientInfo,
-  updates: PartialClientInfo
+  existing: PartialClientInfo | undefined | null,
+  updates: PartialClientInfo | undefined | null
 ): PartialClientInfo {
+  // Handle null/undefined cases
+  if (!existing && !updates) {
+    return {}
+  }
+  if (!existing) {
+    return updates ? { ...updates } : {}
+  }
+  if (!updates) {
+    return { ...existing }
+  }
+
   const merged: PartialClientInfo = { ...existing }
 
   // Para cada campo em updates
