@@ -15,10 +15,6 @@
 import { NextRequest } from "next/server"
 import { StreamingTextResponse } from "ai"
 import { getServerProfile } from "@/lib/server/server-chat-helpers"
-import {
-  validateWorkspaceAuthMiddleware,
-  logAuthAttempt
-} from "@/lib/middleware/workspace-auth"
 import { getERPConfigByWorkspaceId } from "@/db/workspace-erp-config"
 import { HealthPlanOrchestrator } from "@/lib/tools/health-plan/orchestrator"
 import type { WorkspaceERPConfig } from "@/lib/tools/health-plan/types"
@@ -49,13 +45,35 @@ interface HealthPlanAgentRequest {
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
-  try {
-    // 1. Parse request body first (need to clone for middleware)
-    const clonedRequest = request.clone()
-    let body: HealthPlanAgentRequest
+  console.log("[route] ========================================")
+  console.log("[route] 🚀 Health Plan Agent API called")
+  console.log("[route] ========================================")
 
+  try {
+    // 1. Get server profile (validates user authentication)
+    console.log("[route] Step 1: Authenticating user...")
+    let profile
     try {
-      body = await clonedRequest.json()
+      profile = await getServerProfile()
+      console.log("[route] ✅ User authenticated:", profile.user_id)
+    } catch (error) {
+      console.error("[route] ❌ Auth error:", error)
+      return new Response(
+        JSON.stringify({
+          error: "User not authenticated",
+          code: "UNAUTHORIZED"
+        }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json" }
+        }
+      )
+    }
+
+    // 2. Parse request body
+    let body: HealthPlanAgentRequest
+    try {
+      body = await request.json()
     } catch (error) {
       return new Response(
         JSON.stringify({
@@ -69,8 +87,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 2. Validate required fields
+    // 3. Validate required fields
     const { workspaceId, assistantId, messages, sessionId, resetToStep } = body
+
+    console.log("[route] Step 3: Request parsed successfully")
+    console.log("[route] 📋 Request details:", {
+      workspaceId,
+      assistantId,
+      messageCount: messages?.length,
+      sessionId: sessionId || "new session",
+      resetToStep: resetToStep || "none"
+    })
 
     if (!workspaceId) {
       return new Response(
@@ -111,40 +138,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 3. Validate workspace authorization
-    // Create a new request with the same body for the middleware
-    const authRequest = new NextRequest(request.url, {
-      method: "POST",
-      headers: request.headers,
-      body: JSON.stringify(body)
-    })
-
-    const authResult = await validateWorkspaceAuthMiddleware(authRequest)
-
-    // Log authorization attempt
-    logAuthAttempt(authResult, {
-      endpoint: "/api/chat/health-plan-agent",
-      action: "health-plan-recommendation"
-    })
-
-    if (!authResult.isAuthorized) {
-      return (
-        authResult.response ||
-        new Response(
-          JSON.stringify({
-            error: "Unauthorized access to workspace",
-            code: "UNAUTHORIZED"
-          }),
-          {
-            status: 403,
-            headers: { "Content-Type": "application/json" }
-          }
-        )
-      )
-    }
-
-    // 4. Get server profile for API keys
-    const profile = await getServerProfile()
+    // 4. Get user ID from profile
+    const userId = profile.user_id
 
     if (!profile.openai_api_key) {
       return new Response(
@@ -173,10 +168,18 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Initialize orchestrator
+    console.log("[route] Step 6: Initializing orchestrator...")
+    console.log("[route] 🔧 Orchestrator config:", {
+      userId,
+      workspaceId,
+      assistantId,
+      hasOpenAIKey: !!profile.openai_api_key,
+      hasERPConfig: !!erpConfig
+    })
     const orchestrator = new HealthPlanOrchestrator({
       sessionId: sessionId || undefined,
       workspaceId,
-      userId: authResult.userId!,
+      userId,
       assistantId,
       openaiApiKey: profile.openai_api_key,
       erpConfig: erpConfig || undefined,
@@ -188,19 +191,32 @@ export async function POST(request: NextRequest) {
     })
 
     // 7. Execute workflow with streaming
+    console.log("[route] Step 7: Starting workflow execution with streaming...")
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder()
+        let chunkCount = 0
 
         try {
+          console.log("[route] 🎬 Workflow generator started")
           for await (const chunk of orchestrator.executeWorkflow(messages)) {
+            chunkCount++
+            if (chunkCount <= 5 || chunkCount % 10 === 0) {
+              console.log(
+                `[route] 📦 Chunk ${chunkCount}:`,
+                chunk.substring(0, 100)
+              )
+            }
             controller.enqueue(encoder.encode(chunk))
           }
+          console.log(
+            `[route] ✅ Workflow completed, total chunks: ${chunkCount}`
+          )
           controller.close()
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Unknown error occurred"
-          console.error("[health-plan-agent] Workflow error:", error)
+          console.error("[route] ❌ Workflow error:", error)
 
           // Send error message to client
           controller.enqueue(

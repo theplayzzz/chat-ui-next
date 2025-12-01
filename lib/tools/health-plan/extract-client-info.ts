@@ -43,8 +43,20 @@ export async function extractClientInfo(
   params: ExtractClientInfoParams,
   apiKey: string
 ): Promise<ExtractClientInfoResponse> {
+  console.log("[extract-client-info] ========================================")
+  console.log("[extract-client-info] 📋 extractClientInfo called")
+  console.log(
+    "[extract-client-info] 📨 Messages count:",
+    params.messages?.length || 0
+  )
+  console.log(
+    "[extract-client-info] 📝 Has current info:",
+    !!params.currentInfo
+  )
+
   try {
     // 1. Configurar OpenAI client
+    console.log("[extract-client-info] 🔧 Configuring OpenAI client...")
     const openai = new OpenAI({
       apiKey: apiKey
     })
@@ -60,6 +72,10 @@ export async function extractClientInfo(
     })
 
     // 4. Chamar GPT-4o com structured output
+    console.log(
+      "[extract-client-info] 🤖 Calling GPT-4o with model:",
+      EXTRACTION_MODEL_CONFIG.model
+    )
     const response = await openai.chat.completions.create({
       model: EXTRACTION_MODEL_CONFIG.model,
       messages: messages,
@@ -68,14 +84,26 @@ export async function extractClientInfo(
       response_format: EXTRACTION_MODEL_CONFIG.responseFormat
     })
 
+    console.log("[extract-client-info] ✅ GPT-4o response received:", {
+      tokensUsed: response.usage?.total_tokens,
+      finishReason: response.choices[0]?.finish_reason
+    })
+
     // 5. Extrair resposta
     const rawResponse = response.choices[0]?.message?.content
 
     if (!rawResponse) {
+      console.error("[extract-client-info] ❌ GPT-4o returned empty response")
       throw new Error("GPT-4o não retornou resposta válida")
     }
 
+    console.log(
+      "[extract-client-info] 📄 Raw response length:",
+      rawResponse.length
+    )
+
     // 6. Parse e validação
+    console.log("[extract-client-info] 🔍 Parsing response...")
     const parseResult = parseClientInfo(rawResponse)
 
     if (!parseResult.success || !parseResult.data) {
@@ -129,6 +157,14 @@ export async function extractClientInfo(
       }
     }
 
+    console.log("[extract-client-info] ✅ Extraction complete:", {
+      isComplete,
+      completeness,
+      missingFieldsCount: missingFieldLabels.length,
+      hasNextQuestion: !!nextQuestion,
+      warningsCount: warnings.length
+    })
+
     return {
       clientInfo: enrichedClientInfo,
       missingFields: missingFieldLabels,
@@ -137,7 +173,7 @@ export async function extractClientInfo(
       nextQuestion
     }
   } catch (error) {
-    console.error("[extractClientInfo] Error:", error)
+    console.error("[extract-client-info] ❌ Error:", error)
 
     throw new Error(
       `Falha ao extrair informações do cliente: ${error instanceof Error ? error.message : String(error)}`

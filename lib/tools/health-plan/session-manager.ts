@@ -447,6 +447,14 @@ export async function getOrCreateSession(
   userId: string,
   sessionId?: string
 ): Promise<SessionState> {
+  console.log("[session-manager] ========================================")
+  console.log("[session-manager] 📝 getOrCreateSession called")
+  console.log("[session-manager] 📋 Params:", {
+    workspaceId,
+    userId,
+    requestedSessionId: sessionId || "none"
+  })
+
   // If sessionId provided, try to resume that specific session with ownership validation
   if (sessionId) {
     const existing = await getSessionById(sessionId, workspaceId, userId)
@@ -472,7 +480,10 @@ export async function getOrCreateSession(
   }
 
   // No existing session found, create new one
-  return createSession(workspaceId, userId)
+  console.log("[session-manager] 🆕 Creating new session...")
+  const newSession = await createSession(workspaceId, userId)
+  console.log("[session-manager] ✅ New session created:", newSession.sessionId)
+  return newSession
 }
 
 /**

@@ -413,6 +413,7 @@ export class LangSmithTracer {
   private userId: string
   private sessionId?: string
   private startTime?: number
+  private stepRunIds: Map<number, string> = new Map()
 
   constructor(workspaceId: string, userId: string) {
     this.workspaceId = workspaceId
@@ -420,13 +421,26 @@ export class LangSmithTracer {
     this.runId = crypto.randomUUID()
 
     const apiKey = process.env.LANGSMITH_API_KEY
+    const project = process.env.LANGSMITH_PROJECT || "health-plan-agent"
+
+    console.log("[langsmith-tracer] Initializing with:", {
+      hasApiKey: !!apiKey,
+      project,
+      runId: this.runId
+    })
+
     if (apiKey) {
       try {
         this.client = new LangSmithClient({ apiKey })
+        console.log("[langsmith-tracer] Client initialized successfully")
       } catch (error) {
-        console.warn("[langsmith-tracer] Failed to initialize client:", error)
+        console.error("[langsmith-tracer] Failed to initialize client:", error)
         this.client = null
       }
+    } else {
+      console.warn(
+        "[langsmith-tracer] No LANGSMITH_API_KEY found in environment"
+      )
     }
   }
 
@@ -448,15 +462,28 @@ export class LangSmithTracer {
    * Starts a new run
    */
   async startRun(): Promise<void> {
-    if (!this.client) return
+    if (!this.client) {
+      console.warn(
+        "[langsmith-tracer] Cannot start run - client not initialized"
+      )
+      return
+    }
 
     this.startTime = Date.now()
+    const projectName = process.env.LANGSMITH_PROJECT || "health-plan-agent"
+
+    console.log("[langsmith-tracer] Starting run:", {
+      runId: this.runId,
+      project: projectName,
+      workspaceId: this.workspaceId
+    })
 
     try {
       await this.client.createRun({
         id: this.runId,
         name: "health-plan-recommendation",
         run_type: "chain",
+        project_name: projectName,
         inputs: {
           workspaceId: this.workspaceId,
           sessionId: this.sessionId
@@ -468,8 +495,9 @@ export class LangSmithTracer {
           }
         }
       })
+      console.log("[langsmith-tracer] Run created successfully:", this.runId)
     } catch (error) {
-      console.warn("[langsmith-tracer] Failed to create run:", error)
+      console.error("[langsmith-tracer] Failed to create run:", error)
     }
   }
 
@@ -485,19 +513,40 @@ export class LangSmithTracer {
   ): Promise<void> {
     if (!this.client) return
 
-    try {
-      // Create a child run for this step
-      const stepRunId = `${this.runId}-step-${step}`
+    const projectName = process.env.LANGSMITH_PROJECT || "health-plan-agent"
 
+    try {
       if (status === "start") {
+        // Generate a proper UUID for child run
+        const stepRunId = crypto.randomUUID()
+        this.stepRunIds.set(step, stepRunId)
+
+        console.log(`[langsmith-tracer] Creating step ${step} run:`, stepRunId)
+
+        // Ensure inputs is never undefined/null - LangSmith shows "No data" for undefined
+        const maskedData = maskSensitiveData(data)
+        const inputs =
+          maskedData && Object.keys(maskedData).length > 0
+            ? maskedData
+            : { _empty: true, _reason: "No input data provided" }
+
         await this.client.createRun({
           id: stepRunId,
           parent_run_id: this.runId,
           name: stepName,
           run_type: "tool",
-          inputs: maskSensitiveData(data)
+          project_name: projectName,
+          inputs
         })
       } else {
+        const stepRunId = this.stepRunIds.get(step)
+        if (!stepRunId) {
+          console.warn(`[langsmith-tracer] No run ID found for step ${step}`)
+          return
+        }
+
+        console.log(`[langsmith-tracer] Ending step ${step} run:`, stepRunId)
+
         await this.client.updateRun(stepRunId, {
           outputs:
             status === "error" ? { error: data } : maskSensitiveData(data),
@@ -507,8 +556,7 @@ export class LangSmithTracer {
         })
       }
     } catch (error) {
-      // Silently fail - don't break workflow for tracing errors
-      console.warn("[langsmith-tracer] Failed to log step:", error)
+      console.error("[langsmith-tracer] Failed to log step:", error)
     }
   }
 

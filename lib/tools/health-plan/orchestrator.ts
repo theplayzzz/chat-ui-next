@@ -118,6 +118,14 @@ export class HealthPlanOrchestrator {
     this.config = config
     this.logger = createLogger(config.workspaceId, config.userId)
     this.errorHandler = new ErrorHandler()
+
+    console.log("[orchestrator] 🏗️ Orchestrator created:", {
+      workspaceId: config.workspaceId,
+      userId: config.userId,
+      assistantId: config.assistantId,
+      hasERPConfig: !!config.erpConfig,
+      sessionId: config.sessionId || "will be created"
+    })
   }
 
   /**
@@ -138,19 +146,28 @@ export class HealthPlanOrchestrator {
   ): AsyncGenerator<string, void, unknown> {
     const workflowStartTime = Date.now()
 
+    console.log("[orchestrator] ========================================")
+    console.log("[orchestrator] 🚀 executeWorkflow started")
+    console.log("[orchestrator] 📨 Messages received:", messages.length)
+    console.log("[orchestrator] ========================================")
+
     try {
       // Initialize or resume session (with ownership validation if sessionId provided)
+      console.log("[orchestrator] 📝 Getting or creating session...")
       this.session = await getOrCreateSession(
         this.config.workspaceId,
         this.config.userId,
         this.config.sessionId // Pass sessionId for specific session lookup with ownership validation
       )
 
+      console.log("[orchestrator] ✅ Session ready:", this.session.sessionId)
+
       this.logger.setSessionId(this.session.sessionId)
       this.logger.logWorkflowStart()
 
       // Determine starting step based on session state
       const startStep = this.determineStartStep()
+      console.log("[orchestrator] 📍 Starting from step:", startStep)
 
       // Execute steps sequentially
       for (let step = startStep; step <= 5; step++) {
@@ -279,12 +296,29 @@ export class HealthPlanOrchestrator {
     messages: Message[]
   ): AsyncGenerator<string, { continue: boolean; message?: string }, unknown> {
     const stepStartTime = Date.now()
+    const stepNames = [
+      "",
+      "extractClientInfo",
+      "searchHealthPlans",
+      "analyzeCompatibility",
+      "fetchERPPrices",
+      "generateRecommendation"
+    ]
+
+    console.log(`[orchestrator] ----------------------------------------`)
+    console.log(`[orchestrator] 🔄 Step ${step}: ${stepNames[step]} STARTING`)
+    console.log(`[orchestrator] ⏱️ Timeout: ${STEP_TIMEOUTS[step]}ms`)
 
     try {
       // Yield progress message
       yield STEP_PROGRESS[step]
 
-      this.logger.logStepStart(step, this.getStepInputs(step))
+      const stepInputs = this.getStepInputs(step, messages)
+      this.logger.logStepStart(step, stepInputs)
+      console.log(
+        `[orchestrator] 📊 Step ${step} inputs:`,
+        JSON.stringify(stepInputs, null, 2)
+      )
 
       // Execute step with timeout and automatic retry for transient errors
       const result = await withRetry(
@@ -301,15 +335,32 @@ export class HealthPlanOrchestrator {
       const duration = Date.now() - stepStartTime
       this.logger.logStepEnd(step, result, duration)
 
+      console.log(
+        `[orchestrator] ✅ Step ${step}: ${stepNames[step]} COMPLETED in ${duration}ms`
+      )
+      console.log(
+        `[orchestrator] 📤 Step ${step} result preview:`,
+        typeof result === "object" ? Object.keys(result) : result
+      )
+
       // Handle step-specific results
       return yield* this.handleStepResult(step, result)
     } catch (error) {
       const duration = Date.now() - stepStartTime
       this.logger.logStepError(step, error as Error, duration)
 
+      console.error(
+        `[orchestrator] ❌ Step ${step}: ${stepNames[step]} FAILED after ${duration}ms`
+      )
+      console.error(
+        `[orchestrator] 🔥 Error:`,
+        error instanceof Error ? error.message : error
+      )
+
       // Add error to session (this error has exhausted all retries)
       if (this.session) {
         const classified = this.errorHandler.classifyError(error, step)
+        console.error(`[orchestrator] 🏷️ Error classified as:`, classified.type)
         await addSessionError(
           this.session.sessionId,
           step,
@@ -323,22 +374,82 @@ export class HealthPlanOrchestrator {
   }
 
   /**
-   * Gets inputs for the current step (for logging)
+   * Gets inputs for the current step (for logging/tracing)
+   * Returns meaningful data that will appear in LangSmith
    */
-  private getStepInputs(step: WorkflowStep): any {
+  private getStepInputs(
+    step: WorkflowStep,
+    messages?: Message[]
+  ): Record<string, any> {
+    const baseInputs = {
+      sessionId: this.session?.sessionId || "pending",
+      workspaceId: this.config.workspaceId,
+      step
+    }
+
     switch (step) {
       case 1:
-        return { currentInfo: this.session?.clientInfo }
+        return {
+          ...baseInputs,
+          hasCurrentInfo: !!this.session?.clientInfo,
+          currentInfoFields: this.session?.clientInfo
+            ? Object.keys(this.session.clientInfo).filter(
+                k =>
+                  this.session?.clientInfo?.[
+                    k as keyof typeof this.session.clientInfo
+                  ] !== undefined
+              )
+            : [],
+          messagesCount: messages?.length || 0,
+          lastUserMessage:
+            messages
+              ?.filter(m => m.role === "user")
+              .slice(-1)[0]
+              ?.content?.slice(0, 200) || "N/A"
+        }
       case 2:
-        return { clientInfo: this.session?.clientInfo }
+        return {
+          ...baseInputs,
+          clientInfo: this.session?.clientInfo
+            ? {
+                age: this.session.clientInfo.age,
+                state: this.session.clientInfo.state,
+                city: this.session.clientInfo.city,
+                budget: this.session.clientInfo.budget,
+                hasDependents: !!(this.session.clientInfo as any).dependents
+                  ?.length
+              }
+            : null,
+          assistantId: this.config.assistantId
+        }
       case 3:
-        return { plansCount: this.session?.searchResults?.results?.length }
+        return {
+          ...baseInputs,
+          plansFound: this.session?.searchResults?.results?.length || 0,
+          clientAge: this.session?.clientInfo?.age,
+          clientState: this.session?.clientInfo?.state
+        }
       case 4:
-        return { analysisComplete: !!this.session?.compatibilityAnalysis }
+        return {
+          ...baseInputs,
+          hasAnalysis: !!this.session?.compatibilityAnalysis,
+          rankedPlansCount:
+            this.session?.compatibilityAnalysis?.rankedPlans?.length || 0,
+          topPlanId:
+            this.session?.compatibilityAnalysis?.rankedPlans?.[0]?.planId ||
+            null,
+          hasERPConfig: !!this.config.erpConfig
+        }
       case 5:
-        return { hasAnalysis: !!this.session?.compatibilityAnalysis }
+        return {
+          ...baseInputs,
+          hasAnalysis: !!this.session?.compatibilityAnalysis,
+          hasERPPrices: !!this.session?.erpPrices?.success,
+          rankedPlansCount:
+            this.session?.compatibilityAnalysis?.rankedPlans?.length || 0
+        }
       default:
-        return {}
+        return baseInputs
     }
   }
 
@@ -463,24 +574,49 @@ export class HealthPlanOrchestrator {
    * Step 1: Extract client info from conversation
    */
   private async executeExtractClientInfo(messages: Message[]) {
-    return extractClientInfo(
+    console.log("[orchestrator] 📋 executeExtractClientInfo called")
+    console.log("[orchestrator] 📨 Messages count:", messages.length)
+    console.log(
+      "[orchestrator] 📝 Current client info:",
+      this.session?.clientInfo ? "exists" : "none"
+    )
+
+    const result = await extractClientInfo(
       {
         messages,
         currentInfo: this.session?.clientInfo
       },
       this.config.openaiApiKey
     )
+
+    console.log("[orchestrator] 📋 extractClientInfo result:", {
+      isComplete: result.isComplete,
+      hasNextQuestion: !!result.nextQuestion,
+      clientInfoKeys: result.clientInfo ? Object.keys(result.clientInfo) : []
+    })
+
+    return result
   }
 
   /**
    * Step 2: Search health plans via RAG
    */
   private async executeSearchHealthPlans() {
+    console.log("[orchestrator] 🔍 executeSearchHealthPlans called")
+
     if (!this.session?.clientInfo) {
+      console.error("[orchestrator] ❌ Client info missing for search")
       throw new Error("Client info is required for search")
     }
 
-    return searchHealthPlans(
+    console.log("[orchestrator] 🔍 Searching with:", {
+      assistantId: this.config.assistantId,
+      clientAge: this.session.clientInfo.age,
+      clientState: this.session.clientInfo.state,
+      topK: 15
+    })
+
+    const result = await searchHealthPlans(
       {
         assistantId: this.config.assistantId,
         clientInfo: this.session.clientInfo,
@@ -488,13 +624,27 @@ export class HealthPlanOrchestrator {
       },
       this.config.openaiApiKey
     )
+
+    console.log("[orchestrator] 🔍 searchHealthPlans result:", {
+      resultsCount: result.results?.length || 0,
+      collectionsFound: [
+        ...new Set(result.results?.map((r: any) => r.collectionName) || [])
+      ].length
+    })
+
+    return result
   }
 
   /**
    * Step 3: Analyze compatibility of plans
    */
   private async executeAnalyzeCompatibility() {
+    console.log("[orchestrator] 📊 executeAnalyzeCompatibility called")
+
     if (!this.session?.clientInfo || !this.session?.searchResults) {
+      console.error(
+        "[orchestrator] ❌ Missing client info or search results for analysis"
+      )
       throw new Error(
         "Client info and search results are required for analysis"
       )
@@ -506,7 +656,13 @@ export class HealthPlanOrchestrator {
     // Group search results by collection/plan
     const planDocuments = this.groupSearchResultsByPlan()
 
-    return analyzeCompatibility(
+    console.log("[orchestrator] 📊 Analyzing:", {
+      plansToAnalyze: planDocuments.length,
+      clientAge: clientInfo.age,
+      hasPreExistingConditions: !!clientInfo.preExistingConditions?.length
+    })
+
+    const result = await analyzeCompatibility(
       {
         clientInfo,
         plans: planDocuments,
@@ -520,6 +676,14 @@ export class HealthPlanOrchestrator {
       },
       this.config.openaiApiKey
     )
+
+    console.log("[orchestrator] 📊 analyzeCompatibility result:", {
+      rankedPlansCount: result.rankedPlans?.length || 0,
+      topPlanScore: result.rankedPlans?.[0]?.score?.overall,
+      topPlanName: result.rankedPlans?.[0]?.planName
+    })
+
+    return result
   }
 
   /**
@@ -558,7 +722,12 @@ export class HealthPlanOrchestrator {
    * Step 4: Fetch ERP prices
    */
   private async executeFetchERPPrices() {
+    console.log("[orchestrator] 💰 executeFetchERPPrices called")
+
     if (!this.session?.compatibilityAnalysis || !this.session?.clientInfo) {
+      console.error(
+        "[orchestrator] ❌ Missing compatibility analysis or client info for pricing"
+      )
       throw new Error(
         "Compatibility analysis and client info are required for pricing"
       )
@@ -566,6 +735,9 @@ export class HealthPlanOrchestrator {
 
     // If no ERP config, return empty result
     if (!this.config.erpConfig) {
+      console.log(
+        "[orchestrator] ⚠️ ERP not configured for workspace, skipping price fetch"
+      )
       return {
         success: false,
         error: "ERP not configured for this workspace",
@@ -579,6 +751,8 @@ export class HealthPlanOrchestrator {
     const analysis = this.session.compatibilityAnalysis
     const planIds = analysis.rankedPlans.slice(0, 5).map(p => p.planId)
 
+    console.log("[orchestrator] 💰 Fetching prices for plans:", planIds)
+
     // Build family profile
     const familyProfile: FamilyProfile = {
       titular: {
@@ -590,7 +764,24 @@ export class HealthPlanOrchestrator {
       }))
     }
 
-    return fetchERPPrices(this.config.workspaceId, planIds, familyProfile)
+    console.log("[orchestrator] 💰 Family profile:", {
+      titularAge: familyProfile.titular.idade,
+      dependentsCount: familyProfile.dependentes.length
+    })
+
+    const result = await fetchERPPrices(
+      this.config.workspaceId,
+      planIds,
+      familyProfile
+    )
+
+    console.log("[orchestrator] 💰 fetchERPPrices result:", {
+      success: result.success,
+      source: result.source,
+      cached: !!result.cached_at
+    })
+
+    return result
   }
 
   /**
@@ -617,11 +808,22 @@ export class HealthPlanOrchestrator {
    * Step 5: Generate recommendation
    */
   private async executeGenerateRecommendation() {
+    console.log("[orchestrator] ✨ executeGenerateRecommendation called")
+
     if (!this.session?.compatibilityAnalysis) {
+      console.error(
+        "[orchestrator] ❌ Missing compatibility analysis for recommendation"
+      )
       throw new Error("Compatibility analysis is required for recommendation")
     }
 
-    return generateRecommendation({
+    console.log("[orchestrator] ✨ Generating recommendation with:", {
+      rankedPlansCount: this.session.compatibilityAnalysis.rankedPlans?.length,
+      hasERPPrices: !!this.session.erpPrices?.success,
+      topPlan: this.session.compatibilityAnalysis.rankedPlans?.[0]?.planName
+    })
+
+    const result = await generateRecommendation({
       rankedAnalysis: this.session.compatibilityAnalysis,
       erpPrices: this.session.erpPrices || undefined,
       options: {
@@ -631,6 +833,14 @@ export class HealthPlanOrchestrator {
         explainTechnicalTerms: true
       }
     })
+
+    console.log("[orchestrator] ✨ generateRecommendation result:", {
+      success: result.success,
+      markdownLength: result.markdown?.length || 0,
+      hasAlerts: !!result.sections?.alerts
+    })
+
+    return result
   }
 
   /**

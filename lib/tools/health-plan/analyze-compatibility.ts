@@ -1526,17 +1526,47 @@ export async function analyzeCompatibility(
   params: AnalyzeCompatibilityParams,
   openaiApiKey: string
 ): Promise<RankedAnalysis> {
+  const startTime = Date.now()
+
+  console.log(
+    "[analyze-compatibility] ========================================"
+  )
+  console.log("[analyze-compatibility] 📊 analyzeCompatibility called")
+  console.log("[analyze-compatibility] 📋 Params:", {
+    plansCount: params.plans?.length || 0,
+    clientAge: params.clientInfo?.age,
+    hasPreExistingConditions:
+      !!params.clientInfo?.preExistingConditions?.length,
+    topK: params.options?.topK || 5
+  })
+
   // Validar parâmetros
   const validation = validateAnalysisParams(params)
   if (!validation.valid) {
+    console.error(
+      "[analyze-compatibility] ❌ Validation failed:",
+      validation.errors
+    )
     throw new Error(`Parâmetros inválidos: ${validation.errors.join(", ")}`)
   }
+
+  console.log("[analyze-compatibility] ✅ Parameters validated")
 
   // Inicializar cliente OpenAI
   const openaiClient = new OpenAI({ apiKey: openaiApiKey })
 
   // Executar análise em lote
+  console.log("[analyze-compatibility] 🔄 Starting batch analysis...")
   const result = await analyzePlansBatch(params, openaiClient)
+
+  const executionTime = Date.now() - startTime
+  console.log("[analyze-compatibility] ✅ Analysis complete:", {
+    executionTimeMs: executionTime,
+    rankedPlansCount: result.rankedPlans?.length || 0,
+    topPlanScore: result.rankedPlans?.[0]?.score?.overall,
+    topPlanName: result.rankedPlans?.[0]?.planName,
+    alertsCount: result.criticalAlerts?.all?.length || 0
+  })
 
   return result
 }

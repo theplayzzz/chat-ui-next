@@ -131,10 +131,20 @@ export async function searchHealthPlans(
 ): Promise<SearchHealthPlansResponse> {
   const startTime = Date.now()
 
+  console.log("[search-health-plans] ========================================")
+  console.log("[search-health-plans] 🔍 searchHealthPlans called")
+  console.log("[search-health-plans] 📋 Params:", {
+    assistantId: params.assistantId,
+    topK: params.topK || 10,
+    hasFilters: !!params.filters,
+    clientAge: params.clientInfo?.age,
+    clientState: params.clientInfo?.state
+  })
+
   try {
-    console.log("[searchHealthPlans] Iniciando busca de planos de saúde")
+    console.log("[search-health-plans] Iniciando busca de planos de saúde")
     console.log(
-      `[searchHealthPlans] AssistantId: ${params.assistantId}, TopK: ${params.topK || 10}`
+      `[search-health-plans] AssistantId: ${params.assistantId}, TopK: ${params.topK || 10}`
     )
 
     // 1. Configurar Supabase admin client
@@ -200,9 +210,12 @@ export async function searchHealthPlans(
 
     const executionTimeMs = Date.now() - startTime
 
-    console.log(
-      `[searchHealthPlans] Busca concluída em ${executionTimeMs}ms com ${rankedResults.length} resultados`
-    )
+    console.log("[search-health-plans] ✅ Busca concluída:", {
+      executionTimeMs,
+      resultsCount: rankedResults.length,
+      collectionsSearched: healthPlanCollections.length,
+      queryLength: searchQuery.length
+    })
 
     return {
       results: rankedResults,
@@ -214,7 +227,7 @@ export async function searchHealthPlans(
       }
     }
   } catch (error) {
-    console.error("[searchHealthPlans] Error:", error)
+    console.error("[search-health-plans] ❌ Error:", error)
 
     throw new Error(
       `Falha ao buscar planos de saúde: ${error instanceof Error ? error.message : String(error)}`

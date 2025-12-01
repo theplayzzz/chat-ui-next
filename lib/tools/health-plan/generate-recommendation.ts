@@ -745,6 +745,11 @@ export async function generateRecommendation(
 ): Promise<GenerateRecommendationResult> {
   const startTime = Date.now()
 
+  console.log(
+    "[generate-recommendation] ========================================"
+  )
+  console.log("[generate-recommendation] ✨ generateRecommendation called")
+
   const {
     rankedAnalysis,
     erpPrices,
@@ -756,8 +761,17 @@ export async function generateRecommendation(
     }
   } = params
 
+  console.log("[generate-recommendation] 📋 Params:", {
+    rankedPlansCount: rankedAnalysis?.rankedPlans?.length || 0,
+    hasERPPrices: !!erpPrices?.success,
+    includeAlternatives: options.includeAlternatives,
+    includeAlerts: options.includeAlerts,
+    includeNextSteps: options.includeNextSteps
+  })
+
   try {
     // Inicializa cliente OpenAI
+    console.log("[generate-recommendation] 🔧 Creating OpenAI client...")
     const openai = createOpenAIClient()
 
     // Extrai dados principais
@@ -880,6 +894,13 @@ export async function generateRecommendation(
 
     const executionTimeMs = Date.now() - startTime
 
+    console.log("[generate-recommendation] ✅ Recommendation generated:", {
+      executionTimeMs,
+      markdownLength: fullMarkdown.length,
+      sectionsCount: sections.length,
+      hasCriticalAlerts: alerts.hasCriticalAlerts
+    })
+
     return {
       success: true,
       markdown: fullMarkdown,
@@ -903,7 +924,7 @@ export async function generateRecommendation(
     const executionTimeMs = Date.now() - startTime
     const errorMessage = error instanceof Error ? error.message : String(error)
 
-    console.error("Erro ao gerar recomendação:", error)
+    console.error("[generate-recommendation] ❌ Error:", error)
 
     return {
       success: false,

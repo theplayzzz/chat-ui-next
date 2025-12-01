@@ -212,7 +212,12 @@ export class OrchestratorTracer {
 
     if (!client) return stepRunId
 
+    // Ensure inputs is never empty - LangSmith shows "No data" for empty objects
     const maskedInputs = inputs ? maskSensitiveData(inputs) : {}
+    const finalInputs =
+      Object.keys(maskedInputs).length > 0
+        ? maskedInputs
+        : { _noInputs: true, stepNumber, stepName }
 
     try {
       await client.createRun({
@@ -220,7 +225,7 @@ export class OrchestratorTracer {
         parent_run_id: this.sessionRunId,
         name: stepName,
         run_type: "tool",
-        inputs: maskedInputs,
+        inputs: finalInputs,
         project_name: LANGSMITH_CONFIG.projectName,
         start_time: new Date().toISOString(),
         extra: {

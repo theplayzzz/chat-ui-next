@@ -37,8 +37,19 @@ export async function fetchERPPrices(
 ): Promise<ERPPriceResult> {
   const startTime = Date.now()
 
+  console.log("[fetch-erp-prices] ========================================")
+  console.log("[fetch-erp-prices] 💰 fetchERPPrices called")
+  console.log("[fetch-erp-prices] 📋 Params:", {
+    workspaceId,
+    planIdsCount: planIds?.length || 0,
+    titularAge: familyProfile?.titular?.idade,
+    dependentsCount: familyProfile?.dependentes?.length || 0,
+    pricingModel
+  })
+
   // Validate inputs
   if (!workspaceId || !planIds || planIds.length === 0) {
+    console.log("[fetch-erp-prices] ⚠️ Invalid inputs, returning early")
     return {
       success: false,
       error: "Invalid input: workspaceId and planIds are required",

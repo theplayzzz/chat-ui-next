@@ -29,7 +29,12 @@ import {
 function isHealthPlanAssistant(
   assistant: Tables<"assistants"> | null
 ): boolean {
-  if (!assistant) return false
+  if (!assistant) {
+    console.log(
+      "[use-chat-handler] isHealthPlanAssistant: No assistant provided"
+    )
+    return false
+  }
 
   const name = assistant.name.toLowerCase()
   const description = (assistant.description || "").toLowerCase()
@@ -48,9 +53,20 @@ function isHealthPlanAssistant(
     "saude"
   ]
 
-  return healthPlanPatterns.some(
+  const isHealthPlan = healthPlanPatterns.some(
     pattern => name.includes(pattern) || description.includes(pattern)
   )
+
+  console.log("[use-chat-handler] isHealthPlanAssistant:", {
+    assistantName: assistant.name,
+    assistantId: assistant.id,
+    isHealthPlan,
+    matchedPattern: healthPlanPatterns.find(
+      p => name.includes(p) || description.includes(p)
+    )
+  })
+
+  return isHealthPlan
 }
 
 export const useChatHandler = () => {
@@ -305,6 +321,9 @@ export const useChatHandler = () => {
 
       // Check if this is a health plan assistant - use specialized API route
       if (isHealthPlanAssistant(selectedAssistant)) {
+        console.log(
+          "[use-chat-handler] 🏥 Health Plan Agent detected, using specialized API"
+        )
         setToolInUse("Health Plan Agent")
 
         const formattedMessages = await buildFinalMessages(
@@ -313,23 +332,43 @@ export const useChatHandler = () => {
           chatImages
         )
 
+        const requestBody = {
+          workspaceId: selectedWorkspace!.id,
+          assistantId: selectedAssistant!.id,
+          messages: formattedMessages.map(msg => ({
+            role: msg.role,
+            content:
+              typeof msg.content === "string"
+                ? msg.content
+                : JSON.stringify(msg.content)
+          }))
+        }
+
+        console.log(
+          "[use-chat-handler] 📤 Sending request to /api/chat/health-plan-agent:",
+          {
+            workspaceId: requestBody.workspaceId,
+            assistantId: requestBody.assistantId,
+            messageCount: requestBody.messages.length,
+            lastMessage: requestBody.messages[
+              requestBody.messages.length - 1
+            ]?.content?.substring(0, 100)
+          }
+        )
+
         // Call the specialized health plan agent API
         const response = await fetch("/api/chat/health-plan-agent", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
           },
-          body: JSON.stringify({
-            workspaceId: selectedWorkspace!.id,
-            assistantId: selectedAssistant!.id,
-            messages: formattedMessages.map(msg => ({
-              role: msg.role,
-              content:
-                typeof msg.content === "string"
-                  ? msg.content
-                  : JSON.stringify(msg.content)
-            }))
-          })
+          body: JSON.stringify(requestBody)
+        })
+
+        console.log("[use-chat-handler] 📥 Response received:", {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
         })
 
         setToolInUse("none")
