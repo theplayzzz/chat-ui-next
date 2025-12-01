@@ -111,12 +111,11 @@ const STEP_PROGRESS: Record<WorkflowStep, string> = {
 export class HealthPlanOrchestrator {
   private config: OrchestratorConfig
   private session: SessionState | null = null
-  private logger: HealthPlanLogger
+  private logger: HealthPlanLogger | null = null
   private errorHandler: ErrorHandler
 
   constructor(config: OrchestratorConfig) {
     this.config = config
-    this.logger = createLogger(config.workspaceId, config.userId)
     this.errorHandler = new ErrorHandler()
 
     console.log("[orchestrator] 🏗️ Orchestrator created:", {
@@ -126,6 +125,40 @@ export class HealthPlanOrchestrator {
       hasERPConfig: !!config.erpConfig,
       sessionId: config.sessionId || "will be created"
     })
+  }
+
+  /**
+   * Initializes the logger with session context
+   * Called after session is loaded to use existing langSmithRunId if available
+   */
+  private async initializeLogger(): Promise<void> {
+    // Create logger with session's existing langSmithRunId if available
+    this.logger = createLogger(
+      this.config.workspaceId,
+      this.config.userId,
+      this.session?.sessionId,
+      this.session?.langSmithRunId
+    )
+
+    // If this is a new run (no existing langSmithRunId), save the new runId to session
+    if (this.session && !this.session.langSmithRunId) {
+      const newRunId = this.logger.getLangSmithRunId()
+      if (newRunId) {
+        console.log(
+          "[orchestrator] 💾 Saving new LangSmith runId to session:",
+          newRunId
+        )
+        await updateSession(this.session.sessionId, {
+          langSmithRunId: newRunId
+        })
+        this.session.langSmithRunId = newRunId
+      }
+    } else if (this.session?.langSmithRunId) {
+      console.log(
+        "[orchestrator] ♻️ Reusing existing LangSmith runId:",
+        this.session.langSmithRunId
+      )
+    }
   }
 
   /**
@@ -162,8 +195,9 @@ export class HealthPlanOrchestrator {
 
       console.log("[orchestrator] ✅ Session ready:", this.session.sessionId)
 
-      this.logger.setSessionId(this.session.sessionId)
-      this.logger.logWorkflowStart()
+      // Initialize logger with session context (reuses existing langSmithRunId if available)
+      await this.initializeLogger()
+      this.logger!.logWorkflowStart()
 
       // Determine starting step based on session state
       const startStep = this.determineStartStep()
@@ -194,10 +228,10 @@ export class HealthPlanOrchestrator {
       await this.saveToClientRecommendations()
 
       const totalTime = Date.now() - workflowStartTime
-      this.logger.logWorkflowEnd(true, totalTime)
+      this.logger!.logWorkflowEnd(true, totalTime)
     } catch (error) {
       const totalTime = Date.now() - workflowStartTime
-      this.logger.logWorkflowEnd(false, totalTime, error)
+      this.logger?.logWorkflowEnd(false, totalTime, error)
 
       const stepError = this.errorHandler.classifyError(
         error,
@@ -247,12 +281,35 @@ export class HealthPlanOrchestrator {
       return 1
     }
 
-    // 3. Resume from current step if not completed
+    // 3. If we're at step 3+ but have no search results, go back to step 2
+    if (
+      this.session.currentStep >= 3 &&
+      (!this.session.searchResults?.results ||
+        this.session.searchResults.results.length === 0)
+    ) {
+      console.log(
+        "[orchestrator] Session at step 3+ but no plans found, going back to step 2"
+      )
+      return 2
+    }
+
+    // 4. If we're at step 4+ but have no compatibility analysis, go back to step 3
+    if (
+      this.session.currentStep >= 4 &&
+      !this.session.compatibilityAnalysis?.rankedPlans?.length
+    ) {
+      console.log(
+        "[orchestrator] Session at step 4+ but no analysis, going back to step 3"
+      )
+      return 3
+    }
+
+    // 5. Resume from current step if not completed
     if (!this.session.completedAt) {
       return this.session.currentStep
     }
 
-    // 4. Completed sessions start fresh
+    // 6. Completed sessions start fresh
     return 1
   }
 
@@ -314,7 +371,7 @@ export class HealthPlanOrchestrator {
       yield STEP_PROGRESS[step]
 
       const stepInputs = this.getStepInputs(step, messages)
-      this.logger.logStepStart(step, stepInputs)
+      this.logger?.logStepStart(step, stepInputs)
       console.log(
         `[orchestrator] 📊 Step ${step} inputs:`,
         JSON.stringify(stepInputs, null, 2)
@@ -333,7 +390,7 @@ export class HealthPlanOrchestrator {
       )
 
       const duration = Date.now() - stepStartTime
-      this.logger.logStepEnd(step, result, duration)
+      this.logger?.logStepEnd(step, result, duration)
 
       console.log(
         `[orchestrator] ✅ Step ${step}: ${stepNames[step]} COMPLETED in ${duration}ms`
@@ -347,7 +404,7 @@ export class HealthPlanOrchestrator {
       return yield* this.handleStepResult(step, result)
     } catch (error) {
       const duration = Date.now() - stepStartTime
-      this.logger.logStepError(step, error as Error, duration)
+      this.logger?.logStepError(step, error as Error, duration)
 
       console.error(
         `[orchestrator] ❌ Step ${step}: ${stepNames[step]} FAILED after ${duration}ms`
@@ -513,23 +570,32 @@ export class HealthPlanOrchestrator {
       }
 
       case 2: {
+        // Check if we found any plans BEFORE updating currentStep
+        const hasPlans = result.results && result.results.length > 0
+
         await updateSession(this.session!.sessionId, {
           searchResults: result,
-          currentStep: 3
+          // Only advance to step 3 if we found plans
+          // If no plans, stay at step 2 so next interaction retries search
+          currentStep: hasPlans ? 3 : 2
         })
 
         this.session!.searchResults = result
-        this.session!.currentStep = 3
+        this.session!.currentStep = hasPlans ? 3 : 2
 
-        // Check if we found any plans
-        if (!result.results || result.results.length === 0) {
+        if (!hasPlans) {
+          console.log("[orchestrator] ⚠️ No plans found, staying at step 2")
           return {
             continue: false,
             message:
-              "Não encontrei planos de saúde compatíveis com seu perfil na nossa base. Por favor, verifique as informações fornecidas ou entre em contato com o suporte."
+              "Não encontrei planos de saúde compatíveis com seu perfil na nossa base. " +
+              "Por favor, verifique se as informações estão corretas ou tente ajustar os critérios de busca."
           }
         }
 
+        console.log(
+          `[orchestrator] ✅ Found ${result.results.length} plans, advancing to step 3`
+        )
         return { continue: true }
       }
 
@@ -887,7 +953,7 @@ export class HealthPlanOrchestrator {
     }
 
     try {
-      const runId = this.logger.getLangSmithRunId()
+      const runId = this.logger?.getLangSmithRunId()
       const topPlan =
         this.session.compatibilityAnalysis?.rankedPlans?.[0] || null
 

@@ -63,6 +63,8 @@ export interface SessionState {
   lastUpdatedAt: string
   completedAt?: string
   expiresAt: string
+  /** LangSmith run ID - reused across HTTP requests for same conversation */
+  langSmithRunId?: string
 }
 
 /**
@@ -113,7 +115,8 @@ function mapRowToSession(row: any): SessionState {
     startedAt: row.started_at,
     lastUpdatedAt: row.last_updated_at,
     completedAt: row.completed_at || undefined,
-    expiresAt: row.expires_at
+    expiresAt: row.expires_at,
+    langSmithRunId: row.langsmith_run_id || undefined
   }
 }
 
@@ -303,6 +306,9 @@ export async function updateSession(
   }
   if (updates.completedAt !== undefined) {
     dbUpdates.completed_at = updates.completedAt
+  }
+  if (updates.langSmithRunId !== undefined) {
+    dbUpdates.langsmith_run_id = updates.langSmithRunId
   }
 
   const { data, error } = await supabase

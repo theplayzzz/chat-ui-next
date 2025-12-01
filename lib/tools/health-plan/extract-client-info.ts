@@ -107,6 +107,22 @@ export async function extractClientInfo(
     const parseResult = parseClientInfo(rawResponse)
 
     if (!parseResult.success || !parseResult.data) {
+      // Se não há currentInfo, é primeira interação - retornar pergunta inicial ao invés de erro
+      if (!params.currentInfo) {
+        console.log(
+          "[extract-client-info] ⚠️ Validation failed on first interaction, returning initial question"
+        )
+        const initialQuestion = await generateInitialQuestion(openai)
+        return {
+          clientInfo: {},
+          missingFields: ["idade", "cidade", "estado", "orçamento mensal"],
+          isComplete: false,
+          completeness: 0,
+          nextQuestion: initialQuestion
+        }
+      }
+
+      // Se já tem currentInfo, significa que extração falhou - lançar erro
       throw new Error(
         `Erro ao validar resposta: ${parseResult.errors?.join(", ")}`
       )
@@ -194,19 +210,34 @@ async function generateNextQuestion(
   currentInfo: PartialClientInfo,
   openai: OpenAI
 ): Promise<string> {
+  // Se não há NENHUM campo obrigatório preenchido, usar pergunta inicial consolidada
+  const hasAnyRequired =
+    currentInfo.age ||
+    currentInfo.city ||
+    currentInfo.state ||
+    currentInfo.budget
+
+  if (!hasAnyRequired) {
+    console.log(
+      "[generateNextQuestion] No required fields found, using consolidated initial question"
+    )
+    return generateInitialQuestion(openai)
+  }
+
+  // Perguntas ajustadas para quando já há dados parciais (tom "falta apenas X")
   const questionPrompts: Record<string, string> = {
-    age: "Para começar, preciso saber: quantos anos você tem?",
-    city: "Em qual cidade você mora?",
-    state: "E em qual estado você reside?",
+    age: "Só falta me dizer: quantos anos você tem?",
+    city: "E em qual cidade você mora?",
+    state: "Qual é o estado? (sigla, tipo SP, RJ, MG...)",
     budget:
-      "Quanto você pode investir mensalmente no plano de saúde? (valor aproximado)",
+      "Por último, quanto você pode investir mensalmente no plano? (valor aproximado)",
     dependents:
       "Você vai incluir dependentes no plano? Se sim, pode me contar sobre eles?",
     preExistingConditions:
       "Você ou alguém da sua família tem alguma condição de saúde pré-existente que eu deva saber?",
     medications: "Alguém faz uso de medicamentos de forma contínua? Quais?",
     preferences:
-      "Você tem alguma preferência específica? Por exemplo, rede credenciada ampla ou restrita, aceitação de coparticipação, hospitais específicos..."
+      "Tem alguma preferência específica de rede credenciada ou hospitais?"
   }
 
   // Retornar pergunta pré-definida se existir
@@ -240,6 +271,51 @@ async function generateNextQuestion(
   } catch (error) {
     console.error("[generateNextQuestion] Error:", error)
     return "Pode me fornecer mais algumas informações?"
+  }
+}
+
+/**
+ * Gera pergunta inicial consolidada pedindo TODOS os campos obrigatórios
+ * de uma vez na primeira interação
+ *
+ * @param openai - OpenAI client
+ * @returns Pergunta consolidada amigável
+ */
+async function generateInitialQuestion(openai: OpenAI): Promise<string> {
+  const defaultQuestion = `Olá! Para encontrar os melhores planos de saúde para você, preciso de algumas informações básicas:
+
+📋 **Informações necessárias:**
+- Sua **idade**
+- **Cidade** e **estado** onde você mora
+- **Orçamento mensal** disponível para o plano
+
+Você também pode me contar se vai incluir **dependentes** (cônjuge, filhos, pais) ou se tem alguma **condição de saúde** que eu deva considerar.
+
+Pode compartilhar essas informações? Pode ser de forma natural, sem se preocupar com a ordem!`
+
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Você é um assistente empático que coleta informações para recomendação de planos de saúde. Gere uma pergunta inicial amigável que pede TODOS os campos obrigatórios de uma vez: idade, cidade, estado, orçamento mensal. Mantenha tom conversacional e empático. Não use emojis em excesso."
+        },
+        {
+          role: "user",
+          content:
+            "Gere a pergunta inicial consolidada pedindo idade, cidade, estado e orçamento de forma natural e amigável."
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 250
+    })
+
+    return response.choices[0]?.message?.content || defaultQuestion
+  } catch (error) {
+    console.error("[generateInitialQuestion] Error:", error)
+    return defaultQuestion
   }
 }
 

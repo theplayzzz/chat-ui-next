@@ -166,7 +166,12 @@ export class HealthPlanLogger {
   private sessionId?: string
   private langSmithTracer?: LangSmithTracer
 
-  constructor(workspaceId: string, userId: string, sessionId?: string) {
+  constructor(
+    workspaceId: string,
+    userId: string,
+    sessionId?: string,
+    existingLangSmithRunId?: string
+  ) {
     this.workspaceId = workspaceId
     this.userId = userId
     this.sessionId = sessionId
@@ -174,7 +179,11 @@ export class HealthPlanLogger {
     // Initialize LangSmith tracer if API key is available
     if (process.env.LANGSMITH_API_KEY) {
       try {
-        this.langSmithTracer = new LangSmithTracer(workspaceId, userId)
+        this.langSmithTracer = new LangSmithTracer(
+          workspaceId,
+          userId,
+          existingLangSmithRunId
+        )
       } catch (error) {
         console.warn("[logger] Failed to initialize LangSmith tracer:", error)
       }
@@ -414,11 +423,20 @@ export class LangSmithTracer {
   private sessionId?: string
   private startTime?: number
   private stepRunIds: Map<number, string> = new Map()
+  private isResumedRun: boolean = false
 
-  constructor(workspaceId: string, userId: string) {
+  constructor(workspaceId: string, userId: string, existingRunId?: string) {
     this.workspaceId = workspaceId
     this.userId = userId
-    this.runId = crypto.randomUUID()
+
+    // Use existing run ID if provided (resuming session), otherwise create new
+    if (existingRunId) {
+      this.runId = existingRunId
+      this.isResumedRun = true
+    } else {
+      this.runId = crypto.randomUUID()
+      this.isResumedRun = false
+    }
 
     const apiKey = process.env.LANGSMITH_API_KEY
     const project = process.env.LANGSMITH_PROJECT || "health-plan-agent"
@@ -426,7 +444,8 @@ export class LangSmithTracer {
     console.log("[langsmith-tracer] Initializing with:", {
       hasApiKey: !!apiKey,
       project,
-      runId: this.runId
+      runId: this.runId,
+      isResumedRun: this.isResumedRun
     })
 
     if (apiKey) {
@@ -445,6 +464,13 @@ export class LangSmithTracer {
   }
 
   /**
+   * Returns whether this is a new run or a resumed one
+   */
+  isNewRun(): boolean {
+    return !this.isResumedRun
+  }
+
+  /**
    * Sets session ID
    */
   setSessionId(sessionId: string): void {
@@ -459,7 +485,7 @@ export class LangSmithTracer {
   }
 
   /**
-   * Starts a new run
+   * Starts a new run or resumes an existing one
    */
   async startRun(): Promise<void> {
     if (!this.client) {
@@ -472,7 +498,17 @@ export class LangSmithTracer {
     this.startTime = Date.now()
     const projectName = process.env.LANGSMITH_PROJECT || "health-plan-agent"
 
-    console.log("[langsmith-tracer] Starting run:", {
+    // If resuming an existing run, don't create a new one - just continue adding steps
+    if (this.isResumedRun) {
+      console.log("[langsmith-tracer] Resuming existing run:", {
+        runId: this.runId,
+        project: projectName,
+        workspaceId: this.workspaceId
+      })
+      return
+    }
+
+    console.log("[langsmith-tracer] Starting NEW run:", {
       runId: this.runId,
       project: projectName,
       workspaceId: this.workspaceId
@@ -596,9 +632,15 @@ export class LangSmithTracer {
 export function createLogger(
   workspaceId: string,
   userId: string,
-  sessionId?: string
+  sessionId?: string,
+  existingLangSmithRunId?: string
 ): HealthPlanLogger {
-  return new HealthPlanLogger(workspaceId, userId, sessionId)
+  return new HealthPlanLogger(
+    workspaceId,
+    userId,
+    sessionId,
+    existingLangSmithRunId
+  )
 }
 
 /**

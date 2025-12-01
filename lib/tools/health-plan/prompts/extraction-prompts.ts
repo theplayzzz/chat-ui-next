@@ -65,6 +65,18 @@ Analise a conversa e extraia as seguintes informações do cliente em formato JS
    - "Prefiro rede ampla" → networkType: "broad"
    - "Aceito coparticipação" → coParticipation: true
 
+8. **Saudações e Mensagens Vazias**:
+   - Se a mensagem é apenas uma saudação ("oi", "olá", "bom dia", "boa tarde", "boa noite") sem informações → retorne {}
+   - Se a mensagem é uma pergunta geral sem dados pessoais ("como funciona?", "pode me ajudar?") → retorne {}
+   - Se não há NENHUMA informação extraível sobre idade, cidade, estado, orçamento, dependentes, condições ou preferências → retorne {}
+   - NUNCA invente dados ou coloque strings como "não informado" para campos numéricos
+   - Exemplos de mensagens que devem retornar {}:
+     * "ola" → {}
+     * "bom dia" → {}
+     * "oi, tudo bem?" → {}
+     * "olá, como funciona?" → {}
+     * "boa tarde! preciso de ajuda" → {}
+
 ## EXEMPLOS
 
 ### Exemplo 1: Informações Básicas
@@ -216,6 +228,27 @@ export const EDGE_CASE_EXAMPLES = {
         { relationship: "child", age: 6 }
       ]
     }
+  },
+
+  // Exemplos de saudações que devem retornar JSON vazio
+  greetingOnly: {
+    input: "ola",
+    output: {} // JSON vazio quando não há informações extraíveis
+  },
+
+  greetingWithQuestion: {
+    input: "bom dia! como funciona?",
+    output: {} // JSON vazio para saudação + pergunta geral sem dados
+  },
+
+  casualGreeting: {
+    input: "oi, tudo bem? preciso de ajuda com plano de saúde",
+    output: {} // JSON vazio - não há idade, cidade, estado ou orçamento
+  },
+
+  helpRequest: {
+    input: "boa tarde! pode me ajudar a escolher um plano?",
+    output: {} // JSON vazio - apenas pedido de ajuda, sem dados pessoais
   }
 }
 

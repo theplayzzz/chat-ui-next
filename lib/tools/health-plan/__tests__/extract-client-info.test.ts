@@ -502,3 +502,134 @@ describe("Valores Edge", () => {
     expect(result.success).toBe(true)
   })
 })
+
+// Testes para detecção de saudações e pergunta inicial consolidada (Task #18)
+describe("Greeting detection and initial question", () => {
+  it("deve aceitar JSON vazio como válido (saudações)", () => {
+    const emptyJson = JSON.stringify({})
+    const result = parseClientInfo(emptyJson)
+
+    expect(result.success).toBe(true)
+    expect(result.data).toBeDefined()
+    expect(Object.keys(result.data || {}).length).toBe(0)
+  })
+
+  it("deve aceitar dados parciais na primeira resposta", () => {
+    const partialJson = JSON.stringify({
+      age: 35,
+      city: "São Paulo",
+      state: "SP"
+      // budget faltando
+    })
+
+    const result = parseClientInfo(partialJson)
+    expect(result.success).toBe(true)
+    expect(result.data?.age).toBe(35)
+    expect(result.data?.city).toBe("São Paulo")
+    expect(result.data?.state).toBe("SP")
+    expect(result.data?.budget).toBeUndefined()
+  })
+
+  it("deve detectar todos os campos faltantes quando JSON vazio", () => {
+    const emptyInfo: PartialClientInfo = {}
+    const missingFields = detectMissingFields(emptyInfo)
+
+    // Deve ter os 4 campos obrigatórios faltantes
+    const requiredMissing = missingFields.filter(f => f.isRequired)
+    expect(requiredMissing).toHaveLength(4)
+
+    // Verificar campos específicos
+    const missingLabels = missingFields.map(f => f.label)
+    expect(missingLabels).toContain("idade")
+    expect(missingLabels).toContain("cidade")
+    expect(missingLabels).toContain("estado")
+    expect(missingLabels).toContain("orçamento mensal")
+  })
+
+  it("deve ter completude 0% para JSON vazio", () => {
+    const emptyInfo: PartialClientInfo = {}
+    const completeness = calculateCompleteness(emptyInfo)
+
+    expect(completeness).toBe(0)
+  })
+
+  it("deve validar que JSON vazio é incompleto", () => {
+    const emptyInfo: PartialClientInfo = {}
+    const isComplete = validateClientInfoComplete(emptyInfo)
+
+    expect(isComplete).toBe(false)
+  })
+
+  it("deve detectar quando há pelo menos 1 campo obrigatório preenchido", () => {
+    const partialInfo: PartialClientInfo = {
+      age: 35
+    }
+
+    const hasAnyRequired =
+      partialInfo.age ||
+      partialInfo.city ||
+      partialInfo.state ||
+      partialInfo.budget
+
+    expect(hasAnyRequired).toBeTruthy()
+  })
+
+  it("deve detectar quando não há nenhum campo obrigatório", () => {
+    const emptyInfo: PartialClientInfo = {}
+
+    const hasAnyRequired =
+      emptyInfo.age || emptyInfo.city || emptyInfo.state || emptyInfo.budget
+
+    expect(hasAnyRequired).toBeFalsy()
+  })
+
+  it("deve gerar próximo campo corretamente quando parcial", () => {
+    const partialInfo: PartialClientInfo = {
+      age: 35,
+      city: "São Paulo"
+      // state e budget faltando
+    }
+
+    const nextField = getNextFieldToCollect(partialInfo)
+
+    expect(nextField).toBeDefined()
+    expect(nextField?.isRequired).toBe(true)
+    // Deve ser state ou budget
+    expect(["state", "budget"]).toContain(nextField?.field)
+  })
+
+  it("deve não gerar warnings para informação vazia", () => {
+    const emptyInfo: PartialClientInfo = {}
+    const warnings = validateBusinessRules(emptyInfo)
+
+    // Warnings são para dados inválidos, não para dados ausentes
+    expect(warnings.length).toBe(0)
+  })
+
+  it("deve rejeitar tipos inválidos em campos numéricos", () => {
+    // Simula resposta problemática do GPT onde age é string
+    const invalidJson = JSON.stringify({
+      age: "não informado", // string ao invés de number
+      city: "São Paulo",
+      state: "SP",
+      budget: 800
+    })
+
+    const result = parseClientInfo(invalidJson)
+    expect(result.success).toBe(false)
+    expect(result.errors).toBeDefined()
+  })
+
+  it("deve rejeitar budget como string", () => {
+    const invalidJson = JSON.stringify({
+      age: 35,
+      city: "São Paulo",
+      state: "SP",
+      budget: "indefinido" // string ao invés de number
+    })
+
+    const result = parseClientInfo(invalidJson)
+    expect(result.success).toBe(false)
+    expect(result.errors).toBeDefined()
+  })
+})
