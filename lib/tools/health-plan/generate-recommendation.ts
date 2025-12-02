@@ -822,9 +822,50 @@ async function generateRecommendationInternal(
     // Extrai dados principais
     const { clientProfile, rankedPlans, recommended, badges, criticalAlerts } =
       rankedAnalysis
-    const recommendedPlan = recommended.main
+    const recommendedPlan = recommended?.main
     const budgetPlan = rankedAnalysis.budget
     const premiumPlan = rankedAnalysis.premium
+
+    // CORREÇÃO: Verificar se há plano recomendado antes de prosseguir
+    if (!recommendedPlan || rankedPlans.length === 0) {
+      console.warn("[generate-recommendation] ⚠️ No recommended plan available")
+
+      const noPlansMarkdown = `## Análise de Planos de Saúde
+
+Infelizmente, não conseguimos encontrar planos de saúde compatíveis com seu perfil no momento.
+
+### Possíveis motivos:
+- Os planos disponíveis podem não atender à sua região${clientProfile?.city ? ` (${clientProfile.city}/${clientProfile.state})` : ""}
+- Ocorreu um problema técnico durante a análise
+- Os critérios de busca podem ser muito específicos
+
+### O que você pode fazer:
+1. **Verificar suas informações** - Confirme se cidade, estado e orçamento estão corretos
+2. **Tentar novamente** - Às vezes problemas temporários podem ocorrer
+3. **Ajustar critérios** - Considere flexibilizar o orçamento ou região
+
+Se precisar, estou aqui para ajudar com mais informações!`
+
+      return {
+        success: false,
+        error: "Nenhum plano disponível para recomendação",
+        markdown: noPlansMarkdown,
+        sections: {
+          intro: "",
+          mainRecommendation: "",
+          alternatives: "",
+          comparisonTable: "",
+          alerts: "",
+          nextSteps: ""
+        },
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          modelUsed: modelToUse,
+          version: "1.0.0",
+          executionTimeMs: Date.now() - startTime
+        }
+      }
+    }
 
     // Extrai preços se disponíveis
     const prices = erpPrices?.prices

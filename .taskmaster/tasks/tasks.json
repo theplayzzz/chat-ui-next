@@ -1294,8 +1294,89 @@
           "4",
           "11"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Adicionar campos de configuração de chunking na UI de Collections",
+            "description": "Estender create-collection.tsx e collection-item.tsx para incluir campos chunk_size e chunk_overlap com validação",
+            "dependencies": [],
+            "details": "Modificar components/sidebar/items/collections/create-collection.tsx e collection-item.tsx para adicionar:\n- Input numérico para chunk_size (range: 500-8000, default: 4000)\n- Input numérico para chunk_overlap (range: 0-2000, default: 200, validar < chunk_size)\n- Select para collection_type com opções: health_plan, insurance, financial, general\n- Validação client-side: chunk_overlap < chunk_size, valores positivos\n- Tooltip explicativo para cada campo\n- Integrar com funções db/collections.ts (createCollectionWithConfig, updateCollectionChunkConfig)\n- Manter compatibilidade com fluxo existente de drag-and-drop de arquivos",
+            "status": "done",
+            "testStrategy": "Testar criação de collection com chunk_size=2000 e chunk_overlap=300. Validar erro quando chunk_overlap >= chunk_size. Verificar persistência no banco. Testar edição de collection existente e validação de campos vazios.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-02T18:44:16.869Z"
+          },
+          {
+            "id": 2,
+            "title": "Implementar preview de divisão de documentos por chunks",
+            "description": "Criar componente que exibe preview visual de como documentos serão divididos em chunks com base na configuração",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar components/sidebar/items/collections/chunk-preview.tsx:\n- Receber arquivo de exemplo + chunk_size/chunk_overlap\n- Calcular número estimado de chunks (tamanho arquivo / chunk_size)\n- Exibir preview de 2-3 primeiros chunks com boundaries visuais\n- Mostrar estatísticas: total chunks estimado, overlap percentage, tokens estimados (usar regra ~4 chars = 1 token)\n- Usar Card component para layout\n- Adicionar botão 'Preview Chunking' no collection-item.tsx\n- Implementar lógica de chunking preview apenas no frontend (não processar arquivo completo)\n- Exibir indicador de truncamento se arquivo > 10KB para performance",
+            "status": "done",
+            "testStrategy": "Upload arquivo texto 5KB, configurar chunk_size=1000, verificar preview mostra ~5 chunks. Testar com arquivo grande (>10KB), confirmar truncamento. Validar cálculo tokens aproximado. Testar responsividade do preview em diferentes tamanhos de tela.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-02T18:45:46.731Z"
+          },
+          {
+            "id": 3,
+            "title": "Adicionar sistema de tags e categorias para Collections",
+            "description": "Implementar UI para gerenciar tags personalizadas e categorias predefinidas nas collections",
+            "dependencies": [
+              1
+            ],
+            "details": "Modificar collection-item.tsx e create-collection.tsx:\n- Adicionar campo multi-select para tags customizadas (string array)\n- Adicionar badges visuais para categorias: 'Plano Específico', 'Geral', 'Em Processamento'\n- Criar components/sidebar/items/collections/collection-tags.tsx para gerenciar tags\n- Integrar com schema collections.tags (JSONB array)\n- Implementar filtro na sidebar por tags/categorias\n- Usar Badge component do UI para exibir tags\n- Permitir criar nova tag inline durante edição\n- Adicionar contagem de collections por tag na sidebar",
+            "status": "done",
+            "testStrategy": "Criar collection com tags ['amil', 'empresarial']. Verificar persistência no banco (coluna tags). Testar filtro sidebar por tag 'amil'. Adicionar nova tag inline, confirmar aparece em autocomplete. Validar limite de 10 tags por collection.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-02T18:47:02.568Z"
+          },
+          {
+            "id": 4,
+            "title": "Criar dashboard de estatísticas de Collections",
+            "description": "Desenvolver painel com métricas agregadas: total de chunks, tokens, documentos por collection e workspace",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Criar components/sidebar/items/collections/collection-stats-dashboard.tsx:\n- Query agregada em db/collections.ts: getCollectionStatsByWorkspace(workspaceId)\n- Exibir métricas por collection: total documentos, chunks processados, tokens estimados, tamanho total (MB)\n- Adicionar gráfico de distribuição de collections por tipo (usar biblioteca recharts ou similar)\n- Mostrar top 5 collections maiores\n- Incluir estatísticas globais do workspace: total collections, total documentos, storage usado\n- Usar Card component para layout de cards de estatísticas\n- Integrar com file_items table para contagem de chunks reais\n- Adicionar botão refresh para atualizar estatísticas\n- Cache estatísticas por 5 minutos no frontend",
+            "status": "done",
+            "testStrategy": "Criar 3 collections com arquivos diferentes. Verificar dashboard mostra contagens corretas de documentos e chunks. Testar atualização em tempo real após upload novo arquivo. Validar query performance < 2s para workspace com 50+ collections.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-02T18:50:50.596Z"
+          },
+          {
+            "id": 5,
+            "title": "Implementar controle de associação Assistente ↔ Collections",
+            "description": "Criar interface para vincular/desvincular collections de assistentes específicos com controle de permissões",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Criar components/sidebar/items/collections/assistant-collection-link.tsx:\n- Listar assistentes do workspace disponíveis para associação\n- Checkbox multi-select para associar collection a múltiplos assistentes\n- Usar tabela assistant_collections existente (db/assistant-collections.ts)\n- Mostrar badge indicando quantos assistentes usam cada collection\n- Adicionar seção em collection-item.tsx: 'Assistentes Associados'\n- Implementar validação: apenas collections com collection_type compatível podem ser associadas\n- Exibir ícone de warning se collection não associada a nenhum assistente\n- Adicionar filtro: 'Collections sem assistente'\n- Integrar com funções existentes: createAssistantCollections, deleteAssistantCollection",
+            "status": "done",
+            "testStrategy": "Associar collection 'Planos Amil' ao assistente 'Agente Planos de Saúde'. Verificar registro em assistant_collections table. Iniciar chat com assistente, confirmar acesso à collection. Testar desassociação e validar remoção do vínculo. Verificar que collection type health_plan só associa a assistentes compatíveis.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-02T18:52:20.188Z"
+          },
+          {
+            "id": 6,
+            "title": "Adicionar indicadores visuais de status de processamento",
+            "description": "Implementar UI que exibe status de processamento de documentos por collection em tempo real",
+            "dependencies": [
+              1,
+              4
+            ],
+            "details": "Modificar collection-item.tsx para exibir status de processamento:\n- Criar enum de status: 'processing', 'completed', 'failed', 'pending'\n- Query em db para obter progresso: collection_files joined com files (usar file processing_status se disponível)\n- Exibir progress bar com percentual de arquivos processados (processados/total)\n- Badge colorido por status: verde (completed), amarelo (processing), vermelho (failed), cinza (pending)\n- Mostrar timestamp do último processamento\n- Adicionar botão 'Reprocessar Collection' que chama updateCollectionChunkConfig para forçar reprocessamento\n- Implementar polling a cada 10s para collections em processamento (usar React Query ou SWR)\n- Exibir lista de arquivos com erro em tooltip ao passar mouse no badge 'failed'\n- Adicionar notificação toast quando processamento completa",
+            "status": "done",
+            "testStrategy": "Upload arquivo para collection, observar progress bar atualizar durante processamento. Simular erro de processamento, verificar badge 'failed' e tooltip com detalhes do erro. Testar botão 'Reprocessar', confirmar status volta para 'processing'. Validar polling para de fazer requests quando status = completed.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-02T18:53:36.587Z"
+          }
+        ],
+        "updatedAt": "2025-12-02T18:53:36.587Z"
       },
       {
         "id": 16,
@@ -1533,15 +1614,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-12-01T13:46:26.588Z",
+      "lastModified": "2025-12-02T18:53:36.592Z",
       "taskCount": 18,
-      "completedCount": 16,
+      "completedCount": 17,
       "tags": [
         "master"
       ],
-      "created": "2025-12-01T14:26:42.972Z",
+      "created": "2025-12-02T22:39:56.640Z",
       "description": "Tasks for master context",
-      "updated": "2025-12-01T14:26:42.972Z"
+      "updated": "2025-12-02T22:39:56.640Z"
     }
   }
 }

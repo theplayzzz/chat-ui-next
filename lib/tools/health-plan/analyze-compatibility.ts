@@ -905,6 +905,44 @@ export function generateRanking(
   // 1. Ordenar planos por score de compatibilidade
   const rankedPlans = rankPlansByCompatibility(plans)
 
+  // CORREÇÃO: Early return se não há planos para ranquear
+  if (rankedPlans.length === 0) {
+    console.warn("[analyze-compatibility] ⚠️ No valid plans to rank")
+    return {
+      clientProfile: clientInfo,
+      rankedPlans: [],
+      recommended: {
+        main: undefined as unknown as PlanCompatibilityAnalysis,
+        alternatives: []
+      },
+      badges: {},
+      criticalAlerts: {
+        all: [],
+        byUrgency: { critico: [], importante: [], informativo: [] },
+        byPlan: {}
+      },
+      executiveSummary: {
+        topPlan: {
+          name: "Nenhum plano encontrado",
+          score: 0,
+          mainReason:
+            "Não foi possível analisar os planos disponíveis (timeout ou erro)"
+        },
+        alternatives: [],
+        criticalAlerts: 0,
+        averageScore: 0
+      },
+      budget: null,
+      premium: null,
+      executionTimeMs,
+      metadata: {
+        totalPlansAnalyzed: 0,
+        analysisVersion: ANALYSIS_VERSION,
+        modelUsed
+      }
+    }
+  }
+
   // 2. Categorizar alertas
   const categorizedAlerts = categorizeAlerts(rankedPlans)
 

@@ -204,7 +204,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
 |------|---------|-----------|
 | 1    | 10s     | extractClientInfo |
 | 2    | 15s     | searchHealthPlans |
-| 3    | 20s     | analyzeCompatibility |
+| 3    | 95s     | analyzeCompatibility (análise complexa com múltiplos planos) |
 | 4    | 10s     | fetchERPPrices |
 | 5    | 20s     | generateRecommendation |
 

@@ -42,6 +42,56 @@ import {
 } from "../templates/recommendation-template"
 
 // =============================================================================
+// MOCKS
+// =============================================================================
+
+vi.mock("@/lib/monitoring/langsmith-setup", () => ({
+  traceable: vi.fn((fn: any) => fn),
+  createTracedOpenAI: vi.fn(() => ({
+    chat: {
+      completions: {
+        create: vi.fn()
+      }
+    }
+  })),
+  createSimpleTracedOpenAI: vi.fn(() => ({
+    chat: {
+      completions: {
+        create: vi.fn()
+      }
+    }
+  })),
+  addRunMetadata: vi.fn(),
+  addRunTags: vi.fn(),
+  setSessionId: vi.fn(),
+  checkLangSmithConfig: vi.fn(() => ({
+    isEnabled: false,
+    hasApiKey: false,
+    hasProject: false
+  })),
+  validateAndLogConfig: vi.fn(() => false),
+  createStepTraceOptions: vi.fn(() => ({})),
+  WORKFLOW_STEP_NAMES: {
+    EXTRACT_CLIENT_INFO: "extract_client_info",
+    SEARCH_HEALTH_PLANS: "search_health_plans",
+    ANALYZE_COMPATIBILITY: "analyze_compatibility",
+    FETCH_ERP_PRICES: "fetch_erp_prices",
+    GENERATE_RECOMMENDATION: "generate_recommendation"
+  },
+  STEP_RUN_TYPES: {
+    extract_client_info: "chain",
+    search_health_plans: "retriever",
+    analyze_compatibility: "chain",
+    fetch_erp_prices: "tool",
+    generate_recommendation: "chain"
+  },
+  LANGSMITH_DEFAULTS: {
+    projectName: "health-plan-agent",
+    tracingEnabled: false
+  }
+}))
+
+// =============================================================================
 // MOCK DATA
 // =============================================================================
 

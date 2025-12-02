@@ -97,7 +97,7 @@ export interface Message {
 const STEP_TIMEOUTS: Record<WorkflowStep, number> = {
   1: 10_000, // extractClientInfo: 10s
   2: 15_000, // searchHealthPlans: 15s
-  3: 20_000, // analyzeCompatibility: 20s (complex GPT analysis)
+  3: 95_000, // analyzeCompatibility: 95s (complex GPT analysis with multiple plans)
   4: 10_000, // fetchERPPrices: 10s
   5: 20_000 // generateRecommendation: 20s (GPT generation)
 }
@@ -181,11 +181,13 @@ export class HealthPlanOrchestrator {
 
     try {
       // Initialize or resume session (with ownership validation if sessionId provided)
+      // Now also passes chatId for session isolation between different conversations
       console.log("[orchestrator] 📝 Getting or creating session...")
       this.session = await getOrCreateSession(
         this.config.workspaceId,
         this.config.userId,
-        this.config.sessionId // Pass sessionId for specific session lookup with ownership validation
+        this.config.sessionId, // Pass sessionId for specific session lookup with ownership validation
+        this.config.chatId // Pass chatId for session isolation between conversations
       )
 
       console.log("[orchestrator] ✅ Session ready:", this.session.sessionId)
@@ -734,7 +736,7 @@ export class HealthPlanOrchestrator {
           includeAlternatives: true,
           detailedReasoning: true,
           maxConcurrency: 3,
-          timeoutMs: 15_000
+          timeoutMs: 90_000 // 90s per plan batch analysis
         }
       },
       this.config.openaiApiKey,

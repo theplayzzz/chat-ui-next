@@ -52,6 +52,8 @@ export interface SessionState {
   sessionId: string
   workspaceId: string
   userId: string
+  /** Chat ID - links session to specific chat for isolation between conversations */
+  chatId?: string
   currentStep: WorkflowStep
   clientInfo?: PartialClientInfo
   searchResults?: SearchHealthPlansResponse
@@ -105,6 +107,7 @@ function mapRowToSession(row: any): SessionState {
     sessionId: row.id,
     workspaceId: row.workspace_id,
     userId: row.user_id,
+    chatId: row.chat_id || undefined,
     currentStep: row.current_step as WorkflowStep,
     clientInfo: row.client_info || undefined,
     searchResults: row.search_results || undefined,
@@ -129,11 +132,13 @@ function mapRowToSession(row: any): SessionState {
  *
  * @param workspaceId - The workspace ID
  * @param userId - The user ID
+ * @param chatId - Optional chat ID for session isolation between conversations
  * @returns The created session state
  */
 export async function createSession(
   workspaceId: string,
-  userId: string
+  userId: string,
+  chatId?: string
 ): Promise<SessionState> {
   const supabase = createSupabaseAdmin()
 
@@ -142,6 +147,7 @@ export async function createSession(
     .insert({
       workspace_id: workspaceId,
       user_id: userId,
+      chat_id: chatId || null,
       current_step: 1,
       errors: []
     })
@@ -154,7 +160,7 @@ export async function createSession(
   }
 
   console.log(
-    `[session-manager] Created session ${data.id} for workspace ${workspaceId}`
+    `[session-manager] Created session ${data.id} for workspace ${workspaceId}, chat ${chatId || "none"}`
   )
 
   return mapRowToSession(data)
@@ -233,25 +239,37 @@ export async function getSessionById(
 }
 
 /**
- * Gets active session for user/workspace (not completed, not expired)
+ * Gets active session for user/workspace/chat (not completed, not expired)
  *
  * @param workspaceId - The workspace ID
  * @param userId - The user ID
+ * @param chatId - Optional chat ID for session isolation
  * @returns The active session or null
  */
 export async function getActiveSession(
   workspaceId: string,
-  userId: string
+  userId: string,
+  chatId?: string
 ): Promise<SessionState | null> {
   const supabase = createSupabaseAdmin()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("health_plan_sessions")
     .select("*")
     .eq("workspace_id", workspaceId)
     .eq("user_id", userId)
     .is("completed_at", null)
     .gt("expires_at", new Date().toISOString())
+
+  // Filter by chatId for session isolation between different conversations
+  if (chatId) {
+    query = query.eq("chat_id", chatId)
+  } else {
+    // If no chatId, only match sessions without chatId (legacy behavior)
+    query = query.is("chat_id", null)
+  }
+
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(1)
     .single()
@@ -439,26 +457,29 @@ export async function extendSession(sessionId: string): Promise<void> {
 }
 
 /**
- * Gets or creates a session for user/workspace
+ * Gets or creates a session for user/workspace/chat
  * If sessionId is provided, attempts to resume that specific session with ownership validation.
- * Otherwise, returns existing active session if available, or creates new one.
+ * Otherwise, returns existing active session for the specific chat if available, or creates new one.
  *
  * @param workspaceId - The workspace ID
  * @param userId - The user ID
  * @param sessionId - Optional specific session ID to resume (with ownership validation)
+ * @param chatId - Optional chat ID for session isolation between conversations
  * @returns Session state
  */
 export async function getOrCreateSession(
   workspaceId: string,
   userId: string,
-  sessionId?: string
+  sessionId?: string,
+  chatId?: string
 ): Promise<SessionState> {
   console.log("[session-manager] ========================================")
   console.log("[session-manager] 📝 getOrCreateSession called")
   console.log("[session-manager] 📋 Params:", {
     workspaceId,
     userId,
-    requestedSessionId: sessionId || "none"
+    requestedSessionId: sessionId || "none",
+    chatId: chatId || "none"
   })
 
   // If sessionId provided, try to resume that specific session with ownership validation
@@ -477,17 +498,22 @@ export async function getOrCreateSession(
     )
   }
 
-  // Try to find any active session for this user/workspace
-  const active = await getActiveSession(workspaceId, userId)
+  // Try to find active session for this user/workspace/chat
+  // This now filters by chatId for proper session isolation
+  const active = await getActiveSession(workspaceId, userId, chatId)
   if (active) {
-    console.log(`[session-manager] Resuming active session ${active.sessionId}`)
+    console.log(
+      `[session-manager] Resuming active session ${active.sessionId} for chat ${chatId || "none"}`
+    )
     await extendSession(active.sessionId)
     return active
   }
 
-  // No existing session found, create new one
-  console.log("[session-manager] 🆕 Creating new session...")
-  const newSession = await createSession(workspaceId, userId)
+  // No existing session found, create new one linked to the chat
+  console.log(
+    `[session-manager] 🆕 Creating new session for chat ${chatId || "none"}...`
+  )
+  const newSession = await createSession(workspaceId, userId, chatId)
   console.log("[session-manager] ✅ New session created:", newSession.sessionId)
   return newSession
 }

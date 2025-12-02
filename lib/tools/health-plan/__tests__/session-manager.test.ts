@@ -194,6 +194,23 @@ describe("SessionState type", () => {
     expect(session.currentStep).toBe(1)
   })
 
+  it("should accept session state with chatId for session isolation", () => {
+    const session: SessionState = {
+      sessionId: "abc123",
+      workspaceId: "workspace-1",
+      userId: "user-1",
+      chatId: "chat-uuid-123",
+      currentStep: 1,
+      errors: [],
+      startedAt: "2024-01-01T00:00:00Z",
+      lastUpdatedAt: "2024-01-01T00:00:00Z",
+      expiresAt: "2024-01-01T01:00:00Z"
+    }
+
+    expect(session.chatId).toBe("chat-uuid-123")
+    expect(session.sessionId).toBe("abc123")
+  })
+
   it("should support all optional fields", () => {
     const session: SessionState = {
       sessionId: "abc123",

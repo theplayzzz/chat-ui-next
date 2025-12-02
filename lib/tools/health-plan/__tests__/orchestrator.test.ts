@@ -96,20 +96,29 @@ vi.mock("../error-handler", () => {
   }
 })
 
+vi.mock("../audit", () => ({
+  saveRecommendationAudit: vi.fn()
+}))
+
+vi.mock("@/lib/monitoring/langsmith-setup", () => ({
+  addRunMetadata: vi.fn(),
+  getCurrentRunTree: vi.fn()
+}))
+
 describe("STEP_TIMEOUTS", () => {
   it("should have timeouts for all 5 steps", () => {
     expect(STEP_TIMEOUTS[1]).toBe(10_000)
     expect(STEP_TIMEOUTS[2]).toBe(15_000)
-    expect(STEP_TIMEOUTS[3]).toBe(20_000)
+    expect(STEP_TIMEOUTS[3]).toBe(95_000) // 95s for complex multi-plan GPT analysis
     expect(STEP_TIMEOUTS[4]).toBe(10_000)
     expect(STEP_TIMEOUTS[5]).toBe(20_000)
   })
 
   it("should have reasonable timeout values", () => {
-    // All timeouts should be between 5s and 30s
+    // All timeouts should be between 5s and 120s
     for (const step of [1, 2, 3, 4, 5] as const) {
       expect(STEP_TIMEOUTS[step]).toBeGreaterThanOrEqual(5_000)
-      expect(STEP_TIMEOUTS[step]).toBeLessThanOrEqual(30_000)
+      expect(STEP_TIMEOUTS[step]).toBeLessThanOrEqual(120_000)
     }
   })
 
@@ -323,12 +332,11 @@ describe("Workflow step sequence", () => {
 })
 
 describe("Timeout configuration", () => {
-  it("should have total timeout under 60 seconds", () => {
+  it("should have total timeout under 3 minutes", () => {
     const totalTimeout = Object.values(STEP_TIMEOUTS).reduce((a, b) => a + b, 0)
-    // 10 + 15 + 20 + 10 + 20 = 75s
-    // But with retries disabled on error, actual max is ~75s
-    // The route itself has 60s timeout, so individual steps must be shorter
-    expect(totalTimeout).toBeLessThan(120_000)
+    // 10 + 15 + 95 + 10 + 20 = 150s
+    // Step 3 needs up to 90s for complex multi-plan GPT analysis
+    expect(totalTimeout).toBeLessThan(180_000) // 3 minutes max
   })
 
   it("should allow step 3 enough time for GPT analysis", () => {

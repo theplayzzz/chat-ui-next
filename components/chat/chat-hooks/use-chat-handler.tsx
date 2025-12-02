@@ -23,6 +23,37 @@ import {
 } from "../chat-helpers"
 
 /**
+ * Builds a system prompt for health plan assistant.
+ * Similar to buildBasePrompt but without RAG injection since health-plan-agent has its own RAG workflow.
+ */
+function buildHealthPlanSystemPrompt(
+  prompt: string,
+  profileContext: string,
+  workspaceInstructions: string,
+  assistant: Tables<"assistants"> | null
+): string {
+  let fullPrompt = ""
+
+  if (assistant) {
+    fullPrompt += `<INJECT ROLE>\nYou are not an AI. You are ${assistant.name}.\n</INJECT ROLE>\n\n`
+  }
+
+  fullPrompt += `Today is ${new Date().toLocaleDateString()}.\n\n`
+
+  if (profileContext) {
+    fullPrompt += `User Info:\n${profileContext}\n\n`
+  }
+
+  if (workspaceInstructions) {
+    fullPrompt += `System Instructions:\n${workspaceInstructions}\n\n`
+  }
+
+  fullPrompt += `User Instructions:\n${prompt}`
+
+  return fullPrompt
+}
+
+/**
  * Checks if the assistant is a health plan recommendation assistant.
  * Detection is based on assistant name patterns.
  */
@@ -280,9 +311,13 @@ export const useChatHandler = () => {
 
       let retrievedFileItems: Tables<"file_items">[] = []
 
+      // Skip generic retrieval for health-plan-agent - it has its own RAG workflow
+      const isHealthPlan = isHealthPlanAssistant(selectedAssistant)
+
       if (
         (newMessageFiles.length > 0 || chatFiles.length > 0) &&
-        useRetrieval
+        useRetrieval &&
+        !isHealthPlan // Don't do generic RAG for health-plan-agent
       ) {
         setToolInUse("retrieval")
 
@@ -320,29 +355,64 @@ export const useChatHandler = () => {
       let generatedText = ""
 
       // Check if this is a health plan assistant - use specialized API route
-      if (isHealthPlanAssistant(selectedAssistant)) {
+      if (isHealthPlan) {
         console.log(
           "[use-chat-handler] 🏥 Health Plan Agent detected, using specialized API"
         )
         setToolInUse("Health Plan Agent")
 
-        const formattedMessages = await buildFinalMessages(
-          payload,
-          profile!,
-          chatImages
+        // Create chat BEFORE sending to health-plan-agent to ensure chatId is available
+        // This enables proper session isolation between different conversations
+        if (!currentChat) {
+          console.log(
+            "[use-chat-handler] 🆕 Creating chat first for health-plan session isolation"
+          )
+          currentChat = await handleCreateChat(
+            chatSettings!,
+            profile!,
+            selectedWorkspace!,
+            messageContent,
+            selectedAssistant!,
+            newMessageFiles,
+            setSelectedChat,
+            setChats,
+            setChatFiles
+          )
+          console.log(
+            "[use-chat-handler] ✅ Chat created with ID:",
+            currentChat.id
+          )
+        }
+
+        // Build simple messages WITHOUT RAG embedding
+        // Health-plan-agent has its own RAG workflow (searchHealthPlans step)
+        const systemPrompt = buildHealthPlanSystemPrompt(
+          chatSettings!.prompt,
+          chatSettings!.includeProfileContext
+            ? profile?.profile_context || ""
+            : "",
+          chatSettings!.includeWorkspaceInstructions
+            ? selectedWorkspace!.instructions || ""
+            : "",
+          selectedAssistant
         )
+
+        const simpleMessages = [
+          { role: "system" as const, content: systemPrompt },
+          ...(isRegeneration
+            ? chatMessages
+            : [...chatMessages, tempUserChatMessage]
+          ).map(msg => ({
+            role: msg.message.role as "user" | "assistant",
+            content: msg.message.content
+          }))
+        ]
 
         const requestBody = {
           workspaceId: selectedWorkspace!.id,
           assistantId: selectedAssistant!.id,
           chatId: currentChat?.id, // Pass chat ID for LangSmith trace grouping
-          messages: formattedMessages.map(msg => ({
-            role: msg.role,
-            content:
-              typeof msg.content === "string"
-                ? msg.content
-                : JSON.stringify(msg.content)
-          }))
+          messages: simpleMessages
         }
 
         console.log(
