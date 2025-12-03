@@ -100,6 +100,41 @@ function isHealthPlanAssistant(
   return isHealthPlan
 }
 
+/**
+ * Checks if the assistant is specifically Health Plan v2 (LangGraph version).
+ * V2 uses a different endpoint with state persistence and conversational flow.
+ */
+function isHealthPlanV2Assistant(
+  assistant: Tables<"assistants"> | null
+): boolean {
+  if (!assistant) {
+    return false
+  }
+
+  const name = assistant.name.toLowerCase()
+  const description = (assistant.description || "").toLowerCase()
+
+  // Detect v2 specifically by name patterns
+  const v2Patterns = [
+    "health plan v2",
+    "health-plan-v2",
+    "health plan 2",
+    "langgraph"
+  ]
+
+  const isV2 = v2Patterns.some(
+    pattern => name.includes(pattern) || description.includes(pattern)
+  )
+
+  console.log("[use-chat-handler] isHealthPlanV2Assistant:", {
+    assistantName: assistant.name,
+    assistantId: assistant.id,
+    isV2
+  })
+
+  return isV2
+}
+
 export const useChatHandler = () => {
   const router = useRouter()
 
@@ -355,11 +390,19 @@ export const useChatHandler = () => {
       let generatedText = ""
 
       // Check if this is a health plan assistant - use specialized API route
+      // V2 uses LangGraph with state persistence, V1 uses the original linear workflow
+      const isV2 = isHealthPlanV2Assistant(selectedAssistant)
+
       if (isHealthPlan) {
+        const agentVersion = isV2 ? "v2" : "v1"
+        const apiEndpoint = isV2
+          ? "/api/chat/health-plan-agent-v2"
+          : "/api/chat/health-plan-agent"
+
         console.log(
-          "[use-chat-handler] 🏥 Health Plan Agent detected, using specialized API"
+          `[use-chat-handler] 🏥 Health Plan Agent ${agentVersion} detected, using ${apiEndpoint}`
         )
-        setToolInUse("Health Plan Agent")
+        setToolInUse(`Health Plan Agent ${agentVersion}`)
 
         // Create chat BEFORE sending to health-plan-agent to ensure chatId is available
         // This enables proper session isolation between different conversations
@@ -411,12 +454,12 @@ export const useChatHandler = () => {
         const requestBody = {
           workspaceId: selectedWorkspace!.id,
           assistantId: selectedAssistant!.id,
-          chatId: currentChat?.id, // Pass chat ID for LangSmith trace grouping
+          chatId: currentChat?.id, // Pass chat ID for LangSmith/LangGraph trace grouping
           messages: simpleMessages
         }
 
         console.log(
-          "[use-chat-handler] 📤 Sending request to /api/chat/health-plan-agent:",
+          `[use-chat-handler] 📤 Sending request to ${apiEndpoint}:`,
           {
             workspaceId: requestBody.workspaceId,
             assistantId: requestBody.assistantId,
@@ -428,8 +471,8 @@ export const useChatHandler = () => {
           }
         )
 
-        // Call the specialized health plan agent API
-        const response = await fetch("/api/chat/health-plan-agent", {
+        // Call the specialized health plan agent API (v1 or v2)
+        const response = await fetch(apiEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"

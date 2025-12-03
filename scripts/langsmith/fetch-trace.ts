@@ -118,7 +118,7 @@ function createRunSummary(run: Run): RunSummary {
     id: run.id,
     name: run.name,
     runType: run.run_type,
-    status: run.status,
+    status: run.status || "unknown",
     parentId: run.parent_run_id || null,
     startTime: run.start_time?.toString() || "",
     endTime: run.end_time?.toString() || "",

@@ -1610,19 +1610,276 @@
           }
         ],
         "updatedAt": "2025-12-01T13:46:26.585Z"
+      },
+      {
+        "id": 19,
+        "title": "Fase 1: Setup + Endpoint Stub + Frontend",
+        "description": "Configurar infraestrutura base: dependências LangGraph.js, endpoint stub, assistente no banco, PostgresSaver.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7. Plano de Implementação > Fase 1 (linhas 775-787)\n\nItens de implementação:\n1. Instalar dependências LangGraph.js (@langchain/langgraph, @langchain/langgraph-checkpoint-postgres, @langchain/openai@0.5.10)\n2. Criar estrutura de diretórios lib/agents/health-plan-v2/\n3. Criar endpoint /api/chat/health-plan-agent-v2 com resposta stub\n4. Configurar streaming com LangChainAdapter.toDataStreamResponse()\n5. Criar assistente \"Health Plan v2\" no banco (visibilidade por workspace)\n6. Copiar schemas/prompts/templates do v1 (lib/tools/health-plan/)\n7. Configurar PostgresSaver com DATABASE_URL_POOLER (seção 6.4)\n8. Criar migration para tabelas de checkpoint (schema: langgraph)\n\nVercel config (seção 6.4): runtime='nodejs', maxDuration=300",
+        "testStrategy": "🎯 QA pode testar: Assistente aparece no frontend, endpoint responde\n\nCheckpoints:\n- [ ] Assistente \"Health Plan v2\" aparece na lista de assistentes\n- [ ] Enviar mensagem retorna stub: \"Olá! Sou o assistente v2...\"\n- [ ] Streaming funciona (resposta aparece gradualmente)\n\nLangSmith (seção 7 > LangSmith para QA):\n- [ ] Traces aparecem ao enviar mensagem\n- [ ] Span health-plan-agent-v2 visível\n- [ ] Metadata: chatId, userId presente",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Instalar dependências LangGraph.js necessárias",
+            "description": "Instalar pacotes @langchain/langgraph, @langchain/langgraph-checkpoint-postgres e atualizar @langchain/openai para versão 0.5.10",
+            "dependencies": [],
+            "details": "Executar npm install para adicionar as dependências ao package.json:\n- @langchain/langgraph: biblioteca principal para construir workflows com grafos\n- @langchain/langgraph-checkpoint-postgres: checkpointer para persistência de estado no PostgreSQL\n- @langchain/openai@0.5.10: versão específica compatível com LangGraph\n\nVerificar que as versões instaladas são compatíveis com o restante do stack (Next.js 14.1.0, langchain 0.0.213, langsmith 0.3.82 já instalados). Confirmar instalação com npm list.",
+            "status": "done",
+            "testStrategy": "Verificar que os pacotes aparecem no package.json e package-lock.json, executar npm list para confirmar instalação sem conflitos, testar import básico dos pacotes em arquivo TypeScript temporário",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-03T18:11:11.818Z"
+          },
+          {
+            "id": 2,
+            "title": "Criar estrutura de diretórios lib/agents/health-plan-v2/",
+            "description": "Criar arquitetura de pastas para o agente v2 seguindo padrão do projeto",
+            "dependencies": [],
+            "details": "Criar estrutura completa de diretórios seguindo convenções do projeto:\n- lib/agents/health-plan-v2/ (diretório raiz)\n- lib/agents/health-plan-v2/nodes/ (nós do grafo: orchestrator, router, capabilities)\n- lib/agents/health-plan-v2/state/ (HealthPlanStateAnnotation e tipos)\n- lib/agents/health-plan-v2/workflow/ (workflow.ts principal)\n- lib/agents/health-plan-v2/__tests__/ (testes unitários)\n\nAdicionar arquivos README.md em cada pasta documentando propósito e estrutura esperada.",
+            "status": "done",
+            "testStrategy": "Verificar que todas as pastas foram criadas corretamente, confirmar que os READMEs estão presentes e documentam a estrutura, validar que o padrão segue convenções existentes (comparar com lib/tools/health-plan/)",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-03T18:22:44.360Z"
+          },
+          {
+            "id": 3,
+            "title": "Criar endpoint /api/chat/health-plan-agent-v2 com resposta stub",
+            "description": "Implementar endpoint API que retorna resposta stub em streaming para validação inicial",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Criar app/api/chat/health-plan-agent-v2/route.ts seguindo padrão do endpoint v1 (app/api/chat/health-plan-agent/route.ts):\n- Configurar runtime='nodejs' e maxDuration=300 (5min conforme PRD seção 6.4)\n- Implementar validação de autenticação com getServerProfile()\n- Validar campos obrigatórios (workspaceId, assistantId, messages)\n- Retornar resposta stub em streaming: \"Olá! Sou o assistente de planos de saúde v2. Em breve estarei totalmente funcional.\"\n- Incluir headers X-Session-Id e X-Execution-Time\n- Adicionar logs estruturados para debugging\n\nO endpoint deve aceitar POST com body: {workspaceId, assistantId, chatId?, messages[]}",
+            "status": "done",
+            "testStrategy": "Testar chamada POST ao endpoint com curl/Postman, verificar resposta stub em streaming, validar headers de resposta, testar cenários de erro (auth inválida, campos faltando), confirmar logs no console",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-03T18:28:10.466Z"
+          },
+          {
+            "id": 4,
+            "title": "Configurar streaming com LangChainAdapter.toDataStreamResponse()",
+            "description": "Implementar streaming adequado usando LangChainAdapter do pacote ai para resposta gradual",
+            "dependencies": [
+              1,
+              3
+            ],
+            "details": "Integrar LangChainAdapter.toDataStreamResponse() no endpoint v2:\n- Importar do pacote 'ai' (já instalado versão 2.2.31)\n- Criar ReadableStream que envia chunks gradualmente\n- Usar TextEncoder para codificar chunks\n- Retornar StreamingTextResponse com stream configurado\n- Garantir que erro durante streaming é tratado gracefully (enviar mensagem de erro e fechar stream)\n\nReferência: endpoint v1 usa StreamingTextResponse diretamente (linha 311 do route.ts), adaptar para LangChainAdapter quando integrar LangGraph.",
+            "status": "done",
+            "testStrategy": "Enviar requisição e verificar que resposta chega em chunks progressivos (não tudo de uma vez), usar devtools Network tab para confirmar streaming, testar interrupção da conexão durante streaming, validar que erros são tratados corretamente",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-03T18:28:10.485Z"
+          },
+          {
+            "id": 5,
+            "title": "Criar assistente 'Health Plan v2' no banco de dados",
+            "description": "Inserir novo assistente na tabela assistants com configuração adequada e visibilidade por workspace",
+            "dependencies": [],
+            "details": "Criar migration SQL para inserir assistente \"Health Plan v2\" na tabela assistants:\n- name: 'Health Plan v2'\n- description: 'Assistente conversacional com LangGraph para recomendação de planos de saúde'\n- model: 'gpt-4o' (ou gpt-5-mini)\n- context_length: 128000\n- temperature: 0.1\n- embeddings_provider: 'openai'\n- include_profile_context: true\n- include_workspace_instructions: true\n- sharing: 'private' (controle via assistant_workspaces)\n- prompt: prompt inicial básico\n- image_path: caminho para ícone do assistente\n- user_id: usar função para pegar admin user\n\nAdicionar entradas em assistant_workspaces para workspaces autorizados.",
+            "status": "done",
+            "testStrategy": "Executar migration e verificar que assistente aparece na tabela assistants, confirmar relações em assistant_workspaces, testar que RLS permite acesso apenas para workspaces autorizados, validar campos obrigatórios preenchidos",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-03T18:29:15.100Z"
+          },
+          {
+            "id": 6,
+            "title": "Copiar schemas, prompts e templates do v1 para v2",
+            "description": "Importar e adaptar recursos existentes de lib/tools/health-plan/ para uso no agente v2",
+            "dependencies": [
+              2
+            ],
+            "details": "Copiar e adaptar arquivos de lib/tools/health-plan/ para lib/agents/health-plan-v2/:\n- schemas/client-info-schema.ts: validação de dados do cliente\n- schemas/compatibility-schemas.ts: análise de compatibilidade\n- schemas/recommendation-schemas.ts: estrutura de recomendações\n- prompts/extraction-prompts.ts: extração de informações\n- prompts/compatibility-prompts.ts: análise de planos\n- prompts/recommendation-prompts.ts: geração de recomendações\n- templates/recommendation-template.ts: formatação de output\n- types.ts: definições de tipos compartilhadas\n\nAjustar imports e exports para nova estrutura de diretórios. Adicionar exports centralizados em index.ts.",
+            "status": "done",
+            "testStrategy": "Verificar que todos os arquivos foram copiados corretamente, validar que imports estão resolvendo sem erros, executar tsc --noEmit para confirmar tipagem, testar imports em arquivo temporário",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-03T18:29:49.125Z"
+          },
+          {
+            "id": 7,
+            "title": "Configurar PostgresSaver com DATABASE_URL_POOLER",
+            "description": "Implementar checkpointer PostgreSQL usando conexão pooler do Supabase para persistência de estado",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Configurar PostgresSaver do @langchain/langgraph-checkpoint-postgres:\n- Adicionar DATABASE_URL_POOLER ao .env.local (usar Supabase connection pooler, porta 6543)\n- Criar lib/agents/health-plan-v2/config/checkpointer.ts para instanciar PostgresSaver\n- Configurar pool de conexões com parâmetros adequados (max connections, idle timeout)\n- Usar schema 'langgraph' (será criado pela migration)\n- Exportar função getCheckpointer() que retorna instância configurada\n- Adicionar tratamento de erro caso DATABASE_URL_POOLER não esteja configurada\n\nReferência PRD seção 6.4: usar connection pooler para evitar esgotamento de conexões.",
+            "status": "done",
+            "testStrategy": "Verificar que variável DATABASE_URL_POOLER está configurada, testar conexão com PostgresSaver, validar que pool está funcionando corretamente, confirmar que schema langgraph será usado, testar fallback quando variável não está configurada",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-03T18:30:29.597Z"
+          },
+          {
+            "id": 8,
+            "title": "Criar migration para tabelas de checkpoint do LangGraph",
+            "description": "Gerar migration SQL para criar schema e tabelas necessárias para persistência de estado do LangGraph",
+            "dependencies": [
+              7
+            ],
+            "details": "Criar migration supabase/migrations/[timestamp]_create_langgraph_checkpoint_tables.sql:\n- CREATE SCHEMA IF NOT EXISTS langgraph;\n- Criar tabelas conforme especificação do @langchain/langgraph-checkpoint-postgres:\n  - langgraph.checkpoints: armazena estados dos workflows\n  - langgraph.checkpoint_writes: armazena escritas pendentes\n  - Campos: checkpoint_id, thread_id, checkpoint_ns, parent_checkpoint_id, checkpoint (JSONB), metadata (JSONB), created_at\n- Criar índices para performance: idx_checkpoint_thread_id, idx_checkpoint_parent_id\n- Configurar RLS se necessário (permitir acesso autenticado)\n- Adicionar comentários SQL documentando estrutura\n\nReferência: documentação LangGraph checkpoint schema.",
+            "status": "done",
+            "testStrategy": "Executar migration localmente com supabase migration up, verificar que schema langgraph foi criado, confirmar que tabelas existem com \\dt langgraph.*, validar índices com \\di langgraph.*, testar inserção manual de dados de teste, aplicar migration em ambiente de staging",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-03T18:31:03.875Z"
+          }
+        ],
+        "updatedAt": "2025-12-03T18:31:03.875Z"
+      },
+      {
+        "id": 20,
+        "title": "Fase 2: State + Persistência",
+        "description": "Implementar HealthPlanStateAnnotation e integrar checkpointer para persistência de conversas.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 2 (linhas 789-798)\n📍 Seção: 3.1 HealthPlanStateAnnotation\n\nItens de implementação:\n1. Implementar HealthPlanStateAnnotation (seção 3.1):\n   - messages: BaseMessage[]\n   - clientInfo: Partial<ClientData>\n   - searchResults: HealthPlan[] | null\n   - compatibilityAnalysis: CompatibilityResult[] | null\n   - prices: PriceInfo[] | null\n   - recommendation: string | null\n   - currentIntent: UserIntent\n   - conversationPhase: string\n   - cacheVersion: Record<string, number>\n2. Definir tipos UserIntent (seção 3.2)\n3. Integrar checkpointer no endpoint\n4. Testar persistência: refresh mantém histórico\n5. Implementar versionamento de estado para cache",
+        "testStrategy": "🎯 QA pode testar: Conversa persiste entre refreshes\n\nCheckpoints:\n- [ ] Enviar mensagens, dar refresh, histórico permanece\n- [ ] Nova aba com mesmo chat = mesmo estado\n- [ ] Fechar navegador, reabrir = conversa preservada\n\nLangSmith:\n- [ ] chatId consistente entre mensagens\n- [ ] Metadata de state nos traces",
+        "status": "pending",
+        "dependencies": [
+          "19"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "Fase 3: Classificador de Intenções",
+        "description": "Criar classificador GPT-4o que identifica intenções e extrai dados relevantes.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 3 (linhas 800-810)\n📍 Seção: 4 > RF-001 Classificação de Intenção\n\nItens de implementação:\n1. Criar prompt de classificação GPT-4o\n2. Implementar intent-classifier.ts em lib/agents/health-plan-v2/\n3. Integrar classificador no endpoint\n4. Adicionar metadata de debug na resposta (intenção detectada)\n5. Testar com inputs naturais variados\n6. Ajustar prompt baseado em testes\n\nIntenções a classificar (RF-001):\n- saudacao: \"oi\", \"olá\", \"bom dia\"\n- fornecer_dados: \"tenho 35 anos\", \"moro em SP\"\n- solicitar_recomendacao: \"qual plano você recomenda?\"\n- perguntar_plano: \"o que é coparticipação?\"\n- comparar_planos: \"qual a diferença entre X e Y?\"\n- simular_cenario: \"e se eu adicionar um dependente?\"\n- confirmar_contratacao: \"quero contratar esse\"\n- encerrar: \"obrigado, pode encerrar\"\n- outro: fallback\n\nOutput esperado: { intent, confidence, extractedData? }",
+        "testStrategy": "🎯 QA pode testar: Intenções são classificadas (debug panel)\n\nCheckpoints:\n- [ ] Enviar \"quero um plano de saúde\" → ver intent=fornecer_dados\n- [ ] Enviar \"e se eu tiver 2 filhos?\" → ver intent=simular_cenario\n- [ ] Enviar \"oi, tudo bem?\" → ver intent=saudacao\n- [ ] Debug visível em console/devtools\n\nLangSmith:\n- [ ] Span intent-classifier aparece\n- [ ] Input: mensagem do usuário\n- [ ] Output: { intent, confidence, extractedData }\n- [ ] Latência < 2s para classificação",
+        "status": "pending",
+        "dependencies": [
+          "20"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 22,
+        "title": "Fase 4: Orquestrador + Loop Básico",
+        "description": "Implementar orquestrador e router com loop conversacional contínuo.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 4 (linhas 812-821)\n📍 Seção: 3.3 Grafo LangGraph\n📍 Seção: 4 > RF-002 Orquestração por Grafo\n\nItens de implementação:\n1. Implementar orchestrator.ts (nó principal):\n   - Recebe state com intent classificada\n   - Decide próxima ação baseado em intent + estado atual\n\n2. Implementar router.ts (decisão de próxima capacidade):\n   - saudacao → respondToUser\n   - fornecer_dados → updateClientInfo\n   - solicitar_recomendacao → (busca → análise → recomendação)\n   - perguntar_plano → respondToUser\n   - simular_cenario → simulateScenario\n   - encerrar → endConversation\n\n3. Implementar workflow.ts com loop conversacional:\n   - START → orchestrator → [capacidade] → orchestrator → ...\n   - Loop contínuo até endConversation\n\n4. Integrar orquestrador no endpoint\n5. Conversa em loop: responde → aguarda → processa → responde",
+        "testStrategy": "🎯 QA pode testar: Conversa flui em loop contínuo\n\nCheckpoints:\n- [ ] Enviar múltiplas mensagens em sequência\n- [ ] Conversa não \"termina\" sozinha\n- [ ] Agente sempre aguarda próxima mensagem\n- [ ] Cada mensagem é processada corretamente\n\nLangSmith:\n- [ ] Span orchestrator aparece\n- [ ] Span router mostra decisão de roteamento\n- [ ] Loop não entra em ciclo infinito (< 10 iterações por mensagem)\n- [ ] Transições de estado visíveis",
+        "status": "pending",
+        "dependencies": [
+          "21"
+        ],
+        "priority": "high",
+        "subtasks": []
+      },
+      {
+        "id": 23,
+        "title": "Fase 5: Capacidade - Coleta de Dados (updateClientInfo)",
+        "description": "Implementar capacidade que extrai e valida dados do cliente das mensagens.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 5 (linhas 823-832)\n📍 Seção: 3.4 > updateClientInfo\n📍 Seção: 4 > RF-003 Coleta Iterativa de Dados\n\nItens de implementação:\n1. Implementar updateClientInfo capability em lib/agents/health-plan-v2/capabilities/\n2. Extrair dados de mensagens do usuário usando GPT-4o\n3. Fazer perguntas de follow-up inteligentes para dados faltantes\n4. Validar dados coletados (idade, estado, profissão, dependentes)\n5. Atualizar state.clientInfo com informações do cliente\n6. Merge inteligente: novos dados + dados existentes\n\nDados a coletar (RF-003):\n- idade, sexo, estado, cidade\n- profissão, renda\n- dependentes (array com idade, sexo, parentesco)\n- condições pré-existentes\n- preferências (coparticipação, reembolso, rede)",
+        "testStrategy": "🎯 QA pode testar: Agente pergunta e coleta informações\n\nCheckpoints:\n- [ ] Dizer \"tenho 35 anos, moro em SP\" → agente extrai e confirma\n- [ ] Agente pergunta \"quantos dependentes?\" se não informado\n- [ ] Dizer \"minha esposa tem 32 e meu filho 5\" → extrai dependentes\n- [ ] Dados parciais são preservados entre mensagens\n\nLangSmith:\n- [ ] Span updateClientInfo aparece\n- [ ] Input: mensagem + state atual\n- [ ] Output: clientInfo atualizado\n- [ ] Dados extraídos visíveis no trace",
+        "status": "pending",
+        "dependencies": [
+          "22"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 24,
+        "title": "Fase 6: Capacidade - Busca RAG (searchPlans)",
+        "description": "Implementar busca de planos usando RAG existente com cache por hash.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 6 (linhas 834-842)\n📍 Seção: 3.4 > searchPlans\n📍 Seção: 4 > RF-004 Busca Idempotente\n\nItens de implementação:\n1. Implementar searchPlans capability em lib/agents/health-plan-v2/capabilities/\n2. Integrar com busca RAG existente (lib/tools/health-plan/search-health-plans.ts)\n3. Implementar cache de resultados por hash de parâmetros:\n   - hash = SHA256(JSON.stringify(clientInfo relevante))\n   - Se hash igual → retorna cache\n   - Se hash diferente → nova busca\n4. Mostrar planos encontrados na resposta (resumo)\n5. Atualizar state.searchResults\n\nIdempotência (RF-004):\n- Mesmos dados de entrada → mesma busca não é reexecutada\n- Cache invalidado quando clientInfo muda significativamente",
+        "testStrategy": "🎯 QA pode testar: Busca de planos funciona\n\nCheckpoints:\n- [ ] Fornecer dados completos → agente busca planos\n- [ ] Mostra resumo dos planos encontrados\n- [ ] Mesma busca não é reexecutada (cache hit)\n- [ ] Alterar dado significativo → nova busca (cache miss)\n\nLangSmith:\n- [ ] Span searchPlans aparece\n- [ ] Tag cache: hit ou cache: miss\n- [ ] Query RAG visível no trace\n- [ ] Planos encontrados no output",
+        "status": "pending",
+        "dependencies": [
+          "23"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 25,
+        "title": "Fase 7: Capacidade - Análise + Recomendação",
+        "description": "Implementar analyzeCompatibility e generateRecommendation com invalidação de cache.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 7 (linhas 844-852)\n📍 Seção: 3.4 > analyzeCompatibility, generateRecommendation\n📍 Seção: 4 > RF-005, RF-006, RF-008\n\nItens de implementação:\n1. Implementar analyzeCompatibility capability:\n   - Reutilizar lib/tools/health-plan/analyze-compatibility.ts\n   - Cache por hash de (clientInfo + planos)\n   - Score 0-100 para cada plano\n\n2. Implementar generateRecommendation capability:\n   - Reutilizar lib/tools/health-plan/generate-recommendation.ts\n   - Recomendação humanizada com top 3 planos\n   - Tabela comparativa markdown\n\n3. Lógica de invalidação de cache (RF-008):\n   - Detectar mudanças em clientInfo\n   - Invalidar análise se dados relevantes mudaram\n   - Preservar cache se mudança irrelevante\n\n4. Recomendação iterativa: pode melhorar com mais dados",
+        "testStrategy": "🎯 QA pode testar: Análise e recomendação completa\n\nCheckpoints:\n- [ ] Fluxo completo: dados → busca → análise → recomendação humanizada\n- [ ] Recomendação mostra top 3 planos com scores\n- [ ] Tabela comparativa aparece\n- [ ] Alterar dado → recomendação se atualiza\n- [ ] Glossário de termos técnicos funciona\n\nLangSmith:\n- [ ] Span analyzeCompatibility com scores\n- [ ] Span generateRecommendation com output formatado\n- [ ] Cache hit/miss tags\n- [ ] Tempo total < 90s para fluxo completo",
+        "status": "pending",
+        "dependencies": [
+          "24"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 26,
+        "title": "Fase 8: Capacidade - Preços ERP (fetchPrices)",
+        "description": "Implementar busca de preços do ERP com graceful degradation.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 8 (linhas 854-862)\n📍 Seção: 3.4 > fetchPrices\n📍 Seção: 4 > RF-007\n\nItens de implementação:\n1. Implementar fetchPrices capability em lib/agents/health-plan-v2/capabilities/\n2. Integrar com ERP existente (lib/tools/health-plan/fetch-erp-prices.ts)\n3. Graceful degradation se ERP indisponível:\n   - Timeout de 10s\n   - Fallback para \"preços estimados\"\n   - Mensagem clara para usuário\n4. Mostrar preços na recomendação\n5. Atualizar state.prices\n\nComportamento (RF-007):\n- Se ERP disponível: preços reais\n- Se ERP timeout: continuar sem preços, informar usuário\n- Se ERP erro: fallback para estimativa",
+        "testStrategy": "🎯 QA pode testar: Preços reais aparecem (se ERP configurado)\n\nCheckpoints:\n- [ ] Se ERP ativo, preços reais aparecem na recomendação\n- [ ] Se ERP indisponível, mensagem \"preços estimados\" aparece\n- [ ] Timeout não trava a conversa (< 10s)\n- [ ] Recomendação funciona mesmo sem preços\n\nLangSmith:\n- [ ] Span fetchPrices aparece\n- [ ] Tag erp: success ou erp: fallback\n- [ ] Tempo de chamada ERP visível",
+        "status": "pending",
+        "dependencies": [
+          "25"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 27,
+        "title": "Fase 9: Capacidades - Conversa Geral + Finalização",
+        "description": "Implementar respondToUser e endConversation com audit.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 9 (linhas 864-872)\n📍 Seção: 3.4 > respondToUser, endConversation\n📍 Seção: 4 > RF-009, RF-010\n\nItens de implementação:\n1. Implementar respondToUser capability:\n   - Perguntas sobre planos de saúde em geral\n   - Explicação de termos (coparticipação, carência, etc.)\n   - Usar contexto da conversa para respostas relevantes\n\n2. Implementar endConversation capability:\n   - Gera resumo da conversa\n   - Salva audit log com dados coletados + recomendação\n   - Mensagem de despedida personalizada\n   - Marca conversa como finalizada\n\n3. Usuário controla quando encerra (RF-010):\n   - Apenas intent=encerrar aciona endConversation\n   - Conversa não termina automaticamente",
+        "testStrategy": "🎯 QA pode testar: Perguntas genéricas e finalização\n\nCheckpoints:\n- [ ] Perguntar \"o que é coparticipação?\" → resposta clara e educativa\n- [ ] Perguntar \"qual a carência do plano X?\" → resposta contextual\n- [ ] Dizer \"obrigado, pode encerrar\" → finalização com resumo\n- [ ] Resumo inclui dados coletados e recomendação final\n- [ ] Após finalizar, nova mensagem inicia nova conversa\n\nLangSmith:\n- [ ] Span respondToUser para perguntas\n- [ ] Span endConversation com audit data\n- [ ] Summary gerado visível no trace",
+        "status": "pending",
+        "dependencies": [
+          "26"
+        ],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": 28,
+        "title": "Fase 10: Simulação de Cenários",
+        "description": "Implementar fork de estado para cenários 'e se' sem alterar dados permanentemente.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 10 (linhas 874-882)\n📍 Seção: 3.4 > simulateScenario\n📍 Seção: 4 > RF-011\n\nItens de implementação:\n1. Implementar lógica de \"fork\" do estado:\n   - Clonar state atual\n   - Aplicar mudanças hipotéticas\n   - Recalcular busca + análise + recomendação\n\n2. Simulação sem alteração permanente:\n   - State original preservado\n   - Resultados mostrados como \"simulação\"\n\n3. Confirmação/descarte de simulação:\n   - \"Confirmar\" → aplica mudanças ao state real\n   - \"Descartar\" → volta ao state original\n\n4. Comparação antes/depois:\n   - Mostrar diferenças de recomendação\n   - Destacar impacto das mudanças",
+        "testStrategy": "🎯 QA pode testar: Cenários \"e se\" funcionam\n\nCheckpoints:\n- [ ] \"E se eu adicionar um dependente de 60 anos?\" → simulação mostra impacto\n- [ ] Recomendação simulada vs original são diferentes\n- [ ] Dizer \"confirmar\" → mudança aplicada permanentemente\n- [ ] Dizer \"descartar\" → volta ao estado original\n- [ ] Múltiplas simulações em sequência funcionam\n\nLangSmith:\n- [ ] Span simulation-fork aparece\n- [ ] Estado original vs estado simulado visíveis\n- [ ] Diferenças de recomendação no output\n- [ ] Confirmação/descarte registrado",
+        "status": "pending",
+        "dependencies": [
+          "27"
+        ],
+        "priority": "low",
+        "subtasks": []
+      },
+      {
+        "id": 29,
+        "title": "Fase 11: Polish + Testes E2E",
+        "description": "Testes de integração completos e ajustes de UX baseados em feedback QA.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 11 (linhas 884-894)\n📍 Seção: 9. Critérios de Sucesso\n\nItens de implementação:\n1. Testes de integração do grafo completo\n2. Testes de fluxos conversacionais variados:\n   - Fluxo feliz: saudação → dados → recomendação → finalização\n   - Fluxo iterativo: dados parciais → mais dados → atualização\n   - Fluxo simulação: recomendação → \"e se\" → confirmar/descartar\n\n3. Testes de invalidação de cache:\n   - Mudar idade → cache invalida\n   - Mudar dependente → cache invalida\n\n4. Testes de persistência/retomada:\n   - Refresh mantém estado\n   - Retomada após 24h funciona\n\n5. Testes de edge cases:\n   - Mensagens vazias\n   - Dados inválidos\n   - Timeout de ERP\n\n6. Ajustes de UX baseados em feedback QA",
+        "testStrategy": "🎯 QA pode testar: Fluxos completos end-to-end\n\nRoteiro Completo:\n- [ ] FLUXO 1: Saudação → Coleta → Busca → Análise → Recomendação → Finalização\n- [ ] FLUXO 2: Dados parciais → Perguntas follow-up → Completar → Recomendação\n- [ ] FLUXO 3: Recomendação → \"E se?\" → Simulação → Confirmar\n- [ ] FLUXO 4: Recomendação → \"E se?\" → Simulação → Descartar\n- [ ] FLUXO 5: Pergunta genérica → Resposta → Continuar conversa\n- [ ] EDGE: Refresh no meio da conversa → Estado preservado\n- [ ] EDGE: Timeout ERP → Graceful degradation\n- [ ] EDGE: Mensagem vazia → Tratamento adequado\n\nCritérios de Sucesso (seção 9):\n- [ ] Classificação de intenção > 90% accuracy\n- [ ] Tempo de resposta orquestrador < 3s\n- [ ] Workflow completo < 90s\n- [ ] Cobertura de testes > 80%",
+        "status": "pending",
+        "dependencies": [
+          "28"
+        ],
+        "priority": "low",
+        "subtasks": []
+      },
+      {
+        "id": 30,
+        "title": "Fase 12: Deploy e Monitoramento",
+        "description": "Deploy em staging/produção com validação completa e monitoramento LangSmith.",
+        "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 12 (linhas 896-903)\n📍 Seção: 6.4 Configuração Deploy Vercel\n📍 Seção: 5 > RNF-006\n\nItens de implementação:\n1. Code review final de todo o código\n2. Deploy em staging:\n   - Verificar variáveis de ambiente\n   - DATABASE_URL_POOLER configurado\n   - LANGCHAIN_CALLBACKS_BACKGROUND=false\n\n3. Validação completa em staging:\n   - Executar roteiro de testes E2E\n   - Verificar traces no LangSmith\n\n4. Deploy em produção:\n   - Verificar configuração Vercel Pro\n   - runtime = 'nodejs'\n   - maxDuration = 300\n\n5. Monitoramento LangSmith ativo:\n   - Dashboard de métricas\n   - Alertas para erros\n   - Alertas para loops excessivos",
+        "testStrategy": "🎯 QA pode testar: Produção funciona igual staging\n\nStaging:\n- [ ] Todos os fluxos E2E passam em staging\n- [ ] Traces aparecem no LangSmith\n- [ ] Performance dentro dos limites (< 90s)\n- [ ] Cold start < 5s\n\nProdução:\n- [ ] Deploy sem erros\n- [ ] Primeiro request funciona (cold start ok)\n- [ ] Fluxo completo funciona igual staging\n- [ ] LangSmith recebe traces de produção\n- [ ] Alertas configurados e funcionando\n\nMétricas para Monitorar:\n- [ ] P95 latência < 90s\n- [ ] Taxa de erro < 1%\n- [ ] Cache hit rate > 70%\n- [ ] Loops por request < 10",
+        "status": "pending",
+        "dependencies": [
+          "29"
+        ],
+        "priority": "low",
+        "subtasks": []
       }
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-12-02T18:53:36.592Z",
-      "taskCount": 18,
-      "completedCount": 17,
+      "lastModified": "2025-12-03T18:31:03.878Z",
+      "taskCount": 30,
+      "completedCount": 18,
       "tags": [
         "master"
       ],
-      "created": "2025-12-02T22:39:56.640Z",
+      "created": "2025-12-03T20:36:04.048Z",
       "description": "Tasks for master context",
-      "updated": "2025-12-02T22:39:56.640Z"
+      "updated": "2025-12-03T20:36:04.048Z"
     }
   }
 }
