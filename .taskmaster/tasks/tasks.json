@@ -1736,7 +1736,74 @@
           "19"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implementar HealthPlanStateAnnotation completo com reducers e versionamento",
+            "description": "Criar/atualizar state-annotation.ts com todos os campos do estado do agente: identificadores (workspaceId, userId, assistantId, chatId), conversa (messages com messagesStateReducer, lastIntent), clientInfo com merge reducer e clientInfoVersion, resultados cacheáveis (searchResults, compatibilityAnalysis, erpPrices, recommendation) cada um com seu campo de versão (searchResultsVersion, analysisVersion, recommendationVersion), controle de fluxo (isConversationActive, pendingAction), metadata (errors com concat reducer)",
+            "dependencies": [],
+            "details": "O arquivo state-annotation.ts já existe em lib/agents/health-plan-v2/state/state-annotation.ts com implementação completa incluindo: todos os identificadores, messages usando messagesStateReducer do @langchain/langgraph, clientInfo com merge reducer correto ({ ...current, ...update }), versionamento granular para cache (clientInfoVersion, searchResultsVersion, analysisVersion, recommendationVersion), todos os campos de resultados (searchResults, compatibilityAnalysis, erpPrices, recommendation), controle de fluxo (isConversationActive, pendingAction, currentResponse), metadata de errors com concat reducer. Validar que todos os reducers estão implementados corretamente conforme PRD seção 3.1 e verificar alinhamento com tipos em types.ts.",
+            "status": "pending",
+            "testStrategy": "Verificar que o arquivo state-annotation.ts compila sem erros TypeScript, validar que todos os reducers estão definidos (messagesStateReducer para messages, merge para clientInfo, concat para errors), confirmar que todos os campos de versão estão presentes com reducer (_, v) => v, testar criação de estado inicial com createInitialState helper, validar exportação do tipo HealthPlanState inferido"
+          },
+          {
+            "id": 2,
+            "title": "Definir tipos UserIntent e interfaces relacionadas em types.ts",
+            "description": "Criar/validar tipos UserIntent em lib/agents/health-plan-v2/types.ts com todas as 9 intenções: fornecer_dados, buscar_planos, analisar, consultar_preco, pedir_recomendacao, conversar, alterar_dados, simular_cenario, finalizar. Incluir interface IntentClassificationResult com campos: intent, confidence, extractedData opcional, reasoning opcional",
+            "dependencies": [
+              1
+            ],
+            "details": "O arquivo types.ts já existe e define o tipo UserIntent como união de 9 strings literais: 'fornecer_dados' | 'buscar_planos' | 'analisar' | 'consultar_preco' | 'pedir_recomendacao' | 'conversar' | 'alterar_dados' | 'simular_cenario' | 'finalizar'. Também define IntentClassificationResult com campos intent: UserIntent, confidence: number, extractedData?: Record<string, unknown>, reasoning?: string. Validar que esses tipos estão completos conforme PRD seção 3.2 (linhas 250-258) e que estão sendo importados corretamente em state-annotation.ts.",
+            "status": "pending",
+            "testStrategy": "Validar compilação TypeScript do arquivo types.ts, verificar que UserIntent cobre todas as 9 intenções mencionadas no PRD, confirmar que IntentClassificationResult possui campos corretos (intent, confidence, extractedData opcional, reasoning opcional), testar que state-annotation.ts importa UserIntent sem erros"
+          },
+          {
+            "id": 3,
+            "title": "Implementar lógica de invalidação de cache em cache-invalidation.ts",
+            "description": "Criar arquivo lib/agents/health-plan-v2/state/cache-invalidation.ts com constante INVALIDATION_RULES mapeando mudanças de estado para campos que devem ser invalidados, função onClientInfoChange que detecta mudanças significativas em clientInfo (idade, cidade, dependentes) e incrementa versões apropriadas, função shouldInvalidateCache genérica para verificar necessidade de invalidação",
+            "dependencies": [
+              1
+            ],
+            "details": "Implementar sistema de invalidação conforme PRD seção 3.6 (linhas 335-370): INVALIDATION_RULES = { clientInfo: ['searchResults', 'compatibilityAnalysis', 'recommendation'], searchResults: ['compatibilityAnalysis', 'recommendation'], compatibilityAnalysis: ['recommendation'] }. Criar função onClientInfoChange(oldInfo, newInfo) que compara campos críticos (age, city, dependents, healthConditions) e retorna booleano indicando se mudança é significativa. Implementar helper invalidateState(state, changedField) que incrementa versões apropriadas baseado em INVALIDATION_RULES. Adicionar testes unitários cobrindo: mudança em idade invalida tudo, mudança em preferências não invalida, adição de dependente invalida tudo.",
+            "status": "pending",
+            "testStrategy": "Testar INVALIDATION_RULES está definido corretamente como objeto mapeando campos para arrays de dependências, validar onClientInfoChange retorna true quando idade muda, false quando apenas nome muda, validar invalidateState incrementa searchResultsVersion quando clientInfo muda, validar invalidateState incrementa recommendationVersion quando analysis muda, criar testes unitários com jest cobrindo cenários: nenhuma mudança, mudança crítica, mudança não-crítica"
+          },
+          {
+            "id": 4,
+            "title": "Integrar PostgresSaver checkpointer no endpoint health-plan-agent-v2",
+            "description": "Modificar app/api/chat/health-plan-agent-v2/route.ts para importar e usar getCheckpointer() de lib/agents/health-plan-v2/checkpointer/postgres-checkpointer.ts, passar checkpointer para compileWorkflow(), usar DATABASE_URL_POOLER em produção (porta 6543) e DATABASE_URL em desenvolvimento (porta 5432), configurar thread_id como chatId em configurable, adicionar tratamento de erros para falhas de conexão do checkpointer",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Atualizar route.ts (linhas 167-169 que tem TODO para Fase 2): importar { getCheckpointer } from '@/lib/agents/health-plan-v2/checkpointer/postgres-checkpointer', antes de compilar workflow chamar const checkpointer = await getCheckpointer(), passar checkpointer para compileWorkflow(checkpointer), manter configuração existente de thread_id: effectiveChatId. O arquivo postgres-checkpointer.ts já implementa lógica de seleção de connection string (DATABASE_URL_POOLER em produção, DATABASE_URL em dev), schema 'langgraph', e setup automático de tabelas. Adicionar try/catch específico para erros de checkpointer com fallback para workflow sem persistência em caso de falha (modo degradado).",
+            "status": "pending",
+            "testStrategy": "Testar endpoint em desenvolvimento com DATABASE_URL configurado, verificar logs mostram '[checkpointer] Using DATABASE_URL (direct connection)', enviar mensagem e confirmar resposta é retornada, verificar que não há erros de conexão postgres, testar modo degradado removendo DATABASE_URL e confirmando workflow funciona sem checkpointer (log de warning), validar que chatId é usado como thread_id corretamente"
+          },
+          {
+            "id": 5,
+            "title": "Criar migration Supabase para tabelas de checkpoint do LangGraph",
+            "description": "Criar arquivo de migration em supabase/migrations/[timestamp]_langgraph_checkpointer.sql que cria schema 'langgraph' e tabelas necessárias para PostgresSaver: checkpoints (thread_id, checkpoint_ns, checkpoint_id, parent_checkpoint_id, type, checkpoint, metadata) e writes (thread_id, checkpoint_ns, checkpoint_id, task_id, idx, channel, type, value). Adicionar índices apropriados para performance em queries por thread_id",
+            "dependencies": [
+              4
+            ],
+            "details": "Criar migration seguindo padrão existente em supabase/migrations/ (formato YYYYMMDDHHMMSS_description.sql). Implementar conforme documentação do @langchain/langgraph-checkpoint-postgres: CREATE SCHEMA IF NOT EXISTS langgraph; CREATE TABLE langgraph.checkpoints com colunas: thread_id TEXT NOT NULL, checkpoint_ns TEXT NOT NULL DEFAULT '', checkpoint_id TEXT NOT NULL, parent_checkpoint_id TEXT, type TEXT, checkpoint JSONB NOT NULL, metadata JSONB NOT NULL DEFAULT '{}', PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id); CREATE TABLE langgraph.writes com colunas: thread_id TEXT NOT NULL, checkpoint_ns TEXT NOT NULL DEFAULT '', checkpoint_id TEXT NOT NULL, task_id TEXT NOT NULL, idx INTEGER NOT NULL, channel TEXT NOT NULL, type TEXT, value JSONB, PRIMARY KEY (thread_id, checkpoint_ns, checkpoint_id, task_id, idx); Adicionar índices: CREATE INDEX idx_checkpoints_thread_id ON langgraph.checkpoints(thread_id); CREATE INDEX idx_writes_thread_id ON langgraph.writes(thread_id);",
+            "status": "pending",
+            "testStrategy": "Aplicar migration em ambiente de desenvolvimento usando npx supabase db push ou npx supabase migration up, verificar que schema 'langgraph' foi criado, confirmar tabelas checkpoints e writes existem, validar índices foram criados corretamente, testar que PostgresSaver.setup() não gera erros (não tenta recriar tabelas), executar query SELECT * FROM langgraph.checkpoints LIMIT 1 para validar estrutura"
+          },
+          {
+            "id": 6,
+            "title": "Implementar testes de persistência para validar checkpointer funcional",
+            "description": "Criar arquivo de testes lib/agents/health-plan-v2/__tests__/checkpointer-persistence.test.ts que valida: (1) estado é persistido entre invocações com mesmo thread_id, (2) histórico de mensagens é mantido após refresh, (3) versionamento de cache é preservado, (4) nova invocação com thread_id diferente cria novo estado, (5) recuperação de estado antigo funciona corretamente",
+            "dependencies": [
+              4,
+              5
+            ],
+            "details": "Criar suite de testes Jest/Vitest em lib/agents/health-plan-v2/__tests__/checkpointer-persistence.test.ts. Testes devem: (1) criar workflow com checkpointer, invocar com mensagem inicial, verificar estado salvo, invocar novamente com mesmo thread_id e nova mensagem, validar mensagens anteriores estão presentes; (2) simular múltiplas invocações incrementando clientInfoVersion, verificar versão é preservada entre calls; (3) testar thread_id diferente cria estado isolado; (4) validar getCheckpointer() retorna mesma instância (singleton); (5) testar checkCheckpointerHealth() retorna true quando DATABASE_URL configurado. Usar mocks ou banco de teste quando necessário. Adicionar testes de integração end-to-end se possível (chamar endpoint real em ambiente de teste).",
+            "status": "pending",
+            "testStrategy": "Executar testes com npm test ou npx jest checkpointer-persistence.test.ts, validar todos os 5 cenários passam, testar com DATABASE_URL real apontando para banco de desenvolvimento, verificar cobertura de código >= 80% para checkpointer e workflow, testar isolamento entre threads (thread_id diferentes não compartilham estado), validar que setup() só é chamado uma vez (singleton checkpointer), confirmar que estado persistido pode ser recuperado após restart do processo"
+          }
+        ]
       },
       {
         "id": 21,

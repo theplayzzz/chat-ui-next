@@ -658,16 +658,17 @@ Usuário: "O que é coparticipação?"
 ```json
 {
   "dependencies": {
-    "@langchain/langgraph": "^0.2.0",
-    "@langchain/langgraph-checkpoint": "^0.0.6",
-    "@langchain/langgraph-checkpoint-postgres": "^0.0.6",
-    "@langchain/core": "^0.3.0",
-    "@langchain/openai": "0.5.10"
+    "@langchain/langgraph": "0.4.9",
+    "@langchain/langgraph-checkpoint-postgres": "0.1.2",
+    "@langchain/core": "0.3.68",
+    "@langchain/openai": "0.6.15"
   }
 }
 ```
 
-> ⚠️ **IMPORTANTE**: A versão `@langchain/openai` deve ser **exatamente 0.5.10**. Versões mais recentes removeram o método `bindTools`, causando erros em runtime.
+> ⚠️ **ATUALIZAÇÃO (Fase 1)**: As versões originais (0.2.0, 0.0.6) não existem no npm ou são incompatíveis. As versões acima foram instaladas e testadas. O pacote `@langchain/langgraph-checkpoint` não é instalado diretamente - vem como dependência transitiva.
+
+> 📝 **Nota sobre versões**: Recomenda-se fixar as versões SEM caret (^) para evitar upgrades automáticos que podem quebrar compatibilidade. O upgrade para 1.0.x requer migração de todo o stack LangChain simultaneamente.
 
 ### 6.2 Variáveis de Ambiente
 
@@ -696,37 +697,52 @@ LANGGRAPH_CHECKPOINT_SCHEMA=langgraph
 - `erp_config`
 - `erp_price_cache`
 
-**Novas (criadas pelo checkpointer):**
-- `langgraph.checkpoints`
-- `langgraph.writes`
+**Novas (criadas na Fase 1 - schema `langgraph`):**
+- `langgraph.checkpoints` - Estados salvos do workflow
+- `langgraph.checkpoint_blobs` - Dados binários grandes
+- `langgraph.checkpoint_writes` - Writes pendentes
+
+> 📝 **ATUALIZAÇÃO (Fase 1)**: O schema segue a estrutura do `@langchain/langgraph-checkpoint-postgres@0.1.2`. A tabela `langgraph.writes` mencionada anteriormente não existe nesta versão - foi substituída por `checkpoint_writes`.
 
 ### 6.4 Configuração de Deploy (Vercel Pro)
 
-#### Configuração do Endpoint
+#### Configuração do Endpoint (Estado Atual - Fase 1)
 
 ```typescript
 // app/api/chat/health-plan-agent-v2/route.ts
-import { LangChainAdapter } from 'ai';
-import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+import { StreamingTextResponse } from 'ai';
 
 // Configuração obrigatória para Vercel
 export const runtime = 'nodejs';     // NÃO usar 'edge' - PostgresSaver requer Node.js
 export const maxDuration = 300;      // 5 minutos (máximo do Vercel Pro)
 
-// Usar connection pooler em produção (evita esgotamento de conexões)
+export async function POST(req: Request) {
+  // ... implementação stub
+
+  // Fase 1: Streaming manual via StreamingTextResponse
+  return new StreamingTextResponse(stream);
+}
+```
+
+> ⚠️ **DIVERGÊNCIA (Fase 1)**: O código acima reflete a implementação ATUAL (stub). As features abaixo estão planejadas para fases posteriores:
+> - **Checkpointer (PostgresSaver)**: Fase 2 - Não integrado no endpoint ainda
+> - **LangChainAdapter**: Requer upgrade do pacote `ai` para 5.x+ e instalação de `@ai-sdk/langchain`
+> - **Streaming real do LLM**: Fase 4 - Atualmente simula streaming dividindo resposta em palavras
+
+#### Configuração Alvo (Fase 2+)
+
+```typescript
+// Implementação futura quando checkpointer for integrado
+import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
+
 const checkpointer = PostgresSaver.fromConnString(
   process.env.NODE_ENV === 'production'
-    ? process.env.DATABASE_URL_POOLER!   // PgBouncer (porta 6543)
-    : process.env.DATABASE_URL!,         // Conexão direta (dev)
+    ? process.env.DATABASE_URL_POOLER!
+    : process.env.DATABASE_URL!,
   { schema: "langgraph" }
 );
 
-export async function POST(req: Request) {
-  // ... implementação
-
-  // Usar LangChainAdapter para streaming compatível com Vercel AI SDK
-  return LangChainAdapter.toDataStreamResponse(stream);
-}
+const app = workflow.compile({ checkpointer });
 ```
 
 #### Variáveis de Ambiente no Vercel
@@ -775,14 +791,23 @@ DATABASE_URL_POOLER=postgresql://user:pass@db.xxx.supabase.co:6543/postgres?pgbo
 ### Fase 1: Setup + Endpoint Stub + Frontend (2 dias)
 **🎯 QA pode testar: Assistente aparece no frontend, endpoint responde**
 
-- [ ] Instalar dependências LangGraph.js
-- [ ] Criar estrutura de diretórios `lib/agents/health-plan-v2/`
-- [ ] **Criar endpoint `/api/chat/health-plan-agent-v2`** com resposta stub
-- [ ] Configurar streaming básico com `LangChainAdapter`
-- [ ] **Criar assistente "Health Plan v2" no banco** (visibilidade por workspace)
-- [ ] Copiar/importar schemas, prompts, templates do v1
-- [ ] Configurar PostgresSaver com Supabase (conexão pooler)
-- [ ] Criar migration para tabelas de checkpoint
+- [x] Instalar dependências LangGraph.js (versões 0.4.9/0.1.2/0.3.68/0.6.15)
+- [x] Criar estrutura de diretórios `lib/agents/health-plan-v2/`
+- [x] **Criar endpoint `/api/chat/health-plan-agent-v2`** com resposta stub
+- [~] Configurar streaming básico ~~com `LangChainAdapter`~~ → Usando `StreamingTextResponse` (LangChainAdapter requer ai@5.x)
+- [x] **Criar assistente "Health Plan v2" no banco** (via INSERT manual, migration cria função)
+- [x] Copiar/importar schemas, prompts, templates do v1 (re-exports)
+- [~] ~~Configurar PostgresSaver com Supabase~~ → Checkpointer preparado mas NÃO integrado no endpoint (Fase 2)
+- [x] Criar migration para tabelas de checkpoint (schema langgraph)
+- [x] Atualizar frontend para detectar v2 e rotear para endpoint correto
+
+**Legenda**: [x] Completo | [~] Parcial/Divergente | [ ] Pendente
+
+> ⚠️ **NOTA (Fase 1 Implementada)**:
+> - **Workflow**: Grafo simplificado `START→orchestrator→END` (loop conversacional vem na Fase 4)
+> - **Streaming**: Simula streaming dividindo resposta em palavras (streaming real do LLM na Fase 4)
+> - **Assistente**: Criado manualmente via SQL. Migration cria função, mas não executa seed automático
+> - **System Messages**: Convertidas para AIMessage (correção necessária)
 
 **Checkpoint QA**: Frontend mostra assistente v2, enviar mensagem retorna resposta stub "Olá! Sou o assistente de planos de saúde v2. Em breve estarei totalmente funcional."
 
