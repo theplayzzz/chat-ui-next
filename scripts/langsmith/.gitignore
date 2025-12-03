@@ -1,0 +1,5 @@
+# Ignore trace data files (contain sensitive information)
+traces/*.json
+
+# Keep the traces directory
+!traces/.gitkeep
