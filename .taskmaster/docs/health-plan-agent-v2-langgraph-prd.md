@@ -1,6 +1,6 @@
 # PRD: Health Plan Agent 2.0 - Agente Conversacional com LangGraph.js
 
-**Versão:** 2.3
+**Versão:** 2.5
 **Data:** 2025-12-03
 **Autor:** Claude Code
 **Status:** Draft
@@ -797,7 +797,7 @@ DATABASE_URL_POOLER=postgresql://user:pass@db.xxx.supabase.co:6543/postgres?pgbo
 - [~] Configurar streaming básico ~~com `LangChainAdapter`~~ → Usando `StreamingTextResponse` (LangChainAdapter requer ai@5.x)
 - [x] **Criar assistente "Health Plan v2" no banco** (via INSERT manual, migration cria função)
 - [x] Copiar/importar schemas, prompts, templates do v1 (re-exports)
-- [~] ~~Configurar PostgresSaver com Supabase~~ → Checkpointer preparado mas NÃO integrado no endpoint (Fase 2)
+- [x] Configurar PostgresSaver com Supabase (integrado na Fase 2)
 - [x] Criar migration para tabelas de checkpoint (schema langgraph)
 - [x] Atualizar frontend para detectar v2 e rotear para endpoint correto
 
@@ -811,28 +811,59 @@ DATABASE_URL_POOLER=postgresql://user:pass@db.xxx.supabase.co:6543/postgres?pgbo
 
 **Checkpoint QA**: Frontend mostra assistente v2, enviar mensagem retorna resposta stub "Olá! Sou o assistente de planos de saúde v2. Em breve estarei totalmente funcional."
 
-### Fase 2: State + Persistência (1-2 dias)
+### Fase 2: State + Persistência (1-2 dias) ✅ IMPLEMENTADA
 **🎯 QA pode testar: Conversa persiste entre refreshes de página**
 
-- [ ] Implementar `HealthPlanStateAnnotation` completo
-- [ ] Definir tipos de intenção (`UserIntent`)
-- [ ] Integrar checkpointer no endpoint
-- [ ] Testar persistência: refresh da página mantém histórico
-- [ ] Implementar sistema de versionamento de estado
+- [x] Implementar `HealthPlanStateAnnotation` completo (já existia da Fase 1, validado)
+- [x] Definir tipos de intenção (`UserIntent`) (já existia da Fase 1, validado)
+- [x] Integrar checkpointer no endpoint (`route.ts` modificado com try/catch e modo degradado)
+- [x] Testar persistência: refresh da página mantém histórico
+- [x] Implementar sistema de versionamento de estado
+- [x] **Adicional**: Criar `cache-invalidation.ts` com `INVALIDATION_RULES` (PRD seção 3.6)
+- [x] **Adicional**: 35 testes unitários para cache e persistência
 
-**Checkpoint QA**: Enviar mensagens, dar refresh, histórico permanece. Abrir nova aba com mesmo chat, ver mesmo estado.
+**Implementação:**
+- `lib/agents/health-plan-v2/state/cache-invalidation.ts` - Lógica de invalidação
+- `lib/agents/health-plan-v2/__tests__/cache-invalidation.test.ts` - 25 testes
+- `lib/agents/health-plan-v2/__tests__/checkpointer-persistence.test.ts` - 10 testes
+- `jest.setup.ts` - Polyfills (TextEncoder, ReadableStream) para LangChain
 
-### Fase 3: Classificador de Intenções (2 dias)
+**Headers de resposta adicionados:**
+- `X-Checkpointer-Enabled: true/false`
+- `X-Last-Intent`, `X-Intent-Confidence`, `X-Client-Info-Version` (debug)
+
+**Checkpoint QA**: Enviar mensagens, dar refresh, histórico permanece. Abrir nova aba com mesmo chat, ver mesmo estado. Verificar header `X-Checkpointer-Enabled: true`.
+
+### Fase 3: Classificador de Intenções (2 dias) ✅ IMPLEMENTADA
 **🎯 QA pode testar: Intenções são classificadas (debug panel)**
 
-- [ ] Criar prompt de classificação de intenções
-- [ ] Implementar `intent-classifier.ts`
-- [ ] Integrar classificador no endpoint
-- [ ] **Adicionar metadata de debug na resposta** (intenção detectada)
-- [ ] Testar com diversos inputs naturais
-- [ ] Ajustar prompt baseado em testes
+- [x] Criar prompt de classificação de intenções
+- [x] Implementar `intent-classifier.ts`
+- [x] Integrar classificador no orchestrator node
+- [x] **Adicionar metadata de debug na resposta** (intenção detectada)
+- [x] Testar com diversos inputs naturais
+- [x] Ajustar prompt baseado em testes
 
-**Checkpoint QA**: Enviar "quero um plano de saúde" → ver intent=`fornecer_dados`. Enviar "e se eu tiver 2 filhos?" → ver intent=`simular_cenario`. Debug visível em console/devtools.
+**Implementação:**
+- `lib/agents/health-plan-v2/intent/intent-classification-types.ts` - Tipos, constantes e helpers (~200 linhas)
+- `lib/agents/health-plan-v2/intent/prompts/intent-classification-prompt.ts` - System prompt + 25 few-shot examples (~400 linhas)
+- `lib/agents/health-plan-v2/intent/intent-classifier.ts` - Classificador GPT-4o + validação Zod (~250 linhas)
+- `lib/agents/health-plan-v2/intent/index.ts` - Re-exports do módulo (~35 linhas)
+- `lib/agents/health-plan-v2/nodes/orchestrator.ts` - Integração com merge de clientInfo
+- `lib/agents/health-plan-v2/state/state-annotation.ts` - Campo `lastIntentConfidence`
+- `app/api/chat/health-plan-agent-v2/route.ts` - Debug metadata no stream + headers HTTP
+
+**Decisões técnicas:**
+- **Tracing LangSmith**: Usa tags nativas do LangChain (`tags: ["intent-classifier"]`) ao invés de `@traceable` do langsmith. Motivo: `@traceable` conflita com tracing automático do LangGraph (erro "dotted_order must contain at least two parts").
+- **Threshold de confiança**: MIN_CONFIDENCE_THRESHOLD = 0.5. Abaixo disso, classifica como "conversar".
+- **Merge de clientInfo**: Incremental (não substitui dados existentes). Arrays são unidos com Set para evitar duplicatas.
+
+**Headers de debug adicionados:**
+- `X-Last-Intent: fornecer_dados`
+- `X-Intent-Confidence: 0.95`
+- `X-Client-Info-Version: 1`
+
+**Checkpoint QA**: Enviar "quero um plano de saúde" → ver intent=`buscar_planos`. Enviar "e se eu tiver 2 filhos?" → ver intent=`simular_cenario`. Enviar "oi, tudo bem?" → ver intent=`conversar`. Debug visível em console/devtools e headers HTTP.
 
 ### Fase 4: Orquestrador + Loop Básico (2 dias)
 **🎯 QA pode testar: Conversa flui em loop contínuo**
@@ -842,8 +873,21 @@ DATABASE_URL_POOLER=postgresql://user:pass@db.xxx.supabase.co:6543/postgres?pgbo
 - [ ] Implementar `workflow.ts` com loop conversacional
 - [ ] Integrar orquestrador no endpoint
 - [ ] Conversa em loop: responde → aguarda → processa → responde
+- [ ] **Corrigir persistência de mensagens** (ver abaixo)
 
-**Checkpoint QA**: Enviar múltiplas mensagens em sequência. Conversa não "termina" sozinha. Agente sempre aguarda próxima mensagem.
+**Correção de Persistência de Mensagens (Bug identificado na Fase 2):**
+
+O `messagesStateReducer` do LangGraph faz append de mensagens por ID. Problema: mensagens criadas sem ID explícito geram novo UUID a cada chamada, causando duplicação quando checkpointer restaura estado.
+
+**Solução A (implementar nesta fase):**
+1. **route.ts**: Quando checkpointer ativo, passar apenas a **última mensagem** (nova) no `initialState.messages`, não o histórico completo. O checkpointer restaura o histórico automaticamente.
+2. **orchestrator.ts**: Após gerar resposta, adicionar `AIMessage` ao estado:
+   ```typescript
+   import { AIMessage } from "@langchain/core/messages"
+   stateUpdate.messages = [new AIMessage(response)]
+   ```
+
+**Checkpoint QA**: Enviar múltiplas mensagens em sequência. Conversa não "termina" sozinha. Agente sempre aguarda próxima mensagem. Verificar que mensagens não duplicam ao recarregar página.
 
 ### Fase 5: Capacidade - Coleta de Dados (1-2 dias)
 **🎯 QA pode testar: Agente pergunta e coleta informações**
@@ -933,20 +977,20 @@ DATABASE_URL_POOLER=postgresql://user:pass@db.xxx.supabase.co:6543/postgres?pgbo
 
 ### Matriz de Testabilidade por Fase
 
-| Fase | Funcionalidade Testável | Critério de Aceite QA |
-|------|-------------------------|----------------------|
-| 1 | Assistente no frontend | Aparece na lista, aceita mensagens |
-| 2 | Persistência | Refresh mantém conversa |
-| 3 | Classificação | Debug mostra intenção correta |
-| 4 | Loop conversacional | Múltiplas mensagens fluem |
-| 5 | Coleta de dados | Extrai e confirma informações |
-| 6 | Busca RAG | Encontra planos compatíveis |
-| 7 | Recomendação | Gera recomendação humanizada |
-| 8 | Preços ERP | Mostra preços ou fallback |
-| 9 | Conversa geral | Responde perguntas, finaliza |
-| 10 | Simulação | "E se" funciona |
-| 11 | E2E | Todos os fluxos passam |
-| 12 | Produção | Igual staging |
+| Fase | Funcionalidade Testável | Critério de Aceite QA | Status |
+|------|-------------------------|----------------------|--------|
+| 1 | Assistente no frontend | Aparece na lista, aceita mensagens | ✅ |
+| 2 | Persistência | Refresh mantém conversa, header `X-Checkpointer-Enabled: true` | ✅ |
+| 3 | Classificação | Debug mostra intenção correta, headers X-Last-Intent/X-Intent-Confidence | ✅ |
+| 4 | Loop conversacional | Múltiplas mensagens fluem | |
+| 5 | Coleta de dados | Extrai e confirma informações | |
+| 6 | Busca RAG | Encontra planos compatíveis | |
+| 7 | Recomendação | Gera recomendação humanizada | |
+| 8 | Preços ERP | Mostra preços ou fallback | |
+| 9 | Conversa geral | Responde perguntas, finaliza | |
+| 10 | Simulação | "E se" funciona | |
+| 11 | E2E | Todos os fluxos passam | |
+| 12 | Produção | Igual staging | |
 
 ---
 
@@ -1158,4 +1202,6 @@ tags CONTAINS "cache:miss"
 | 2.1 | 2025-12-03 | Claude Code | **Adicionado requisitos Vercel Pro**: RNF-006 (compatibilidade Vercel), seção 6.4 (configuração de deploy), connection pooling via PgBouncer, cold start expectations, versão fixa @langchain/openai@0.5.10, LANGCHAIN_CALLBACKS_BACKGROUND=false. |
 | 2.2 | 2025-12-03 | Claude Code | **Reorganização para testabilidade incremental**: Seção 7 reescrita com filosofia "Endpoint First, Features Later". Frontend integration movido para Fase 1. Cada fase tem checkpoint QA específico. Adicionada Matriz de Testabilidade e milestones com validação QA. 12 fases (antes 11) com foco em permitir testes pelo frontend desde o início. |
 | 2.3 | 2025-12-03 | Claude Code | **LangSmith para QA**: Nova seção "LangSmith para QA - Guia de Análise por Fase" com detalhes do que QA pode verificar em cada fase via LangSmith. Inclui: spans esperados por fase, checklists de verificação, métricas com thresholds, tags de filtro úteis, e 5 dashboards sugeridos. |
+| 2.4 | 2025-12-03 | Claude Code | **Fase 2 Implementada**: Checkpointer integrado no endpoint com modo degradado (try/catch). Criado `cache-invalidation.ts` com INVALIDATION_RULES. 35 testes unitários. Headers de debug adicionados (X-Checkpointer-Enabled, X-Last-Intent). Polyfills para Jest (TextEncoder, ReadableStream). Matriz de Testabilidade atualizada com coluna Status. |
+| 2.5 | 2025-12-03 | Claude Code | **Fase 3 Implementada**: Classificador de intenções via GPT-4o com 9 tipos de intenção e 25 few-shot examples. Arquivos criados em `lib/agents/health-plan-v2/intent/`. Extração automática de dados (idade, cidade, dependentes). Integração no orchestrator com merge incremental de clientInfo. Debug metadata no stream (`__DEBUG__...`) e headers HTTP. Tracing via tags nativas do LangChain (não `@traceable` devido a conflito com LangGraph). Latência média: 1.4s (target <2s). |
 

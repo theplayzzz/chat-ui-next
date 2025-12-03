@@ -20,8 +20,10 @@ import { getServerProfile } from "@/lib/server/server-chat-helpers"
 import { HumanMessage, AIMessage } from "@langchain/core/messages"
 import {
   compileWorkflow,
-  createInitialState
+  createInitialState,
+  type HealthPlanWorkflowApp
 } from "@/lib/agents/health-plan-v2/workflow/workflow"
+import { getCheckpointer } from "@/lib/agents/health-plan-v2/checkpointer/postgres-checkpointer"
 
 // Configuração Vercel: runtime Node.js com 5 minutos de timeout
 export const runtime = "nodejs"
@@ -164,12 +166,37 @@ export async function POST(request: NextRequest) {
       messages: langchainMessages
     })
 
-    // 7. Compilar workflow (sem checkpointer por enquanto - Fase 1 stub)
-    // TODO: Adicionar checkpointer na Fase 2
-    const app = compileWorkflow()
+    // 7. Compilar workflow com checkpointer (Fase 2)
+    let app: HealthPlanWorkflowApp
+    let checkpointerEnabled = false
+    try {
+      const checkpointer = await getCheckpointer()
+      app = compileWorkflow(checkpointer)
+      checkpointerEnabled = true
+      console.log(
+        "[health-plan-v2] ✅ Checkpointer enabled - state will persist"
+      )
+    } catch (checkpointerError) {
+      // Modo degradado: funciona sem persistência
+      console.warn(
+        "[health-plan-v2] ⚠️ Checkpointer unavailable, running without persistence:",
+        checkpointerError instanceof Error
+          ? checkpointerError.message
+          : checkpointerError
+      )
+      app = compileWorkflow()
+    }
 
     // 8. Criar stream de resposta
     console.log("[health-plan-v2] Step 8: Creating response stream...")
+
+    // Flag para enviar debug apenas em dev/staging
+    const isDev = process.env.NODE_ENV !== "production"
+
+    // Variáveis para capturar resultado do workflow para headers
+    let lastIntent: string | null = null
+    let lastIntentConfidence: number = 0
+    let clientInfoVersion: number = 0
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -183,10 +210,33 @@ export async function POST(request: NextRequest) {
             }
           })
 
+          // Capturar dados para headers
+          lastIntent = result.lastIntent || null
+          lastIntentConfidence = result.lastIntentConfidence || 0
+          clientInfoVersion = result.clientInfoVersion || 0
+
           // Extrair resposta do resultado
           const response =
             result.currentResponse ||
             "Olá! Sou o assistente de planos de saúde v2. Em breve estarei totalmente funcional."
+
+          // Enviar debug metadata no início do stream (apenas em dev)
+          if (isDev) {
+            const debugInfo = {
+              __debug: {
+                intent: result.lastIntent,
+                confidence: result.lastIntentConfidence,
+                clientInfo: result.clientInfo,
+                clientInfoVersion: result.clientInfoVersion,
+                timestamp: new Date().toISOString()
+              }
+            }
+            controller.enqueue(
+              encoder.encode(
+                `__DEBUG__${JSON.stringify(debugInfo)}__DEBUG__\n\n`
+              )
+            )
+          }
 
           // Simular streaming enviando a resposta em chunks
           const words = response.split(" ")
@@ -197,7 +247,10 @@ export async function POST(request: NextRequest) {
             await new Promise(resolve => setTimeout(resolve, 30))
           }
 
-          console.log("[health-plan-v2] ✅ Response streamed successfully")
+          console.log("[health-plan-v2] ✅ Response streamed successfully", {
+            intent: lastIntent,
+            confidence: lastIntentConfidence
+          })
           controller.close()
         } catch (error) {
           const errorMessage =
@@ -217,11 +270,16 @@ export async function POST(request: NextRequest) {
     const executionTime = Date.now() - startTime
     console.log(`[health-plan-v2] Request completed in ${executionTime}ms`)
 
-    // 9. Retornar resposta em streaming
+    // 9. Retornar resposta em streaming com headers de debug
     return new StreamingTextResponse(stream, {
       headers: {
         "X-Chat-Id": effectiveChatId,
-        "X-Execution-Time": executionTime.toString()
+        "X-Execution-Time": executionTime.toString(),
+        "X-Checkpointer-Enabled": checkpointerEnabled.toString(),
+        // Headers de debug para intenção (sempre visíveis em devtools)
+        "X-Last-Intent": lastIntent || "unknown",
+        "X-Intent-Confidence": lastIntentConfidence.toString(),
+        "X-Client-Info-Version": clientInfoVersion.toString()
       }
     })
   } catch (error) {

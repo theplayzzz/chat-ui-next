@@ -39,6 +39,11 @@ export const HealthPlanStateAnnotation = Annotation.Root({
     default: () => null
   }),
 
+  lastIntentConfidence: Annotation<number>({
+    reducer: (_, y) => y,
+    default: () => 0
+  }),
+
   // === DADOS DO CLIENTE (MUTÁVEIS) ===
   clientInfo: Annotation<PartialClientInfo>({
     reducer: (current, update) => ({ ...current, ...update }), // Merge, não substitui
