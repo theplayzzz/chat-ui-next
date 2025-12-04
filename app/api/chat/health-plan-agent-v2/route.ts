@@ -157,16 +157,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // 6. Criar estado inicial
-    const initialState = createInitialState({
-      workspaceId,
-      userId: profile.user_id,
-      assistantId,
-      chatId: effectiveChatId,
-      messages: langchainMessages
-    })
-
-    // 7. Compilar workflow com checkpointer (Fase 2)
+    // 6. Compilar workflow com checkpointer (Fase 2)
     let app: HealthPlanWorkflowApp
     let checkpointerEnabled = false
     try {
@@ -186,6 +177,32 @@ export async function POST(request: NextRequest) {
       )
       app = compileWorkflow()
     }
+
+    // 7. Criar estado inicial
+    // BUG FIX (PRD Fase 4, Task 22.8): Quando checkpointer está ativo,
+    // passar APENAS a última mensagem para evitar duplicação.
+    // O messagesStateReducer faz append, então se passarmos todas as mensagens
+    // e o checkpointer restaurar o histórico, haverá duplicação.
+    const messagesToSend = checkpointerEnabled
+      ? langchainMessages.slice(-1) // Apenas última mensagem (nova)
+      : langchainMessages // Todas as mensagens (sem checkpointer)
+
+    console.log("[health-plan-v2] Message handling:", {
+      checkpointerEnabled,
+      totalMessages: langchainMessages.length,
+      messagesToSend: messagesToSend.length,
+      strategy: checkpointerEnabled
+        ? "last-only (checkpointer restores history)"
+        : "all (no persistence)"
+    })
+
+    const initialState = createInitialState({
+      workspaceId,
+      userId: profile.user_id,
+      assistantId,
+      chatId: effectiveChatId,
+      messages: messagesToSend
+    })
 
     // 8. Criar stream de resposta
     console.log("[health-plan-v2] Step 8: Creating response stream...")

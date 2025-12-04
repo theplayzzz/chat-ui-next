@@ -110,6 +110,12 @@ export const HealthPlanStateAnnotation = Annotation.Root({
     default: () => null
   }),
 
+  // === PROTEÇÃO CONTRA LOOP INFINITO ===
+  loopIterations: Annotation<number>({
+    reducer: (_, y) => y,
+    default: () => 0 // Resetado a cada nova mensagem do usuário
+  }),
+
   // === RESPOSTA ATUAL ===
   currentResponse: Annotation<string>({
     reducer: (_, y) => y,
