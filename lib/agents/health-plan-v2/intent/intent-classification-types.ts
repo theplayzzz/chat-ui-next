@@ -63,6 +63,30 @@ export const BUSINESS_CAPABILITY_INTENTS: UserIntent[] = [
 // ============================================================================
 
 /**
+ * Representa uma mudança de cenário em simulações
+ *
+ * Usado principalmente com intent "simular_cenario" ou "alterar_dados"
+ * para adicionar/remover dependentes ou alterar outros dados.
+ */
+export interface ScenarioChange {
+  type:
+    | "add_dependent"
+    | "remove_dependent"
+    | "change_budget"
+    | "change_location"
+    | "other"
+  details: {
+    relationship?: string // Para remove_dependent
+    index?: number // Para remove_dependent por índice
+    age?: number
+    budget?: number
+    city?: string
+    state?: string
+    [key: string]: unknown
+  }
+}
+
+/**
  * Dados extraídos da mensagem do usuário
  * Estruturado para merge direto com clientInfo
  */
@@ -85,15 +109,7 @@ export interface ExtractedClientData {
   employer?: string
 
   // Para simulações
-  scenarioChange?: {
-    type:
-      | "add_dependent"
-      | "remove_dependent"
-      | "change_budget"
-      | "change_location"
-      | "other"
-    details: Record<string, unknown>
-  }
+  scenarioChange?: ScenarioChange
 
   // Para comparações/perguntas
   planName?: string

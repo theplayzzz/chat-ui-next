@@ -44,7 +44,9 @@ describe("Orchestrator Node", () => {
   })
 
   it("should merge clientInfo correctly", async () => {
-    const { mergeClientInfo } = await import("../nodes/orchestrator")
+    const { smartMergeClientInfo: mergeClientInfo } = await import(
+      "../state/cache-invalidation"
+    )
 
     const existing = { name: "João", age: 30 }
     const extracted = { city: "São Paulo", budget: 500 }
@@ -58,7 +60,9 @@ describe("Orchestrator Node", () => {
   })
 
   it("should merge arrays without duplicates", async () => {
-    const { mergeClientInfo } = await import("../nodes/orchestrator")
+    const { smartMergeClientInfo: mergeClientInfo } = await import(
+      "../state/cache-invalidation"
+    )
 
     const existing = {
       preferences: ["rede ampla", "sem carência"],
@@ -83,7 +87,7 @@ describe("Orchestrator Node", () => {
 
 describe("Dependents Merge Logic", () => {
   it("should add new dependents without losing existing ones", async () => {
-    const { mergeDependents } = await import("../nodes/orchestrator")
+    const { mergeDependents } = await import("../state/cache-invalidation")
 
     const existing = [{ age: 25, relationship: "spouse" as const }]
     const incoming = [{ age: 5, relationship: "child" as const }]
@@ -96,7 +100,7 @@ describe("Dependents Merge Logic", () => {
   })
 
   it("should update existing dependent by name", async () => {
-    const { mergeDependents } = await import("../nodes/orchestrator")
+    const { mergeDependents } = await import("../state/cache-invalidation")
 
     const existing = [
       { name: "Maria", age: 25, relationship: "spouse" as const }
@@ -119,7 +123,7 @@ describe("Dependents Merge Logic", () => {
   })
 
   it("should update existing dependent by relationship+age when no name", async () => {
-    const { mergeDependents } = await import("../nodes/orchestrator")
+    const { mergeDependents } = await import("../state/cache-invalidation")
 
     const existing = [{ age: 25, relationship: "spouse" as const }]
     const incoming = [
@@ -135,7 +139,7 @@ describe("Dependents Merge Logic", () => {
   })
 
   it("should handle multiple children of different ages", async () => {
-    const { mergeDependents } = await import("../nodes/orchestrator")
+    const { mergeDependents } = await import("../state/cache-invalidation")
 
     const existing = [
       { age: 10, relationship: "child" as const },
@@ -152,7 +156,7 @@ describe("Dependents Merge Logic", () => {
   })
 
   it("should merge healthConditions for dependents", async () => {
-    const { mergeDependents } = await import("../nodes/orchestrator")
+    const { mergeDependents } = await import("../state/cache-invalidation")
 
     const existing = [
       {
@@ -179,7 +183,7 @@ describe("Dependents Merge Logic", () => {
   })
 
   it("should handle complex scenario with spouse and multiple children", async () => {
-    const { mergeDependents } = await import("../nodes/orchestrator")
+    const { mergeDependents } = await import("../state/cache-invalidation")
 
     // Existing: spouse + 2 children
     const existing = [
@@ -199,7 +203,7 @@ describe("Dependents Merge Logic", () => {
   })
 
   it("should not duplicate when same dependent is mentioned again", async () => {
-    const { mergeDependents } = await import("../nodes/orchestrator")
+    const { mergeDependents } = await import("../state/cache-invalidation")
 
     const existing = [
       { name: "Maria", age: 25, relationship: "spouse" as const }
@@ -214,7 +218,7 @@ describe("Dependents Merge Logic", () => {
   })
 
   it("should generate correct keys for dependents", async () => {
-    const { getDependentKey } = await import("../nodes/orchestrator")
+    const { getDependentKey } = await import("../state/cache-invalidation")
 
     // With name - uses name
     expect(
@@ -231,7 +235,9 @@ describe("Dependents Merge Logic", () => {
   })
 
   it("should preserve all existing dependents in mergeClientInfo", async () => {
-    const { mergeClientInfo } = await import("../nodes/orchestrator")
+    const { smartMergeClientInfo: mergeClientInfo } = await import(
+      "../state/cache-invalidation"
+    )
 
     const existing = {
       name: "João",

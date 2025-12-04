@@ -1960,7 +1960,7 @@
             "updatedAt": "2025-12-03T23:05:20.117Z"
           }
         ],
-        "updatedAt": "2025-12-04T00:57:12.251Z"
+        "updatedAt": "2025-12-04T17:22:54.035Z"
       },
       {
         "id": 23,
@@ -1968,12 +1968,95 @@
         "description": "Implementar capacidade que extrai e valida dados do cliente das mensagens.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 5 (linhas 823-832)\n📍 Seção: 3.4 > updateClientInfo\n📍 Seção: 4 > RF-003 Coleta Iterativa de Dados\n\nItens de implementação:\n1. Implementar updateClientInfo capability em lib/agents/health-plan-v2/capabilities/\n2. Extrair dados de mensagens do usuário usando GPT-4o\n3. Fazer perguntas de follow-up inteligentes para dados faltantes\n4. Validar dados coletados (idade, estado, profissão, dependentes)\n5. Atualizar state.clientInfo com informações do cliente\n6. Merge inteligente: novos dados + dados existentes\n\nDados a coletar (RF-003):\n- idade, sexo, estado, cidade\n- profissão, renda\n- dependentes (array com idade, sexo, parentesco)\n- condições pré-existentes\n- preferências (coparticipação, reembolso, rede)",
         "testStrategy": "🎯 QA pode testar: Agente pergunta e coleta informações\n\nCheckpoints:\n- [ ] Dizer \"tenho 35 anos, moro em SP\" → agente extrai e confirma\n- [ ] Agente pergunta \"quantos dependentes?\" se não informado\n- [ ] Dizer \"minha esposa tem 32 e meu filho 5\" → extrai dependentes\n- [ ] Dados parciais são preservados entre mensagens\n\nLangSmith:\n- [ ] Span updateClientInfo aparece\n- [ ] Input: mensagem + state atual\n- [ ] Output: clientInfo atualizado\n- [ ] Dados extraídos visíveis no trace",
-        "status": "pending",
+        "status": "review",
         "dependencies": [
           "22"
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Integrar extractClientInfo no updateClientInfo capability",
+            "description": "Substituir lógica atual de generateDataCollectionResponse por chamada ao extractClientInfo existente em lib/tools/health-plan/extract-client-info.ts",
+            "dependencies": [],
+            "details": "Arquivo: lib/agents/health-plan-v2/nodes/capabilities/update-client-info.ts\n\nAtualmente o arquivo tem apenas generateDataCollectionResponse com lógica hardcoded. Integrar:\n- Importar extractClientInfo de lib/tools/health-plan/extract-client-info.ts\n- Passar state.messages e state.clientInfo como parâmetros\n- Obter apiKey do ambiente (OPENAI_API_KEY)\n- Usar resultado (clientInfo, nextQuestion, isComplete, completeness) no retorno\n- Manter AIMessage no histórico para persistência\n- Atualizar clientInfo no state usando merge\n- Log para debug com completeness\n\nReferências:\n- extract-client-info.ts já tem extração GPT-4o, validação Zod e merge\n- intent-classifier.ts já extrai dados parciais no orchestrator\n- cache-invalidation.ts tem processClientInfoUpdate para invalidação",
+            "status": "done",
+            "testStrategy": "Teste unitário:\n- Mock extractClientInfo para retornar clientInfo parcial\n- Verificar que state.clientInfo é atualizado com merge\n- Verificar que nextQuestion aparece em currentResponse\n- Verificar que AIMessage é adicionado ao histórico\n- Verificar logs de debug com completeness",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-04T12:30:21.723Z"
+          },
+          {
+            "id": 2,
+            "title": "Implementar validação de dados coletados",
+            "description": "Adicionar validação de regras de negócio para dados extraídos usando validateBusinessRules existente",
+            "dependencies": [
+              1
+            ],
+            "details": "Arquivo: lib/agents/health-plan-v2/nodes/capabilities/update-client-info.ts\n\nApós extração com extractClientInfo:\n- Importar validateBusinessRules de lib/tools/health-plan/validators/missing-fields-detector.ts\n- Executar validação dos dados mergeados\n- Se houver warnings não bloqueantes, adicionar ao state.errors como tipo 'warning'\n- Incluir warnings na resposta ao usuário de forma amigável\n- Não bloquear fluxo, apenas alertar\n\nValidações já implementadas em validateBusinessRules:\n- Idade < 18 ou > 70\n- Orçamento per capita < R$200\n- Dependentes idosos (> 60 anos)\n- Múltiplas condições pré-existentes\n- Total de pessoas > 10 (plano empresarial)\n\nFormato de warning no state:\n```typescript\n{\n  type: 'warning',\n  message: 'Titular menor de 18 anos pode requerer responsável legal',\n  timestamp: new Date().toISOString(),\n  context: { field: 'age', value: 17 }\n}\n```",
+            "status": "done",
+            "testStrategy": "Testes unitários:\n- Idade 17 → warning sobre responsável legal\n- Idade 75 → warning sobre restrições\n- Orçamento R$150 para 2 pessoas → warning sobre suficiência\n- 5 condições pré-existentes → warning sobre carências\n- Warnings aparecem em currentResponse de forma amigável",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-04T12:30:21.738Z"
+          },
+          {
+            "id": 3,
+            "title": "Implementar follow-up questions inteligentes e contextuais",
+            "description": "Usar generateNextQuestion do extract-client-info.ts para perguntas de follow-up baseadas em campos faltantes",
+            "dependencies": [
+              1
+            ],
+            "details": "Arquivo: lib/agents/health-plan-v2/nodes/capabilities/update-client-info.ts\n\nA função extractClientInfo já retorna nextQuestion via generateNextQuestion interna.\n\nLógica:\n1. Se isComplete = false e nextQuestion existe → usar nextQuestion como currentResponse\n2. Se isComplete = false e nextQuestion não existe → usar mensagem genérica\n3. Se isComplete = true → confirmar dados e oferecer próximo passo\n\nTipos de perguntas (já implementados em extract-client-info.ts:246-259):\n- Campos obrigatórios faltantes: tom \"Só falta me dizer: ...\"\n- Dependentes: \"Você vai incluir dependentes no plano? Se sim, pode me contar sobre eles?\"\n- Condições: \"Você ou alguém da sua família tem alguma condição de saúde pré-existente?\"\n- Medicamentos: \"Alguém faz uso de medicamentos de forma contínua?\"\n- Preferências: \"Tem alguma preferência específica de rede credenciada?\"\n\nSe nenhum campo obrigatório falta, generateInitialQuestion cria pergunta consolidada.\n\nContextualização:\n- Perguntas consideram dados já coletados\n- Tom empático e conversacional\n- Se GPT falha, usa fallback pré-definido",
+            "status": "done",
+            "testStrategy": "Testes de integração:\n- clientInfo vazio → pergunta inicial consolidada (idade + cidade + estado + budget)\n- Apenas idade informada → pergunta sobre cidade/estado\n- Dados básicos completos → pergunta sobre dependentes\n- Dependentes informados → pergunta sobre condições pré-existentes\n- Todos dados completos → confirmação e oferta de busca\n\nVerificar:\n- Tom de pergunta muda conforme progresso (inicial vs. follow-up)\n- Contexto anterior é considerado nas perguntas\n- Fallback funciona se GPT-4o falha",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-04T12:30:21.753Z"
+          },
+          {
+            "id": 4,
+            "title": "Adicionar confirmação visual de dados extraídos",
+            "description": "Criar resposta formatada que mostra dados coletados de forma clara para confirmação do usuário",
+            "dependencies": [
+              2
+            ],
+            "details": "Arquivo: lib/agents/health-plan-v2/nodes/capabilities/update-client-info.ts\n\nQuando isComplete = true ou completeness > 70%, mostrar resumo formatado:\n\n```markdown\n✅ **Dados coletados:**\n- Idade: 35 anos\n- Localização: São Paulo, SP\n- Orçamento: R$ 500/mês\n- Dependentes: 2 (cônjuge 32 anos, filho 5 anos)\n\nCompletude: 85%\n\n[Se warnings] ⚠️ **Alertas:**\n- Filho menor de 18 anos: carência pode ser diferenciada\n\nDeseja que eu busque planos compatíveis com esse perfil?\n```\n\nUtilizar:\n- FIELD_LABELS de client-info-schema.ts para labels amigáveis\n- calculateCompleteness para porcentagem\n- Emojis para visual claro (✅, ⚠️, 📋)\n- Formatação Markdown para tabela se > 4 campos\n\nNão mostrar:\n- Campos com valor null/undefined\n- Metadata interna (extractedAt, schemaVersion)\n- Arrays vazios",
+            "status": "done",
+            "testStrategy": "Testes de snapshot:\n- Dados completos → resumo formatado com todos campos\n- Dados parciais (50%) → resumo + missing fields\n- Com warnings → alertas aparecem formatados\n- Arrays (dependentes) → formatados como lista\n- Preferências (objeto) → formatadas por propriedade\n\nVerificar:\n- Markdown renderiza corretamente no frontend\n- Emojis aparecem\n- Porcentagem de completude está correta\n- Labels são amigáveis (não use keys técnicas)",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-04T12:30:21.770Z"
+          },
+          {
+            "id": 5,
+            "title": "Integrar updateClientInfo com orchestrator e cache-invalidation",
+            "description": "Garantir que mudanças no clientInfo disparam invalidação de cache via processClientInfoUpdate",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Arquivos:\n- lib/agents/health-plan-v2/nodes/capabilities/update-client-info.ts\n- lib/agents/health-plan-v2/nodes/orchestrator.ts\n- lib/agents/health-plan-v2/state/cache-invalidation.ts\n\nIntegração:\n\n1. **No orchestrator.ts** (já implementado parcialmente - linha 87-100):\n   - Quando extractedData existe, usa mergeClientInfo\n   - Incrementa clientInfoVersion\n   - Mas NÃO está usando processClientInfoUpdate para invalidação\n\n2. **Atualizar orchestrator.ts**:\n   - Importar processClientInfoUpdate de cache-invalidation.ts\n   - Substituir merge manual por processClientInfoUpdate\n   - Isso invalida automaticamente searchResults, analysis e recommendation se mudança for significativa\n\n3. **No update-client-info.ts**:\n   - Retornar clientInfo atualizado\n   - Não precisa fazer invalidação (orchestrator já faz)\n   - Apenas atualizar clientInfoVersion se dados mudarem\n\n4. **Logging**:\n   - Log quando cache é invalidado (já existe em cache-invalidation.ts:217)\n   - Log quais campos mudaram e se mudança é significativa\n\nCritério de mudança significativa (cache-invalidation.ts:39-46):\n- age, city, state, dependents, healthConditions, budget → INVALIDAM\n- name, preferences, currentPlan, employer → NÃO INVALIDAM",
+            "status": "done",
+            "testStrategy": "Testes de integração:\n1. Mudar idade 30→35 → searchResults invalidado\n2. Adicionar dependente → analysis e recommendation invalidados\n3. Mudar apenas nome → cache NÃO invalidado\n4. Mudar orçamento R$300→R$500 → todos caches invalidados\n5. Verificar logs mostram invalidação\n6. Verificar clientInfoVersion incrementa\n7. Verificar searchResultsVersion reseta para 0\n\nTeste de loop:\n- Enviar dados → buscar planos → alterar cidade → busca é refeita automaticamente\n- Verificar que não há loop infinito (loopIterations < MAX_ITERATIONS)",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-04T12:30:21.785Z"
+          },
+          {
+            "id": 6,
+            "title": "Criar testes unitários e de integração para updateClientInfo",
+            "description": "Implementar suite completa de testes para validar extração, validação, follow-up e integração",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "details": "Arquivo: lib/agents/health-plan-v2/__tests__/update-client-info.test.ts (novo)\n\nTestes unitários (mocks):\n1. **Extração de dados**:\n   - Mock extractClientInfo → verificar merge com clientInfo existente\n   - Dados vazios → pergunta inicial consolidada\n   - Dados parciais → follow-up question específica\n   - Dados completos → confirmação formatada\n\n2. **Validação**:\n   - Mock validateBusinessRules → warnings adicionados ao state\n   - Idade < 18 → warning aparece\n   - Orçamento baixo → warning aparece\n   - Sem warnings → nenhum erro no state\n\n3. **Persistência**:\n   - AIMessage adicionado ao histórico\n   - clientInfo atualizado no state\n   - clientInfoVersion incrementado\n\n4. **Confirmação visual**:\n   - isComplete=true → resumo formatado aparece\n   - completeness=85% → porcentagem correta\n   - Warnings → aparecem formatados com emoji\n\nTestes de integração (sem mocks):\n1. **Fluxo completo**:\n   - Enviar \"tenho 35 anos\" → extração funciona\n   - Enviar \"moro em SP\" → merge funciona\n   - Enviar \"orçamento R$500\" → campos obrigatórios completos\n   - Enviar \"2 dependentes\" → dados opcionais coletados\n\n2. **Cache invalidation**:\n   - Alterar idade → cache invalidado\n   - Alterar nome → cache NÃO invalidado\n   - Logs de invalidação aparecem\n\n3. **Erro handling**:\n   - extractClientInfo falha → fallback para pergunta inicial\n   - OpenAI timeout → mensagem de erro amigável\n   - Validação falha → warning não bloqueia fluxo\n\nCobertura mínima: 90%\nFramework: Jest com mocks do LangChain",
+            "status": "done",
+            "testStrategy": "Executar:\n```bash\nnpm test update-client-info.test.ts\n```\n\nVerificar:\n- Todos testes passam\n- Cobertura > 90%\n- Nenhum teste flaky\n- Snapshots de formatação estão corretos\n- Mocks estão isolados e não dependem de API externa\n\nTeste manual (QA):\n1. Dizer \"tenho 35 anos, moro em SP\" → agente extrai e confirma\n2. Agente pergunta \"quantos dependentes?\" se não informado\n3. Dizer \"minha esposa tem 32 e meu filho 5\" → extrai dependentes\n4. Dados parciais são preservados entre mensagens\n5. Alterar dado anterior invalida recomendação",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-04T12:30:21.801Z"
+          }
+        ],
+        "updatedAt": "2025-12-04T17:23:15.029Z"
       },
       {
         "id": 24,
@@ -1981,12 +2064,89 @@
         "description": "Implementar busca de planos usando RAG existente com cache por hash.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 6 (linhas 834-842)\n📍 Seção: 3.4 > searchPlans\n📍 Seção: 4 > RF-004 Busca Idempotente\n\nItens de implementação:\n1. Implementar searchPlans capability em lib/agents/health-plan-v2/capabilities/\n2. Integrar com busca RAG existente (lib/tools/health-plan/search-health-plans.ts)\n3. Implementar cache de resultados por hash de parâmetros:\n   - hash = SHA256(JSON.stringify(clientInfo relevante))\n   - Se hash igual → retorna cache\n   - Se hash diferente → nova busca\n4. Mostrar planos encontrados na resposta (resumo)\n5. Atualizar state.searchResults\n\nIdempotência (RF-004):\n- Mesmos dados de entrada → mesma busca não é reexecutada\n- Cache invalidado quando clientInfo muda significativamente",
         "testStrategy": "🎯 QA pode testar: Busca de planos funciona\n\nCheckpoints:\n- [ ] Fornecer dados completos → agente busca planos\n- [ ] Mostra resumo dos planos encontrados\n- [ ] Mesma busca não é reexecutada (cache hit)\n- [ ] Alterar dado significativo → nova busca (cache miss)\n\nLangSmith:\n- [ ] Span searchPlans aparece\n- [ ] Tag cache: hit ou cache: miss\n- [ ] Query RAG visível no trace\n- [ ] Planos encontrados no output",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [
           "23"
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Criar função generateSearchCacheKey para hash SHA256 de clientInfo",
+            "description": "Implementar função que gera hash SHA256 dos parâmetros relevantes de clientInfo para usar como cache key na busca RAG.",
+            "dependencies": [],
+            "details": "Criar função `generateSearchCacheKey(clientInfo: PartialClientInfo): string` em `lib/agents/health-plan-v2/nodes/capabilities/search-plans.ts`.\n\n**Campos relevantes para hash:**\n- age (number)\n- city (string)\n- state (string)\n- budget (number)\n- dependents (array de objetos com age e relationship)\n- healthConditions (array de strings)\n\n**Implementação:**\n1. Extrair apenas campos relevantes de clientInfo (ignorar name, preferences não-críticas)\n2. Ordenar arrays para garantir hash consistente (dependents por age, healthConditions alfabeticamente)\n3. JSON.stringify do objeto normalizado\n4. createHash('sha256').update(json).digest('hex').slice(0, 16) - 16 caracteres são suficientes\n5. Retornar `search_plans:${hash}`\n\n**Exemplo:**\n```typescript\nimport { createHash } from 'crypto'\nimport type { PartialClientInfo } from '../../types'\n\nfunction generateSearchCacheKey(clientInfo: PartialClientInfo): string {\n  // Extrair campos relevantes\n  const relevantData = {\n    age: clientInfo.age,\n    city: clientInfo.city,\n    state: clientInfo.state,\n    budget: clientInfo.budget,\n    dependents: (clientInfo.dependents || []).map(d => ({\n      age: d.age,\n      relationship: d.relationship\n    })).sort((a, b) => a.age - b.age),\n    healthConditions: [...(clientInfo.healthConditions || [])].sort()\n  }\n  \n  const json = JSON.stringify(relevantData)\n  const hash = createHash('sha256').update(json).digest('hex').slice(0, 16)\n  return `search_plans:${hash}`\n}\n```\n\n**Referências:**\n- lib/cache/erp-price-cache.ts:64 (exemplo de createHash SHA256)\n- lib/agents/health-plan-v2/state/cache-invalidation.ts (campos críticos)",
+            "status": "pending",
+            "testStrategy": "Teste unitário verificando:\n1. Mesmo clientInfo gera mesmo hash\n2. Ordem dos dependentes não afeta hash (após normalização)\n3. Campos não-críticos (name, preferences) não afetam hash\n4. Mudança em campo crítico (age, state) gera hash diferente\n5. Hash tem formato esperado: `search_plans:${16_chars}`",
+            "parentId": "undefined"
+          },
+          {
+            "id": 2,
+            "title": "Implementar lógica de cache hit/miss na função searchPlans",
+            "description": "Adicionar verificação de cache antes de executar busca RAG, retornando resultados cacheados quando hash for igual.",
+            "dependencies": [
+              1
+            ],
+            "details": "Atualizar função `searchPlans` em `lib/agents/health-plan-v2/nodes/capabilities/search-plans.ts` para verificar cache antes de buscar.\n\n**Estrutura do cache no state:**\n```typescript\ninterface CachedSearchResult {\n  cacheKey: string\n  results: HealthPlanDocument[]\n  timestamp: string\n  clientInfoSnapshot: PartialClientInfo\n}\n```\n\n**Fluxo de implementação:**\n\n1. **No início da função searchPlans:**\n   - Gerar cacheKey usando `generateSearchCacheKey(state.clientInfo)`\n   - Verificar se `state.searchResults` existe e não está vazio\n   - Comparar cacheKey armazenado com cacheKey atual\n   - Se igual → CACHE HIT: retornar resposta rápida sem executar busca\n   - Se diferente → CACHE MISS: prosseguir com busca RAG\n\n2. **Cache HIT (reutilizar resultados):**\n```typescript\nif (state.searchResults.length > 0) {\n  const currentKey = generateSearchCacheKey(state.clientInfo)\n  const cachedKey = state.searchCacheKey // novo campo no state\n  \n  if (currentKey === cachedKey) {\n    console.log('[searchPlans] Cache HIT - reusing results')\n    const response = `Encontrei ${state.searchResults.length} planos compatíveis (cache).`\n    return {\n      currentResponse: response,\n      messages: [new AIMessage(response)]\n    }\n  }\n}\n```\n\n3. **Cache MISS (nova busca):**\n   - Executar busca RAG (próxima subtask)\n   - Armazenar cacheKey e resultados no state\n\n**Logs para debug:**\n- `[searchPlans] Cache key: ${cacheKey}`\n- `[searchPlans] Cache HIT - reusing ${count} results`\n- `[searchPlans] Cache MISS - executing new search`\n\n**Atualização do state annotation:**\nAdicionar em `lib/agents/health-plan-v2/state/state-annotation.ts`:\n```typescript\nsearchCacheKey: Annotation<string | null>({\n  reducer: (_, y) => y,\n  default: () => null\n})\n```",
+            "status": "pending",
+            "testStrategy": "Testes de integração:\n1. Primeira busca: cache MISS, executa RAG\n2. Busca com mesmos dados: cache HIT, não executa RAG\n3. Alterar campo crítico (age): cache MISS, nova busca\n4. Alterar campo não-crítico (name): cache HIT, reutiliza\n5. Logs aparecem corretamente em console",
+            "parentId": "undefined"
+          },
+          {
+            "id": 3,
+            "title": "Integrar searchHealthPlans v1 na capability searchPlans",
+            "description": "Conectar a função searchPlans da v2 com a tool de busca RAG existente (searchHealthPlans) da v1, passando parâmetros corretos.",
+            "dependencies": [
+              2
+            ],
+            "details": "Integrar `lib/tools/health-plan/search-health-plans.ts` na capability `searchPlans`.\n\n**Imports necessários:**\n```typescript\nimport { searchHealthPlans } from '@/lib/tools/health-plan/search-health-plans'\nimport type { SearchHealthPlansParams, HealthPlanSearchResult } from '@/lib/tools/health-plan/types'\n```\n\n**Mapeamento de tipos:**\n- v2 `HealthPlanDocument` vs v1 `HealthPlanSearchResult`\n- Converter resultados de v1 para formato esperado pelo state da v2\n\n**Implementação da busca (quando cache MISS):**\n\n```typescript\n// Preparar parâmetros\nconst searchParams: SearchHealthPlansParams = {\n  assistantId: state.assistantId,\n  clientInfo: state.clientInfo,\n  topK: 10 // ou configurável\n}\n\n// Executar busca RAG\nconst apiKey = process.env.OPENAI_API_KEY!\nconst searchResponse = await searchHealthPlans(searchParams, apiKey)\n\n// Converter resultados para HealthPlanDocument[]\nconst documents: HealthPlanDocument[] = searchResponse.results.map(result => ({\n  id: result.fileId,\n  operadora: result.metadata?.operator || 'Desconhecida',\n  nome_plano: result.metadata?.planName || 'Sem nome',\n  tipo: result.metadata?.planType || 'individual',\n  abrangencia: result.metadata?.state || 'Nacional',\n  coparticipacao: result.metadata?.coParticipation === true,\n  rede_credenciada: result.metadata?.network || [],\n  carencias: result.metadata?.waitingPeriods || {},\n  preco_base: result.metadata?.price,\n  metadata: result.metadata || {},\n  similarity_score: result.similarity\n}))\n\n// Gerar cache key\nconst cacheKey = generateSearchCacheKey(state.clientInfo)\n\n// Atualizar state\nreturn {\n  searchResults: documents,\n  searchResultsVersion: state.searchResultsVersion + 1,\n  searchCacheKey: cacheKey,\n  currentResponse: `Encontrei ${documents.length} planos compatíveis com seu perfil.`,\n  messages: [new AIMessage(`Encontrei ${documents.length} planos compatíveis...`)]\n}\n```\n\n**Error handling:**\n- Try/catch ao redor de searchHealthPlans\n- Se falhar, retornar erro no state.errors\n- Não quebrar o fluxo conversacional\n\n**Logging:**\n- `[searchPlans] Executing RAG search with assistantId=${assistantId}`\n- `[searchPlans] Found ${count} plans in ${executionTimeMs}ms`",
+            "status": "pending",
+            "testStrategy": "Testes de integração:\n1. Mock de searchHealthPlans retorna resultados mock\n2. Verificar conversão correta de tipos v1→v2\n3. Verificar searchResults e searchResultsVersion atualizados no state\n4. Verificar searchCacheKey armazenado corretamente\n5. Verificar AIMessage adicionado ao histórico\n6. Error handling: mock lançando erro, verificar state.errors",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Implementar resumo humanizado dos planos encontrados",
+            "description": "Gerar resposta textual clara e amigável mostrando resumo dos planos encontrados (operadoras, tipos, quantidade).",
+            "dependencies": [
+              3
+            ],
+            "details": "Criar função que gera resumo humanizado dos resultados da busca para incluir na resposta ao usuário.\n\n**Função auxiliar:**\n```typescript\nfunction summarizePlans(documents: HealthPlanDocument[]): string {\n  if (documents.length === 0) {\n    return 'Não encontrei planos compatíveis com seu perfil. Podemos ajustar os critérios de busca?'\n  }\n  \n  // Agrupar por operadora\n  const byOperator = new Map<string, number>()\n  documents.forEach(doc => {\n    const count = byOperator.get(doc.operadora) || 0\n    byOperator.set(doc.operadora, count + 1)\n  })\n  \n  // Agrupar por tipo\n  const byType = new Map<string, number>()\n  documents.forEach(doc => {\n    const count = byType.get(doc.tipo) || 0\n    byType.set(doc.tipo, count + 1)\n  })\n  \n  // Gerar resumo\n  const operatorSummary = Array.from(byOperator.entries())\n    .sort((a, b) => b[1] - a[1])\n    .slice(0, 3)\n    .map(([op, count]) => `${op} (${count})`)\n    .join(', ')\n  \n  const typeSummary = Array.from(byType.entries())\n    .map(([type, count]) => `${count} ${type}`)\n    .join(', ')\n  \n  return `Encontrei ${documents.length} planos compatíveis com seu perfil:\\n\\n` +\n         `📊 Por operadora: ${operatorSummary}${byOperator.size > 3 ? ' e outras' : ''}\\n` +\n         `📋 Por tipo: ${typeSummary}\\n\\n` +\n         `Posso analisar esses planos e te recomendar os melhores para seu caso?`\n}\n```\n\n**Integração na função searchPlans:**\n- Após obter documentos da busca RAG, chamar `summarizePlans(documents)`\n- Usar o resumo como currentResponse e no AIMessage\n- Adicionar metadata para debug (operadoras, tipos)\n\n**Exemplo de resposta esperada:**\n```\nEncontrei 15 planos compatíveis com seu perfil:\n\n📊 Por operadora: Unimed (6), Amil (4), SulAmérica (3) e outras\n📋 Por tipo: 10 individual, 5 familiar\n\nPosso analisar esses planos e te recomendar os melhores para seu caso?\n```\n\n**Casos especiais:**\n- 0 resultados: mensagem sugerindo ajuste de critérios\n- 1-2 resultados: \"Encontrei apenas X planos. Gostaria de ampliar os critérios?\"\n- Muitos resultados (>50): \"Encontrei muitos planos (${count}). Vou selecionar os mais compatíveis.\"",
+            "status": "pending",
+            "testStrategy": "Testes unitários:\n1. 0 resultados: mensagem de \"não encontrei\"\n2. 1 resultado: mensagem singular\n3. Múltiplos resultados: resumo com operadoras e tipos\n4. Muitos resultados (>50): mensagem de seleção\n5. Verificar formatação do texto (emojis, quebras de linha)",
+            "parentId": "undefined"
+          },
+          {
+            "id": 5,
+            "title": "Adicionar invalidação de cache quando clientInfo muda significativamente",
+            "description": "Garantir que cache de busca seja invalidado automaticamente quando campos críticos de clientInfo mudarem.",
+            "dependencies": [
+              2,
+              3
+            ],
+            "details": "A invalidação de cache já está parcialmente implementada em `lib/agents/health-plan-v2/state/cache-invalidation.ts`. Precisamos garantir que funciona corretamente com o novo cache por hash.\n\n**Campos que invalidam cache de busca (já definidos em cache-invalidation.ts):**\n- age\n- city\n- state\n- dependents\n- healthConditions\n- budget\n\n**Verificação necessária:**\n\nO sistema atual usa versionamento (`searchResultsVersion`). Com cache por hash, temos duas camadas:\n1. **Versioning** - indica se dados upstream mudaram\n2. **Hash comparison** - verifica se mudança é significativa\n\n**Integração com sistema existente:**\n\nQuando `updateClientInfo` atualiza dados:\n1. `processClientInfoUpdate()` detecta mudança significativa\n2. Se significativa → `searchResults` é limpo, `searchResultsVersion` vai para 0\n3. `searchCacheKey` também deve ser limpo\n\n**Atualização em cache-invalidation.ts:**\n```typescript\n// Em getInvalidationUpdates(), caso 'searchResults':\ncase \"searchResults\":\n  updates.searchResults = []\n  updates.searchResultsVersion = 0\n  updates.searchCacheKey = null // ADICIONAR esta linha\n  break\n```\n\n**Teste do fluxo completo:**\n1. Busca inicial: age=30, state='SP' → gera hash1, busca RAG\n2. Nova mensagem com mesmos dados → hash1 igual, cache HIT\n3. Atualizar age=35 → updateClientInfo detecta mudança crítica\n4. Invalidação limpa searchResults e searchCacheKey\n5. Próxima busca → gera hash2, cache MISS, nova busca RAG\n\n**Logs para debug:**\n- `[cache-invalidation] searchCacheKey cleared due to critical change`\n- `[searchPlans] Previous cache key: ${oldKey}, new: ${newKey} - MISS`",
+            "status": "pending",
+            "testStrategy": "Testes de integração:\n1. Busca inicial com age=30 → cache populado\n2. Mesma busca → cache HIT\n3. updateClientInfo com age=35 → invalidação\n4. Verificar searchResults=[], searchResultsVersion=0, searchCacheKey=null\n5. Nova busca → cache MISS, nova execução RAG\n6. Mudança não-crítica (name) → cache preservado",
+            "parentId": "undefined"
+          },
+          {
+            "id": 6,
+            "title": "Adicionar testes unitários e de integração para searchPlans com cache",
+            "description": "Criar suite completa de testes cobrindo geração de hash, cache hit/miss, integração RAG e invalidação.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "details": "Criar arquivo `lib/agents/health-plan-v2/nodes/capabilities/__tests__/search-plans.test.ts` com cobertura completa.\n\n**Estrutura dos testes:**\n\n```typescript\nimport { describe, it, expect, vi, beforeEach } from 'vitest'\nimport { searchPlans } from '../search-plans'\nimport { generateSearchCacheKey } from '../search-plans'\nimport * as searchHealthPlansModule from '@/lib/tools/health-plan/search-health-plans'\nimport type { HealthPlanState } from '../../../state/state-annotation'\n\ndescribe('generateSearchCacheKey', () => {\n  it('gera hash consistente para mesmo clientInfo', () => { ... })\n  it('gera hash diferente quando campo crítico muda', () => { ... })\n  it('gera mesmo hash independente de ordem de arrays', () => { ... })\n  it('ignora campos não-críticos (name, preferences)', () => { ... })\n  it('retorna formato correto: search_plans:${16_chars}', () => { ... })\n})\n\ndescribe('searchPlans - cache behavior', () => {\n  beforeEach(() => {\n    vi.clearAllMocks()\n  })\n  \n  it('cache MISS: executa busca RAG na primeira chamada', async () => {\n    // Mock de searchHealthPlans\n    // State sem searchResults\n    // Verificar que searchHealthPlans foi chamado\n  })\n  \n  it('cache HIT: reutiliza resultados com mesmo hash', async () => {\n    // State com searchResults e searchCacheKey populados\n    // Mesmo clientInfo\n    // Verificar que searchHealthPlans NÃO foi chamado\n    // Verificar resposta contém \"(cache)\"\n  })\n  \n  it('cache MISS: nova busca quando hash muda', async () => {\n    // State com cache populado para age=30\n    // clientInfo com age=35\n    // Verificar que searchHealthPlans FOI chamado novamente\n  })\n})\n\ndescribe('searchPlans - integration with RAG', () => {\n  it('converte resultados v1 para v2 corretamente', async () => { ... })\n  it('atualiza searchResultsVersion', async () => { ... })\n  it('adiciona AIMessage ao histórico', async () => { ... })\n  it('gera resumo humanizado dos planos', async () => { ... })\n})\n\ndescribe('searchPlans - error handling', () => {\n  it('lida com erro da busca RAG gracefully', async () => {\n    // Mock searchHealthPlans lançando erro\n    // Verificar state.errors populado\n    // Verificar resposta amigável ao usuário\n  })\n  \n  it('lida com 0 resultados encontrados', async () => {\n    // Mock retorna array vazio\n    // Verificar mensagem sugerindo ajuste de critérios\n  })\n})\n\ndescribe('searchPlans - cache invalidation integration', () => {\n  it('cache é limpo quando clientInfo muda significativamente', async () => {\n    // Simular processClientInfoUpdate com mudança crítica\n    // Verificar searchCacheKey=null\n    // Próxima busca deve executar RAG\n  })\n})\n```\n\n**Mocks necessários:**\n- `vi.mock('@/lib/tools/health-plan/search-health-plans')`\n- Mock de `process.env.OPENAI_API_KEY`\n- Fixtures de HealthPlanState\n- Fixtures de SearchHealthPlansResponse\n\n**Coverage esperado:**\n- Statements: >90%\n- Branches: >85%\n- Functions: 100%\n- Lines: >90%\n\n**Executar testes:**\n```bash\nnpx vitest lib/agents/health-plan-v2/nodes/capabilities/__tests__/search-plans.test.ts\n```",
+            "status": "pending",
+            "testStrategy": "Suite de testes deve:\n1. Passar em todas as 15+ assertions\n2. Coverage >90% em search-plans.ts\n3. Mocks corretos sem side effects\n4. Testes rápidos (<5s total)\n5. Sem flakiness (rodar 10x, todos passam)",
+            "parentId": "undefined"
+          }
+        ],
+        "updatedAt": "2025-12-04T12:29:15.098Z"
       },
       {
         "id": 25,
@@ -2069,15 +2229,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-12-04T00:57:12.254Z",
+      "lastModified": "2025-12-04T17:23:15.034Z",
       "taskCount": 30,
       "completedCount": 21,
       "tags": [
         "master"
       ],
-      "created": "2025-12-04T02:12:38.080Z",
+      "created": "2025-12-04T19:10:51.381Z",
       "description": "Tasks for master context",
-      "updated": "2025-12-04T02:12:38.080Z"
+      "updated": "2025-12-04T19:10:51.381Z"
     }
   }
 }

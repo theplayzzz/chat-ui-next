@@ -75,14 +75,21 @@ Analisar a mensagem do usuário e:
 
 Quando a intenção é fornecer_dados, alterar_dados ou simular_cenario, EXTRAIA:
 
-- **age**: número inteiro (18-120)
-- **city**: nome da cidade
-- **state**: sigla do estado (SP, RJ, MG, etc.)
-- **budget**: valor numérico do orçamento
+- **age**: número inteiro (0-120)
+- **city**: nome da cidade (ex: "São Paulo", "Belo Horizonte", "Rio de Janeiro")
+- **state**: sigla do estado brasileiro - APENAS valores válidos:
+  AC, AL, AP, AM, BA, CE, DF, ES, GO, MA, MT, MS, MG, PA, PB, PR, PE, PI, RJ, RN, RS, RO, RR, SC, SP, SE, TO
+  IMPORTANTE: Se o usuário mencionar uma sigla que parece estado (2 letras maiúsculas) mas não é válida, AINDA extraia como "state" para que o sistema possa gerar um aviso.
+- **budget**: valor numérico do orçamento (ex: "R$500" → 500)
 - **dependents**: array com {age, relationship}
-  - relationship: "spouse" (cônjuge), "child" (filho), "parent" (pai/mãe), "other"
+  - age é OBRIGATÓRIO sempre que possível - pergunte se não informado
+  - relationship: "spouse" (cônjuge/esposa/marido), "child" (filho/filha), "parent" (pai/mãe), "other"
 - **preferences**: array de preferências ["sem coparticipação", "rede ampla", etc.]
 - **healthConditions**: condições de saúde mencionadas
+
+IMPORTANTE sobre dependentes:
+- Sempre que o usuário mencionar dependentes (esposa, filhos, etc.), extraia TODOS com idade quando informada
+- Se o usuário diz "minha esposa e 2 filhos" sem idades, extraia os 3 dependentes sem idade - o sistema perguntará depois
 
 ## Formato de Resposta (JSON)
 
