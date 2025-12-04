@@ -195,18 +195,126 @@ function mergeClientInfo(
     ) as string[]
   }
 
-  // Dependentes - lógica especial
+  // Dependentes - merge inteligente
   if (extracted.dependents && Array.isArray(extracted.dependents)) {
-    // Por enquanto, substitui completamente se houver novos dependentes
-    // TODO: Implementar merge inteligente de dependentes
-    merged.dependents = extracted.dependents as PartialClientInfo["dependents"]
+    merged.dependents = mergeDependents(
+      merged.dependents || [],
+      (extracted.dependents as PartialClientInfo["dependents"]) || []
+    )
   }
 
   return merged
+}
+
+/**
+ * Gera uma chave única para identificar um dependente
+ * Usa name se disponível, senão usa relationship + age
+ */
+function getDependentKey(
+  dep: NonNullable<PartialClientInfo["dependents"]>[number]
+): string {
+  if (dep.name) {
+    return `name:${dep.name.toLowerCase()}`
+  }
+  // Fallback: relationship + age (pode ter múltiplos filhos de idades diferentes)
+  return `${dep.relationship}:${dep.age || "unknown"}`
+}
+
+/**
+ * Merge inteligente de dependentes
+ *
+ * Regras:
+ * 1. Dependente com mesmo nome → atualiza dados
+ * 2. Dependente com mesmo relationship + age → atualiza dados
+ * 3. Se incoming tem nome mas existing não, tenta match por relationship+age
+ * 4. Novo dependente (sem match) → adiciona à lista
+ * 5. Nunca remove dependentes existentes (apenas atualiza ou adiciona)
+ */
+function mergeDependents(
+  existing: NonNullable<PartialClientInfo["dependents"]>,
+  incoming: NonNullable<PartialClientInfo["dependents"]>
+): NonNullable<PartialClientInfo["dependents"]> {
+  // Criar mapa dos dependentes existentes por chave
+  const existingMap = new Map<
+    string,
+    NonNullable<PartialClientInfo["dependents"]>[number]
+  >()
+  // Mapa secundário por relationship+age para fallback
+  const existingByRelAge = new Map<string, string>() // relAge -> primaryKey
+
+  for (const dep of existing) {
+    const key = getDependentKey(dep)
+    existingMap.set(key, dep)
+    // Guardar referência por relationship+age
+    const relAgeKey = `${dep.relationship}:${dep.age || "unknown"}`
+    if (!existingByRelAge.has(relAgeKey)) {
+      existingByRelAge.set(relAgeKey, key)
+    }
+  }
+
+  // Processar dependentes incoming
+  for (const newDep of incoming) {
+    let key = getDependentKey(newDep)
+    let matchedKey: string | undefined = undefined
+
+    if (existingMap.has(key)) {
+      matchedKey = key
+    } else if (newDep.name) {
+      // Se incoming tem nome mas não encontrou match, tentar por relationship+age
+      const relAgeKey = `${newDep.relationship}:${newDep.age || "unknown"}`
+      if (existingByRelAge.has(relAgeKey)) {
+        matchedKey = existingByRelAge.get(relAgeKey)!
+        // Remover a entrada antiga e usar nova chave com nome
+        const oldDep = existingMap.get(matchedKey)!
+        existingMap.delete(matchedKey)
+        key = getDependentKey(newDep) // Usar chave com nome
+        existingMap.set(key, oldDep)
+      }
+    }
+
+    if (matchedKey || existingMap.has(key)) {
+      // Atualizar dependente existente (merge de campos)
+      const existingDep = existingMap.get(key)!
+      existingMap.set(key, {
+        ...existingDep,
+        // Sobrescreve com novos valores se não undefined/null
+        ...(newDep.name && { name: newDep.name }),
+        ...(newDep.age && { age: newDep.age }),
+        relationship: newDep.relationship || existingDep.relationship,
+        // Merge de condições de saúde
+        healthConditions: Array.from(
+          new Set([
+            ...(existingDep.healthConditions || []),
+            ...(newDep.healthConditions || [])
+          ])
+        )
+      })
+    } else {
+      // Novo dependente - adicionar
+      existingMap.set(key, newDep)
+    }
+  }
+
+  // Converter mapa de volta para array
+  const result = Array.from(existingMap.values())
+
+  console.log("[orchestrator] Dependents merged:", {
+    existingCount: existing.length,
+    incomingCount: incoming.length,
+    resultCount: result.length,
+    keys: Array.from(existingMap.keys())
+  })
+
+  return result
 }
 
 // ============================================================================
 // EXPORTS
 // ============================================================================
 
-export { extractMessageContent, mergeClientInfo }
+export {
+  extractMessageContent,
+  mergeClientInfo,
+  mergeDependents,
+  getDependentKey
+}

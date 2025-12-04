@@ -81,6 +81,185 @@ describe("Orchestrator Node", () => {
   })
 })
 
+describe("Dependents Merge Logic", () => {
+  it("should add new dependents without losing existing ones", async () => {
+    const { mergeDependents } = await import("../nodes/orchestrator")
+
+    const existing = [{ age: 25, relationship: "spouse" as const }]
+    const incoming = [{ age: 5, relationship: "child" as const }]
+
+    const result = mergeDependents(existing, incoming)
+
+    expect(result).toHaveLength(2)
+    expect(result.find(d => d.relationship === "spouse")).toBeDefined()
+    expect(result.find(d => d.relationship === "child")).toBeDefined()
+  })
+
+  it("should update existing dependent by name", async () => {
+    const { mergeDependents } = await import("../nodes/orchestrator")
+
+    const existing = [
+      { name: "Maria", age: 25, relationship: "spouse" as const }
+    ]
+    const incoming = [
+      {
+        name: "Maria",
+        age: 26,
+        relationship: "spouse" as const,
+        healthConditions: ["asma"]
+      }
+    ]
+
+    const result = mergeDependents(existing, incoming)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe("Maria")
+    expect(result[0].age).toBe(26) // Updated
+    expect(result[0].healthConditions).toContain("asma")
+  })
+
+  it("should update existing dependent by relationship+age when no name", async () => {
+    const { mergeDependents } = await import("../nodes/orchestrator")
+
+    const existing = [{ age: 25, relationship: "spouse" as const }]
+    const incoming = [
+      { name: "Maria", age: 25, relationship: "spouse" as const }
+    ]
+
+    const result = mergeDependents(existing, incoming)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].name).toBe("Maria") // Name added
+    expect(result[0].age).toBe(25)
+    expect(result[0].relationship).toBe("spouse")
+  })
+
+  it("should handle multiple children of different ages", async () => {
+    const { mergeDependents } = await import("../nodes/orchestrator")
+
+    const existing = [
+      { age: 10, relationship: "child" as const },
+      { age: 5, relationship: "child" as const }
+    ]
+    const incoming = [
+      { age: 3, relationship: "child" as const } // New child
+    ]
+
+    const result = mergeDependents(existing, incoming)
+
+    expect(result).toHaveLength(3)
+    expect(result.filter(d => d.relationship === "child")).toHaveLength(3)
+  })
+
+  it("should merge healthConditions for dependents", async () => {
+    const { mergeDependents } = await import("../nodes/orchestrator")
+
+    const existing = [
+      {
+        name: "João",
+        age: 10,
+        relationship: "child" as const,
+        healthConditions: ["asma"]
+      }
+    ]
+    const incoming = [
+      {
+        name: "João",
+        age: 10,
+        relationship: "child" as const,
+        healthConditions: ["alergia"]
+      }
+    ]
+
+    const result = mergeDependents(existing, incoming)
+
+    expect(result).toHaveLength(1)
+    expect(result[0].healthConditions).toContain("asma")
+    expect(result[0].healthConditions).toContain("alergia")
+  })
+
+  it("should handle complex scenario with spouse and multiple children", async () => {
+    const { mergeDependents } = await import("../nodes/orchestrator")
+
+    // Existing: spouse + 2 children
+    const existing = [
+      { age: 25, relationship: "spouse" as const },
+      { age: 10, relationship: "child" as const },
+      { age: 5, relationship: "child" as const }
+    ]
+
+    // Incoming: new baby
+    const incoming = [{ age: 1, relationship: "child" as const }]
+
+    const result = mergeDependents(existing, incoming)
+
+    expect(result).toHaveLength(4)
+    expect(result.find(d => d.relationship === "spouse")).toBeDefined()
+    expect(result.filter(d => d.relationship === "child")).toHaveLength(3)
+  })
+
+  it("should not duplicate when same dependent is mentioned again", async () => {
+    const { mergeDependents } = await import("../nodes/orchestrator")
+
+    const existing = [
+      { name: "Maria", age: 25, relationship: "spouse" as const }
+    ]
+    const incoming = [
+      { name: "Maria", age: 25, relationship: "spouse" as const }
+    ]
+
+    const result = mergeDependents(existing, incoming)
+
+    expect(result).toHaveLength(1)
+  })
+
+  it("should generate correct keys for dependents", async () => {
+    const { getDependentKey } = await import("../nodes/orchestrator")
+
+    // With name - uses name
+    expect(
+      getDependentKey({ name: "Maria", age: 25, relationship: "spouse" })
+    ).toBe("name:maria")
+
+    // Without name - uses relationship:age
+    expect(getDependentKey({ age: 10, relationship: "child" })).toBe("child:10")
+
+    // Without age - uses "unknown"
+    expect(getDependentKey({ relationship: "child" } as any)).toBe(
+      "child:unknown"
+    )
+  })
+
+  it("should preserve all existing dependents in mergeClientInfo", async () => {
+    const { mergeClientInfo } = await import("../nodes/orchestrator")
+
+    const existing = {
+      name: "João",
+      age: 35,
+      dependents: [
+        { age: 25, relationship: "spouse" as const },
+        { age: 10, relationship: "child" as const }
+      ]
+    }
+
+    // User mentions just one child
+    const extracted = {
+      dependents: [{ age: 5, relationship: "child" as const }]
+    }
+
+    const merged = mergeClientInfo(existing, extracted)
+
+    // Should have all 3 dependents
+    expect(merged.dependents).toHaveLength(3)
+    expect(
+      merged.dependents?.find(d => d.relationship === "spouse")
+    ).toBeDefined()
+    expect(
+      merged.dependents?.filter(d => d.relationship === "child")
+    ).toHaveLength(2)
+  })
+})
+
 describe("Router Logic", () => {
   it("should redirect to updateClientInfo when data is missing", async () => {
     const { routeToCapability } = await import("../nodes/router")
