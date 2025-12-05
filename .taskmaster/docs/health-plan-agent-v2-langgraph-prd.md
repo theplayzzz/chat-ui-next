@@ -891,26 +891,58 @@ O `messagesStateReducer` do LangGraph faz append de mensagens por ID. Problema: 
 
 **Checkpoint QA**: Enviar múltiplas mensagens em sequência. Conversa não "termina" sozinha. Agente sempre aguarda próxima mensagem. Verificar que mensagens não duplicam ao recarregar página.
 
-### Fase 5: Capacidade - Coleta de Dados (1-2 dias)
+### Fase 5: Capacidade - Coleta de Dados (1-2 dias) ✅ IMPLEMENTADA
 **🎯 QA pode testar: Agente pergunta e coleta informações**
 
-- [ ] Implementar `updateClientInfo` capability
-- [ ] Extrair dados de mensagens do usuário
-- [ ] Fazer perguntas de follow-up inteligentes
-- [ ] Validar dados coletados
-- [ ] Atualizar state com informações do cliente
+- [x] Implementar `updateClientInfo` capability
+- [x] Extrair dados de mensagens do usuário (via GPT-4o no intent-classifier)
+- [x] Fazer perguntas de follow-up inteligentes e contextuais
+- [x] Validar dados coletados (idade 0-120, estados BR, budget positivo)
+- [x] Atualizar state com informações do cliente
+- [x] **Adicional**: Smart merge de clientInfo (preserva dependentes existentes)
+- [x] **Adicional**: Remoção de dependentes via `scenarioChange`
+- [x] **Adicional**: 72 testes unitários (43 update-client-info + 29 orchestrator-loop)
 
-**Checkpoint QA**: Dizer "tenho 35 anos, moro em SP". Agente extrai e confirma. Perguntar "quantos dependentes?" se não informado.
+**Implementação:**
+- `lib/agents/health-plan-v2/nodes/capabilities/update-client-info.ts` - Capacidade principal (~500 linhas)
+- `lib/agents/health-plan-v2/state/cache-invalidation.ts` - Smart merge, invalidação, remoção de dependentes (~450 linhas)
+- `lib/agents/health-plan-v2/intent/intent-classification-types.ts` - Tipo `ScenarioChange` para remoção
+- `lib/agents/health-plan-v2/__tests__/update-client-info.test.ts` - 43 testes
+- `lib/agents/health-plan-v2/__tests__/orchestrator-loop.test.ts` - 29 testes (atualizados)
 
-### Fase 6: Capacidade - Busca RAG (1-2 dias)
-**🎯 QA pode testar: Busca de planos funciona**
+**Decisões técnicas e divergências:**
+1. **Smart Merge em cache-invalidation.ts** (não orchestrator.ts): A lógica de merge inteligente foi centralizada em `cache-invalidation.ts` junto com a invalidação, ao invés de ficar no orchestrator. Motivo: coesão - processClientInfoUpdate já era o ponto de entrada para atualizar clientInfo, fazia sentido que o merge inteligente também estivesse lá.
 
-- [ ] Implementar `searchPlans` capability (idempotente)
-- [ ] Integrar com busca RAG existente (v1)
-- [ ] Cache de resultados por hash de parâmetros
-- [ ] Mostrar planos encontrados na resposta
+2. **Remoção de dependentes via MVP**: Implementado suporte a `scenarioChange.type === 'remove_dependent'` em vez de implementar o `simulate-scenario.ts` completo da Fase 10. Motivo: solução mais simples que atende o caso de uso "na verdade é só eu e minha esposa" (remoção de filhos).
 
-**Checkpoint QA**: Fornecer dados completos → agente busca planos → mostra resumo dos planos encontrados.
+3. **Invalidação conservadora**: Qualquer mudança em clientInfo invalida cache (searchResults, analysis, recommendation), não apenas campos "críticos". Motivo: preferência do usuário por abordagem mais segura.
+
+4. **Truthiness corrigida**: Todas as verificações de `age` e `budget` usam `!== undefined` ao invés de truthiness para suportar `age=0` e `budget=0`.
+
+5. **Dependentes podem ter idade undefined**: O tipo `Dependent.age` é `number` no schema, mas na prática extrações parciais podem não ter idade. Follow-up question pergunta idade quando faltando.
+
+**Checkpoint QA**: Dizer "tenho 35 anos, moro em SP". Agente extrai e confirma. Perguntar "quantos dependentes?" se não informado. Dizer "minha esposa de 32" → adiciona dependente. Dizer "na verdade é só eu" → remove dependente.
+
+### Fase 6: Capacidade - Busca RAG
+**🎯 Implementação delegada para PRD separado**
+
+> ⚠️ **IMPORTANTE:** A implementação completa da nova estrutura RAG está documentada em:
+> `.taskmaster/docs/agentic-rag-implementation-prd.md`
+>
+> Este PRD cobre apenas a validação QA da integração final.
+
+**Fases de Implementação (PRD RAG):**
+- **Fase 6A:** Fundação de Dados - popular `plan_metadata`, índices, campo `rag_model`
+- **Fase 6B:** Grading & Rewriting - avaliação de relevância, reformulação de queries
+- **Fase 6C:** Hierarquia & Grafo - busca hierárquica, sub-grafo LangGraph
+- **Fase 6D:** Evaluation & Polish - métricas LangSmith, dataset de testes
+
+**Checkpoint QA Final (após implementação do PRD RAG):**
+- [ ] Fornecer dados completos → agente busca planos → mostra resumo dos planos encontrados
+- [ ] Verificar headers debug: `X-Docs-Graded`, `X-Docs-Relevant`, `X-Query-Rewrites`
+- [ ] Confirmar que busca hierárquica funciona (gerais primeiro, depois específicos)
+- [ ] Validar que `rag_model` da collection é respeitado
+- [ ] Testar com diferentes perfis: individual, familiar, idoso, condições pré-existentes
 
 ### Fase 7: Capacidade - Análise + Recomendação (2 dias)
 **🎯 QA pode testar: Análise e recomendação completa**
