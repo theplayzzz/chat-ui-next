@@ -2159,7 +2159,64 @@
           "24"
         ],
         "priority": "medium",
-        "subtasks": []
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implementar capability analyzeCompatibility em lib/agents/health-plan-v2/nodes/capabilities/",
+            "description": "Criar função analyzeCompatibility que integra com a ferramenta existente lib/tools/health-plan/analyze-compatibility.ts para analisar compatibilidade dos planos encontrados com o perfil do cliente.",
+            "dependencies": [],
+            "details": "Implementação:\n1. Criar arquivo analyze-compatibility.ts em lib/agents/health-plan-v2/nodes/capabilities/\n2. Importar analyzeCompatibility de lib/tools/health-plan/analyze-compatibility.ts\n3. Extrair searchResults e clientInfo do state\n4. Verificar se há resultados de busca disponíveis (searchResults não vazio)\n5. Transformar searchResults em HealthPlanDocument[] (formato esperado pela ferramenta)\n6. Calcular hash dos dados de entrada (clientInfo + planos) para cache\n7. Verificar se análise já existe no state.compatibilityAnalysis e se hash é o mesmo\n8. Se cache válido, retornar análise existente sem reprocessar\n9. Se cache inválido ou não existe, chamar analyzeCompatibility da ferramenta\n10. Atualizar state com: compatibilityAnalysis (resultado), analysisVersion (incrementar)\n11. Gerar resposta humanizada resumindo análise: \"Analisei X planos. O mais compatível é [nome] com score Y/100\"\n12. Retornar Partial<HealthPlanState> com AIMessage contendo a resposta\n13. Adicionar logs console.log para debug\n14. Tratar erros com try/catch e mensagem de fallback\n\nCampos do state a atualizar:\n- compatibilityAnalysis: RankedAnalysis | null\n- analysisVersion: number (incrementar)\n- currentResponse: string\n- messages: [new AIMessage(response)]\n- errors: StateError[] (se houver)\n\nReferências:\n- PRD Fase 7 (linhas 947-955)\n- RF-005, RF-006\n- Padrão: update-client-info.ts",
+            "status": "pending",
+            "testStrategy": "Testes unitários:\n1. Deve analisar planos quando searchResults não vazio\n2. Deve retornar cache quando hash idêntico\n3. Deve invalidar cache quando clientInfo muda\n4. Deve gerar resposta humanizada com top plan\n5. Deve incrementar analysisVersion\n6. Deve adicionar AIMessage ao state\n7. Deve tratar erro quando ferramenta falha\n8. Mock da ferramenta analyzeCompatibility\n\nTeste manual:\n- Fluxo: coletar dados → buscar planos → analisar → verificar resposta com score"
+          },
+          {
+            "id": 2,
+            "title": "Implementar capability generateRecommendation em lib/agents/health-plan-v2/nodes/capabilities/",
+            "description": "Criar função generateRecommendation que integra com a ferramenta existente lib/tools/health-plan/generate-recommendation.ts para gerar recomendações humanizadas com top 3 planos, tabela comparativa e glossário.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implementação:\n1. Criar arquivo generate-recommendation.ts em lib/agents/health-plan-v2/nodes/capabilities/\n2. Importar generateRecommendation de lib/tools/health-plan/generate-recommendation.ts\n3. Verificar se state.compatibilityAnalysis existe (depende de analyzeCompatibility)\n4. Extrair rankedAnalysis de state.compatibilityAnalysis\n5. Extrair erpPrices de state.erpPrices (pode ser null se preços não foram buscados)\n6. Preparar parâmetros GenerateRecommendationParams:\n   - rankedAnalysis (obrigatório)\n   - erpPrices (opcional)\n   - options: { includeAlternatives: true, includeAlerts: true, includeNextSteps: true, explainTechnicalTerms: true }\n7. Chamar generateRecommendation da ferramenta\n8. Verificar result.success\n9. Se sucesso, extrair result.markdown (recomendação completa formatada)\n10. Atualizar state com: recommendation (resultado completo), recommendationVersion (incrementar)\n11. Retornar AIMessage com result.markdown (inclui intro, top 3, tabela, alertas, próximos passos)\n12. Se falha, gerar fallback simples: \"Top plano: [nome] (score/100). [pros]\"\n13. Adicionar logs console.log para debug\n14. Tratar erros com try/catch\n\nCampos do state a atualizar:\n- recommendation: GenerateRecommendationResult | null\n- recommendationVersion: number (incrementar)\n- currentResponse: string (markdown completo)\n- messages: [new AIMessage(markdown)]\n- errors: StateError[] (se houver)\n\nReferências:\n- PRD Fase 7 (linhas 947-955)\n- RF-007\n- Ferramenta: lib/tools/health-plan/generate-recommendation.ts\n- Padrão: update-client-info.ts",
+            "status": "pending",
+            "testStrategy": "Testes unitários:\n1. Deve gerar recomendação quando compatibilityAnalysis existe\n2. Deve incluir markdown com intro, top 3, tabela, alertas, próximos passos\n3. Deve incluir explicações de termos técnicos (glossário)\n4. Deve funcionar com ou sem erpPrices\n5. Deve incrementar recommendationVersion\n6. Deve adicionar AIMessage com markdown ao state\n7. Deve gerar fallback quando generateRecommendation falha\n8. Mock da ferramenta generateRecommendation\n\nTeste manual:\n- Verificar formatação markdown (cabeçalhos, tabelas, listas)\n- Verificar que top 3 planos aparecem\n- Verificar glossário de termos (coparticipação, carência, etc.)"
+          },
+          {
+            "id": 3,
+            "title": "Implementar lógica de invalidação de cache baseada em versionamento do state",
+            "description": "Adicionar funções helper para detectar mudanças relevantes em clientInfo e invalidar análise/recomendação quando necessário, usando sistema de versões (clientInfoVersion, analysisVersion, recommendationVersion).",
+            "dependencies": [],
+            "details": "Implementação:\n1. Criar arquivo lib/agents/health-plan-v2/state/cache-invalidation.ts\n2. Implementar função shouldInvalidateAnalysis(state):\n   - Compara clientInfoVersion com analysisVersion\n   - Se clientInfoVersion > analysisVersion → invalidar (retorna true)\n   - Campos relevantes para invalidação: age, city, state, budget, preExistingConditions, dependents\n   - Mudanças em preferences NÃO invalidam análise (apenas recomendação)\n3. Implementar função shouldInvalidateRecommendation(state):\n   - Compara analysisVersion com recommendationVersion\n   - Se analysisVersion > recommendationVersion → invalidar\n   - Também verifica se pricesRequested mudou\n4. Implementar função incrementClientInfoVersion(state):\n   - Chamada pelo orchestrator quando clientInfo é atualizado\n   - Retorna novo clientInfoVersion = atual + 1\n5. Implementar função clearStaleAnalysis(state):\n   - Se shouldInvalidateAnalysis → limpar compatibilityAnalysis e recommendation\n   - Resetar versões\n6. Adicionar helper calculateClientInfoHash(clientInfo):\n   - Gera hash SHA256 de campos relevantes\n   - Usado para comparação rápida\n7. Adicionar testes unitários para cada função\n8. Documentar RF-008 (invalidação de cache)\n\nReferências:\n- PRD RF-008 (invalidação)\n- State: state-annotation.ts (campos de versão)\n- Padrão: versionamento incremental",
+            "status": "pending",
+            "testStrategy": "Testes unitários:\n1. shouldInvalidateAnalysis retorna true quando clientInfoVersion > analysisVersion\n2. shouldInvalidateAnalysis retorna false quando versões iguais\n3. shouldInvalidateRecommendation detecta mudança em analysisVersion\n4. incrementClientInfoVersion incrementa corretamente\n5. clearStaleAnalysis limpa campos corretos\n6. calculateClientInfoHash gera hash consistente\n7. Hash diferente quando campo relevante muda\n8. Hash igual quando apenas preferences muda\n\nTeste de integração:\n- Alterar idade → análise é invalidada\n- Alterar preferences → análise NÃO é invalidada, apenas recomendação"
+          },
+          {
+            "id": 4,
+            "title": "Integrar analyzeCompatibility e generateRecommendation no router e workflow",
+            "description": "Atualizar router.ts para incluir rotas para as novas capabilities (analyzeCompatibility, generateRecommendation) e garantir que o workflow as chama na ordem correta.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Implementação:\n1. Abrir lib/agents/health-plan-v2/nodes/router.ts\n2. Adicionar novas rotas no switch case do router:\n   - Quando lastIntent === 'buscar_planos' E searchResults existe E compatibilityAnalysis === null → 'analyzeCompatibility'\n   - Quando lastIntent === 'gerar_recomendacao' E compatibilityAnalysis existe → 'generateRecommendation'\n   - Quando compatibilityAnalysis existe mas recommendation === null → sugerir 'generateRecommendation'\n3. Adicionar lógica de invalidação:\n   - Importar shouldInvalidateAnalysis de cache-invalidation.ts\n   - Se shouldInvalidateAnalysis(state) === true → clearStaleAnalysis antes de rotear\n4. Atualizar workflow.ts:\n   - Importar analyzeCompatibility e generateRecommendation\n   - Adicionar nodes ao grafo: .addNode('analyzeCompatibility', analyzeCompatibility)\n   - Adicionar edges: 'searchPlans' → 'analyzeCompatibility' → 'generateRecommendation'\n5. Garantir que router permite re-execução de análise/recomendação se dados mudaram\n6. Adicionar logs console.log para debug de roteamento\n7. Testar fluxo completo: dados → busca → análise → recomendação\n\nFluxo esperado:\n1. Usuário fornece dados → updateClientInfo\n2. Usuário pede busca → searchPlans\n3. Sistema automaticamente chama analyzeCompatibility\n4. Sistema automaticamente chama generateRecommendation\n5. Usuário recebe recomendação completa\n\nReferências:\n- PRD Fase 7\n- Arquivo: router.ts (existente)\n- Arquivo: workflow.ts (existente)\n- Padrão: update-client-info.ts, search-plans.ts",
+            "status": "pending",
+            "testStrategy": "Testes unitários:\n1. Router roteia para analyzeCompatibility quando searchResults existe\n2. Router roteia para generateRecommendation quando compatibilityAnalysis existe\n3. Router invalida análise quando clientInfo muda\n4. Workflow executa capabilities na ordem correta\n5. Workflow não trava em loop infinito\n\nTeste de integração:\n- Fluxo completo: fornecer dados → buscar → analisar → recomendar\n- Alterar dado relevante → análise é refeita\n- Verificar que cada capability adiciona AIMessage ao histórico\n\nTeste manual:\n- Enviar \"tenho 30 anos, moro em SP, orçamento R$500\"\n- Enviar \"buscar planos\"\n- Verificar que análise e recomendação são geradas automaticamente"
+          },
+          {
+            "id": 5,
+            "title": "Criar testes unitários e validação QA para Fase 7 completa",
+            "description": "Implementar testes unitários para analyzeCompatibility e generateRecommendation capabilities, além de validação manual QA conforme checkpoints do PRD.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Implementação:\n\n**Testes Unitários:**\n1. Criar lib/agents/health-plan-v2/nodes/capabilities/__tests__/analyze-compatibility.test.ts:\n   - Mock de analyzeCompatibility da ferramenta\n   - Testa cache hit/miss\n   - Testa incremento de analysisVersion\n   - Testa resposta humanizada\n   - Testa error handling\n2. Criar lib/agents/health-plan-v2/nodes/capabilities/__tests__/generate-recommendation.test.ts:\n   - Mock de generateRecommendation da ferramenta\n   - Testa geração de markdown completo\n   - Testa inclusão de top 3, tabela, alertas, próximos passos\n   - Testa fallback quando ferramenta falha\n   - Testa com e sem erpPrices\n3. Criar lib/agents/health-plan-v2/state/__tests__/cache-invalidation.test.ts:\n   - Testa todas as funções de invalidação\n   - Testa cálculo de hash\n   - Testa clearStaleAnalysis\n4. Executar: npx vitest run ou npm test\n\n**Validação QA Manual (Checkpoints PRD):**\n1. ✅ Fluxo completo: dados → busca → análise → recomendação humanizada\n   - Fornecer: idade 30, SP, R$500\n   - Buscar planos\n   - Verificar análise automática\n   - Verificar recomendação com markdown formatado\n2. ✅ Recomendação mostra top 3 planos com scores\n   - Verificar que tabela comparativa aparece\n   - Verificar scores (0-100) de cada plano\n3. ✅ Tabela comparativa aparece\n   - Formato markdown correto\n   - Colunas: Plano, Badge, Score, Preço, Cobertura, Rede, Destaque\n4. ✅ Alterar dado → recomendação se atualiza\n   - Alterar orçamento de R$500 para R$800\n   - Verificar que análise é refeita\n   - Verificar que ranking pode mudar\n5. ✅ Glossário de termos técnicos\n   - Verificar que termos como \"coparticipação\", \"carência\", \"rede credenciada\" têm tooltip ou nota explicativa\n\n**LangSmith Traces:**\n- Verificar span 'analyzeCompatibility' aparece\n- Verificar span 'generateRecommendation' aparece\n- Verificar metadata: plansCount, topScore, executionTimeMs\n- Verificar tags: ['health-plan', 'step-3', 'compatibility']\n\nReferências:\n- PRD Fase 7 Checkpoint QA (linhas 947-955)\n- Padrão: __tests__/ em capabilities existentes",
+            "status": "pending",
+            "testStrategy": "Cobertura de testes:\n1. Testes unitários: >80% de cobertura\n2. Testes de integração: fluxo completo E2E\n3. Testes manuais QA: todos os checkpoints do PRD passam\n\nCritérios de aceite:\n- [ ] Todos os testes unitários passam\n- [ ] Fluxo completo funciona sem erros\n- [ ] Tabela comparativa renderiza corretamente\n- [ ] Glossário de termos aparece\n- [ ] Invalidação de cache funciona\n- [ ] LangSmith traces aparecem corretamente\n- [ ] Sem loops infinitos no workflow\n- [ ] Mensagens persistem corretamente no histórico"
+          }
+        ]
       },
       {
         "id": 26,
@@ -2244,13 +2301,76 @@
         "description": "Implementar avaliação de relevância de documentos (grading) e reformulação de queries (rewriting) com GPT-5-mini para Corrective RAG",
         "details": "**PRD Referência:** .taskmaster/docs/agentic-rag-implementation-prd.md (Fase 6B)\n\n**Objetivo:** Grading filtrando documentos irrelevantes, Rewriting reformulando queries quando insuficiente (Corrective RAG pattern).\n\n---\n\n**6B.1 Implementar grade-documents.ts**\n- Criar `lib/agents/health-plan-v2/nodes/rag/grade-documents.ts`\n- Prompt para avaliar relevância de cada documento vs clientInfo\n- Batch processing (5 docs por vez) para otimizar tokens\n- Retornar classificação: `relevant`, `partially_relevant`, `irrelevant`\n- Filtrar `irrelevant` do resultado final\n- Usar `state.ragModel` (default: gpt-5-mini)\n- Testes unitários (> 12 casos)\n\n**QA - O que testar:** (via headers debug ou console)\n```\nEnviar: \"Tenho 35 anos, moro em SP, orçamento R$500\"\n```\n**Resposta esperada:** Headers/logs mostram `X-Docs-Graded: 15`, `X-Docs-Relevant: 8`\n\n---\n\n**6B.2 Implementar rewrite-query.ts**\n- Criar `lib/agents/health-plan-v2/nodes/rag/rewrite-query.ts`\n- Prompt para reformular query quando < 3 docs relevantes\n- Identificar problema (nenhum resultado, baixa similaridade, termos muito específicos)\n- Limite de 2 tentativas de rewrite\n- Flag `limitedResults: true` após atingir limite\n- Usar `state.ragModel` (default: gpt-5-mini)\n- Testes unitários (> 8 casos)\n\n**QA - O que testar:** (forçar cenário com busca sem resultados)\n```\nEnviar: \"Plano que cubra tratamento experimental de câncer raro\"\n```\n**Resposta esperada:** Headers mostram `X-Query-Rewrites: 2`, `X-Limited-Results: true`\n\n---\n\n**6B.3 Criar rag-schemas.ts**\n- Criar `lib/agents/health-plan-v2/schemas/rag-schemas.ts`\n- Schema `QueryItem`: { query: string, focus: string, priority: number }\n- Schema `GradeResult`: { score: 'relevant'|'partially_relevant'|'irrelevant', reason: string, missingInfo?: string[] }\n- Schema `SearchMetadata`: { queryCount: number, rewriteCount: number, totalDocs: number, relevantDocs: number, limitedResults: boolean }\n- Validação Zod com mensagens de erro claras\n\n**QA - O que testar:** Validação TypeScript - `npm run build` sem erros de tipo\n\n---\n\n**6B.4 Criar rag-prompts.ts**\n- Criar `lib/agents/health-plan-v2/prompts/rag-prompts.ts`\n- `MULTI_QUERY_PROMPT`: Gerar queries especializadas do perfil do cliente\n- `GRADE_DOCUMENT_PROMPT`: Avaliar relevância documento vs perfil\n- `REWRITE_QUERY_PROMPT`: Reformular query identificando problema\n- Temperatura 0.1 para consistência\n- Exemplos inline para guiar o modelo\n\n**QA - O que testar:** Prompts existem e são importados corretamente nos nodes\n\n---\n\n**6B.5 Testes unitários grading/rewriting**\n- `__tests__/grade-documents.test.ts` (12+ casos)\n- `__tests__/rewrite-query.test.ts` (8+ casos)\n- Mocks para GPT-5-mini usando Vitest\n- Cenários: docs relevantes, irrelevantes, parciais, edge cases\n- Cobertura > 85%\n\n**QA - O que testar:** `npm test` passa sem erros\n\n---\n\n**Entregável:** Grading filtrando irrelevantes, Rewriting reformulando queries com limite de 2 tentativas",
         "testStrategy": "**Validação por etapa:**\n\n1. **grade-documents (Debug/Logs):**\n   - Headers debug mostram contagem de docs avaliados\n   - Filtro remove docs com score 'irrelevant'\n   - Batch de 5 docs por chamada GPT confirmado em logs\n\n2. **rewrite-query (Debug/Logs):**\n   - Headers mostram número de rewrites (0-2)\n   - Flag limitedResults=true após 2 tentativas\n   - Query reescrita é diferente da original\n\n3. **rag-schemas (Build):**\n   - npm run build compila sem erros TypeScript\n   - Schemas validam dados corretamente (testar com dados inválidos)\n\n4. **rag-prompts (Imports):**\n   - Nodes importam prompts corretamente\n   - Prompts seguem formato esperado pelo modelo\n\n5. **Testes unitários:**\n   - npm test passa para todos os arquivos\n   - Cobertura > 85% verificada com --coverage\n   - 20+ casos de teste total (12 grading + 8 rewriting)",
-        "status": "in-progress",
+        "status": "review",
         "dependencies": [
           "31"
         ],
         "priority": "high",
-        "subtasks": [],
-        "updatedAt": "2025-12-05T12:16:40.466Z"
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implementar grade-documents.ts com avaliação de relevância via GPT-5-mini",
+            "description": "Criar node que avalia relevância de documentos vs perfil do cliente usando GPT-5-mini, com batch processing de 5 docs por vez para otimizar tokens e custos",
+            "dependencies": [],
+            "details": "Criar `lib/agents/health-plan-v2/nodes/rag/grade-documents.ts` com função `gradeDocuments(documents, clientInfo, model)`. Implementar prompt para avaliar relevância de cada documento comparado ao perfil do cliente (idade, cidade, dependentes, condições). Processar em batches de 5 documentos por vez para otimizar tokens. Retornar classificação usando enum: 'relevant', 'partially_relevant', 'irrelevant'. Filtrar automaticamente documentos marcados como 'irrelevant' do resultado final. Usar `state.ragModel` com default 'gpt-5-mini'. Para GPT-5: usar modelKwargs {reasoning: {effort: 'low'}, text: {verbosity: 'medium'}}. Para outros modelos: usar temperature 0.1 para consistência. Adicionar tags LangSmith: ['grade-documents', 'health-plan-v2', 'rag']. Retornar array de GradeResult com score, reason e missingInfo opcional. Incluir logging de métricas: total avaliado, relevantes, irrelevantes. Referências: generate-queries.ts (linhas 101-122) para padrão de configuração GPT-5, result-fusion.ts para tipos de documentos.",
+            "status": "done",
+            "testStrategy": "Criar __tests__/grade-documents.test.ts com mínimo 12 casos: (1) docs 100% relevantes retorna relevant, (2) docs parciais retorna partially_relevant, (3) docs irrelevantes retorna irrelevant e filtra, (4) batch de 5 docs processa corretamente, (5) batch de 8 docs cria 2 batches, (6) clientInfo vazio usa fallback, (7) mock GPT-5-mini com modelKwargs, (8) mock gpt-4o com temperature, (9) erro LLM usa fallback, (10) timeout usa fallback, (11) edge case: doc sem metadata, (12) edge case: clientInfo com todos campos preenchidos. Validar que irrelevantes são filtrados. Testar via headers debug: enviar 'Tenho 35 anos, moro em SP, orçamento R$500', verificar headers X-Docs-Graded: 15, X-Docs-Relevant: 8. Cobertura mínima: 85%.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-05T15:48:42.144Z"
+          },
+          {
+            "id": 2,
+            "title": "Implementar rewrite-query.ts com reformulação inteligente de queries",
+            "description": "Criar node que reformula queries quando há poucos resultados relevantes (<3 docs), identificando o problema e gerando nova versão otimizada com limite de 2 tentativas",
+            "dependencies": [
+              1
+            ],
+            "details": "Criar `lib/agents/health-plan-v2/nodes/rag/rewrite-query.ts` com função `rewriteQuery(query, clientInfo, problem, attemptCount, model)`. Implementar prompt para reformular query quando < 3 docs relevantes são encontrados. Identificar tipo de problema: 'no_results' (nenhum resultado), 'low_similarity' (baixa similaridade), 'too_specific' (termos muito específicos), 'missing_context' (falta contexto). Gerar nova versão da query mais abrangente ou focada conforme problema. Limite máximo de 2 tentativas de rewrite por busca. Após 2 tentativas falhas, setar flag `limitedResults: true` no state e retornar o melhor resultado disponível. Usar `state.ragModel` com default 'gpt-5-mini'. Configuração: GPT-5 com modelKwargs {reasoning: {effort: 'low'}}, outros modelos com temperature 0.1. Tags LangSmith: ['rewrite-query', 'health-plan-v2', 'rag']. Retornar { rewrittenQuery: string, problem: string, attemptCount: number, limitedResults: boolean }. Incluir logging de cada tentativa com problema identificado e nova query. Referências: generate-queries.ts para padrão LLM, PRD seção 6B.2 (linhas 379-394).",
+            "status": "done",
+            "testStrategy": "Criar __tests__/rewrite-query.test.ts com mínimo 8 casos: (1) problema 'no_results' reformula query mais abrangente, (2) problema 'too_specific' remove termos específicos, (3) problema 'low_similarity' ajusta termos de busca, (4) primeira tentativa bem-sucedida retorna attemptCount=1, (5) segunda tentativa bem-sucedida retorna attemptCount=2, (6) após 2 tentativas seta limitedResults=true, (7) mock GPT-5-mini valida modelKwargs, (8) erro LLM retorna query original com flag de erro. Testar cenário forçado: enviar 'Plano que cubra tratamento experimental de câncer raro', verificar headers X-Query-Rewrites: 2, X-Limited-Results: true. Validar que loop não passa de 2 tentativas. Cobertura mínima: 85%.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-05T15:49:02.028Z"
+          },
+          {
+            "id": 3,
+            "title": "Criar rag-schemas.ts com schemas Zod para validação de tipos RAG",
+            "description": "Centralizar todos os schemas Zod relacionados a RAG (queries, grading, metadata) em arquivo único para validação consistente e type-safety",
+            "dependencies": [],
+            "details": "Criar `lib/agents/health-plan-v2/schemas/rag-schemas.ts` consolidando schemas Zod. Definir `QueryItemSchema`: { query: z.string().min(10).max(500), focus: z.enum(['profile', 'coverage', 'price', 'dependents', 'conditions', 'general']), priority: z.number().min(1).max(5) }. Definir `GradeResultSchema`: { documentId: z.string(), score: z.enum(['relevant', 'partially_relevant', 'irrelevant']), reason: z.string().min(10).max(300), missingInfo: z.array(z.string()).optional(), confidence: z.number().min(0).max(1).optional() }. Definir `SearchMetadataSchema`: { queryCount: z.number().min(1), rewriteCount: z.number().min(0).max(2), totalDocs: z.number().min(0), relevantDocs: z.number().min(0), limitedResults: z.boolean(), timestamp: z.string() }. Exportar tipos TypeScript inferidos: QueryItem, GradeResult, SearchMetadata. Adicionar mensagens de erro personalizadas em português para validações. Incluir helper functions: validateQueryItem(data), validateGradeResult(data), validateSearchMetadata(data) que retornam { success: boolean, data?, errors? }. Referências: generate-queries.ts (linhas 17-38) para padrão de schemas, result-fusion.ts (linhas 19-45) para estrutura de documentos.",
+            "status": "done",
+            "testStrategy": "Validação via TypeScript no build: executar `npm run build` e verificar que não há erros de tipo. Criar testes unitários simples em grade-documents.test.ts e rewrite-query.test.ts importando e validando os schemas com dados válidos e inválidos. Testar casos: (1) QueryItem válido passa validação, (2) query muito curta (<10 chars) falha, (3) priority fora do range falha, (4) GradeResult com score inválido falha, (5) SearchMetadata com rewriteCount > 2 falha, (6) helper validateQueryItem retorna errors array quando inválido, (7) tipos inferidos funcionam corretamente no TypeScript. Verificar que mensagens de erro estão em português. Garantir que schemas são reutilizáveis em todos os nodes RAG.",
+            "updatedAt": "2025-12-05T15:45:16.255Z",
+            "parentId": "undefined"
+          },
+          {
+            "id": 4,
+            "title": "Criar rag-prompts.ts com prompts otimizados para GPT-5-mini",
+            "description": "Centralizar prompts para grading e rewriting em arquivo único, otimizados para GPT-5-mini com temperatura baixa (0.1) e exemplos inline para guiar o modelo",
+            "dependencies": [],
+            "details": "Criar `lib/agents/health-plan-v2/prompts/rag-prompts.ts` com prompts estruturados. Implementar `GRADE_DOCUMENT_PROMPT`: template para avaliar relevância de documento vs perfil do cliente, incluir placeholders {documentContent}, {clientInfo}, {documentMetadata}. Prompt deve instruir modelo a classificar como relevant/partially_relevant/irrelevant e explicar razão em 1-2 frases. Incluir 2 exemplos inline: (1) doc relevante para perfil familiar com dependentes, (2) doc irrelevante para perfil individual sem correspondência. Implementar `REWRITE_QUERY_PROMPT`: template para reformular query identificando problema ({problem}, {originalQuery}, {clientInfo}), gerar nova query mais efetiva. Incluir 2 exemplos: (1) query too_specific -> versão mais abrangente, (2) query no_results -> adicionar contexto do cliente. Ambos prompts devem: (a) usar linguagem clara em português, (b) especificar formato JSON de resposta, (c) instruir temperatura conceitual baixa (ser consistente, não criativo), (d) incluir constraints (tamanho mínimo/máximo de strings). Adicionar constantes: GRADING_TEMPERATURE = 0.1, REWRITING_TEMPERATURE = 0.1 (usados apenas para modelos não-GPT-5). Exportar também helper `formatClientInfoForPrompt(clientInfo)` que transforma objeto em texto legível. Referências: generate-queries.ts (linhas 59-85) para padrão de prompts, PRD seção 6B.4 (linhas 404-412).",
+            "status": "done",
+            "testStrategy": "Validação de existência e importação: verificar que grade-documents.ts e rewrite-query.ts importam e usam os prompts corretamente. Testes manuais: (1) executar grading com GRADE_DOCUMENT_PROMPT e verificar que resposta segue formato esperado (JSON com score e reason), (2) executar rewriting com REWRITE_QUERY_PROMPT e verificar reformulação coerente. Testes unitários em grade-documents.test.ts e rewrite-query.test.ts devem mockar responses da LLM que seguem o formato dos prompts. Validar que placeholders {documentContent}, {clientInfo} etc são substituídos corretamente. Verificar que helper formatClientInfoForPrompt retorna string legível com todas as informações do cliente formatadas. Confirmar que temperatura 0.1 é aplicada em modelos não-GPT-5. Garantir que exemplos inline nos prompts são claros e guiam o modelo corretamente.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-05T15:46:33.823Z"
+          },
+          {
+            "id": 5,
+            "title": "Implementar testes unitários completos para grading e rewriting com mocks GPT-5-mini",
+            "description": "Criar suíte abrangente de testes para grade-documents.ts e rewrite-query.ts usando Vitest, com mocks para chamadas LLM e cobertura mínima de 85%",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Criar `lib/agents/health-plan-v2/nodes/rag/__tests__/grade-documents.test.ts` com 12+ casos de teste. Usar Vitest com mocks para ChatOpenAI (importado de @langchain/openai). Casos obrigatórios: (1-3) grading de docs relevant/partially_relevant/irrelevant retorna classificação correta, (4-5) batch processing de 5 e 8 docs, (6) fallback quando GPT-5-mini falha, (7-8) validação de modelKwargs para GPT-5 e temperature para gpt-4o, (9-10) edge cases: doc sem metadata, clientInfo vazio, (11-12) timeout e erro de rede. Criar `lib/agents/health-plan-v2/nodes/rag/__tests__/rewrite-query.test.ts` com 8+ casos. Casos obrigatórios: (1-3) rewrite para problemas no_results/too_specific/low_similarity, (4-5) limite de 2 tentativas respeitado, (6) flag limitedResults setada após 2 falhas, (7-8) mock GPT-5-mini e fallback em erro. Ambos arquivos devem: (a) mockar ChatOpenAI.invoke() retornando responses estruturadas, (b) usar beforeEach() para setup de mocks, (c) usar afterEach() para cleanup, (d) validar que schemas Zod são respeitados, (e) verificar logging de métricas (console.log). Configurar coverage no vitest.config.ts para reportar cobertura mínima 85%. Executar `npm test` deve passar todos os testes. Referências: generate-queries.test.ts e result-fusion.test.ts como exemplos de estrutura de testes (mencionados no PRD linhas 296, 320).",
+            "status": "in-progress",
+            "testStrategy": "Executar `npm test` e verificar que todos os testes passam sem erros. Validar cobertura: executar `npm test -- --coverage` e confirmar que grade-documents.ts e rewrite-query.ts têm cobertura >= 85%. Revisar relatório de coverage para identificar linhas não cobertas e adicionar testes se necessário. Testes devem ser determinísticos (não depender de chamadas reais à API). Validar que mocks retornam exatamente o formato esperado pelos schemas Zod. Testar localmente cada arquivo individualmente: `npm test grade-documents.test.ts` e `npm test rewrite-query.test.ts`. Confirmar que não há warnings ou erros de tipo no console. Garantir que testes podem rodar em CI/CD sem configurações adicionais. Documentar casos de teste complexos com comentários explicativos.",
+            "parentId": "undefined",
+            "updatedAt": "2025-12-05T15:49:03.126Z"
+          }
+        ],
+        "updatedAt": "2025-12-05T16:13:02.170Z"
       },
       {
         "id": 33,
@@ -2281,15 +2401,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-12-05T12:16:40.472Z",
+      "lastModified": "2025-12-05T16:13:02.177Z",
       "taskCount": 34,
       "completedCount": 23,
       "tags": [
         "master"
       ],
-      "created": "2025-12-05T12:46:10.013Z",
+      "created": "2025-12-05T16:13:09.886Z",
       "description": "Tasks for master context",
-      "updated": "2025-12-05T12:46:10.013Z"
+      "updated": "2025-12-05T16:13:09.886Z"
     }
   }
 }

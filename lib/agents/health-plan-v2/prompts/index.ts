@@ -10,5 +10,5 @@ export * from "@/lib/tools/health-plan/prompts/extraction-prompts"
 export * from "@/lib/tools/health-plan/prompts/compatibility-prompts"
 export * from "@/lib/tools/health-plan/prompts/recommendation-prompts"
 
-// V2-specific prompts will be added here
-// export * from "./intent-classification-prompts"
+// V2-specific prompts
+export * from "./rag-prompts"

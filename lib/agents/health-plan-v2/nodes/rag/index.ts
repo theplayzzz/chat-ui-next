@@ -29,3 +29,24 @@ export {
   type RRFOptions,
   type FusionStats
 } from "./result-fusion"
+
+// Document Grading (Fase 6B.1)
+export {
+  gradeDocuments,
+  filterRelevantDocuments,
+  countByScore,
+  type GradeDocumentsOptions,
+  type GradeDocumentsResult
+} from "./grade-documents"
+
+// Query Rewriting (Fase 6B.2)
+export {
+  rewriteQuery,
+  detectProblem,
+  shouldRewrite,
+  createRewriteContext,
+  MAX_REWRITE_ATTEMPTS,
+  MIN_RELEVANT_DOCS,
+  type RewriteQueryOptions,
+  type RewriteContext
+} from "./rewrite-query"
