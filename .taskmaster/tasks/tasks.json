@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": "1",
+        "id": 1,
         "title": "Configurar ambiente básico do agente",
         "description": "Configurar dependências essenciais para o agente de planos de saúde",
         "details": "Configurar dependências básicas: instalar OpenAI SDK com configuração padrão. Configurar variáveis de ambiente: OpenAI API key. Utilizar infraestrutura Supabase existente sem modificações. Usar embeddings OpenAI text-embedding-3-small. Implementar endpoint básico de verificação de status.",
@@ -63,7 +63,7 @@
         "expansionPrompt": "Esta tarefa envolve configuração básica e já tem subtarefas bem definidas. Manter as 4 subtarefas existentes: instalar SDK OpenAI, configurar variáveis de ambiente, implementar geração de embeddings e criar endpoint de status. Considere adicionar testes de integração como subtarefa extra."
       },
       {
-        "id": "2",
+        "id": 2,
         "title": "Estender schema do banco para sistema de recomendações multi-nicho",
         "description": "Criar/atualizar tabelas necessárias para suportar sistema genérico de recomendações que comece com agente de planos de saúde mas permita expansão para outros nichos",
         "details": "Executar migrations: ALTER TABLE collections ADD COLUMN chunk_size INT DEFAULT 4000 CHECK (chunk_size > 0), chunk_overlap INT DEFAULT 200 CHECK (chunk_overlap >= 0 AND chunk_overlap < chunk_size), collection_type TEXT CHECK (collection_type IN ('health_plan', 'insurance', 'financial', 'general')); ALTER TABLE file_items ADD COLUMN plan_metadata JSONB, ADD CONSTRAINT valid_plan_metadata CHECK (jsonb_typeof(plan_metadata) = 'object' OR plan_metadata IS NULL); CREATE INDEX idx_file_items_plan_metadata ON file_items USING gin(plan_metadata); CREATE INDEX idx_collections_type ON collections(collection_type); CREATE TABLE recommendation_systems (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), system_name VARCHAR(100) NOT NULL UNIQUE, description TEXT, config_schema JSONB NOT NULL, is_active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE TABLE client_recommendations (id UUID PRIMARY KEY DEFAULT gen_random_uuid(), workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE, user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, recommendation_system_id UUID NOT NULL REFERENCES recommendation_systems(id), client_info JSONB NOT NULL, analyzed_data JSONB, recommended_item JSONB, reasoning TEXT NOT NULL, confidence_score DECIMAL(3,2) CHECK (confidence_score >= 0 AND confidence_score <= 1), langsmith_run_id TEXT, status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived', 'superseded')), created_at TIMESTAMP DEFAULT now(), updated_at TIMESTAMP DEFAULT now()); CREATE INDEX idx_client_recommendations_workspace ON client_recommendations(workspace_id); CREATE INDEX idx_client_recommendations_user ON client_recommendations(user_id); CREATE INDEX idx_client_recommendations_system ON client_recommendations(recommendation_system_id); CREATE INDEX idx_client_recommendations_status ON client_recommendations(status); CREATE INDEX idx_client_recommendations_confidence ON client_recommendations(confidence_score DESC); INSERT INTO recommendation_systems (system_name, description, config_schema) VALUES ('health_plan_agent', 'Sistema de recomendação de planos de saúde', '{\"required_fields\": [\"age\", \"location\", \"coverage_type\"], \"optional_fields\": [\"income\", \"family_size\", \"medical_history\"]}'); Aproveitar tabelas existentes: collections, assistant_collections, file_items, assistant_workspaces. Adicionar triggers para updated_at e validações adicionais para integridade dos dados.",
@@ -160,7 +160,7 @@
         "updatedAt": "2025-11-13T20:23:25.657Z"
       },
       {
-        "id": "3",
+        "id": 3,
         "title": "Criar assistente especializado em planos de saúde",
         "description": "Configurar assistente dedicado com prompt otimizado e associação às collections de planos",
         "details": "Criar assistente usando sistema existente com configurações específicas: nome 'Agente de Planos de Saúde', modelo GPT-4o, temperatura 0.3, prompt especializado em coleta de informações e recomendação de planos. Associar assistente a collections via assistant_collections. Configurar controle de acesso por workspace via assistant_workspaces apenas para workspaces autorizados. Utilizar sistema existing de criação/gerenciamento de assistentes.",
@@ -241,7 +241,7 @@
         "updatedAt": "2025-11-13T22:37:23.294Z"
       },
       {
-        "id": "4",
+        "id": 4,
         "title": "Implementar sistema RAG configurável para documents",
         "description": "Estender sistema de Collections existente para suportar chunking configurável específico para planos de saúde",
         "details": "Estender interface existente de Collections para adicionar configuração de chunking: campos chunk_size (500-4000 tokens) e chunk_overlap (50-500 tokens). Utilizar LangChain RecursiveCharacterTextSplitter configurável. Implementar reprocessamento automático quando parâmetros de chunk mudarem. Organizar collections por plano: 'plano_unimed_1', 'plano_bradesco_saude', 'collection_geral'. Aproveitar sistema existente de embeddings OpenAI 1536 dims e pgvector.",
@@ -320,7 +320,7 @@
         "updatedAt": "2025-11-14T20:28:49.840Z"
       },
       {
-        "id": "5",
+        "id": 5,
         "title": "Desenvolver ferramenta extractClientInfo",
         "description": "Implementar tool que extrai informações do cliente de forma conversacional usando GPT-4o",
         "details": "Criar function tool em /lib/tools/health-plan/extract-client-info.ts que usa GPT-4o para extrair: idade titular, dependentes (relação + idade), condições pré-existentes, medicamentos contínuos, cidade/região, orçamento, preferências. Retornar JSON estruturado com schema validado via Zod. Implementar validação de campos obrigatórios e identificação de informações faltantes. Integrar com Vercel AI SDK para function calling.",
@@ -422,7 +422,7 @@
         "updatedAt": "2025-11-16T14:59:08.031Z"
       },
       {
-        "id": "6",
+        "id": 6,
         "title": "Desenvolver ferramenta searchHealthPlans",
         "description": "Implementar busca inteligente em múltiplas collections de planos usando RAG",
         "details": "Criar function em /lib/tools/health-plan/search-health-plans.ts que: obtém collections do assistente via assistant_collections, executa busca vetorial em cada collection separadamente usando função existente match_file_items_openai estendida, aplica filtros por metadata (região, operadora), agrega resultados de todas collections, implementa re-ranking por relevância global. Suportar top-K configurável (10-20 por collection). Query otimizada baseada no perfil do cliente.",
@@ -500,7 +500,7 @@
         "updatedAt": "2025-11-16T19:55:19.993Z"
       },
       {
-        "id": "7",
+        "id": 7,
         "title": "Desenvolver ferramenta analyzeCompatibility",
         "description": "Implementar análise de compatibilidade entre perfil do cliente e planos usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/analyze-compatibility.ts que usa GPT-4o para: analisar elegibilidade (idade, região, condições), avaliar coberturas relevantes ao perfil, identificar exclusões importantes, calcular score 0-100, gerar justificativa detalhada, identificar alertas críticos (carências, limitações). Processar até 10 planos simultaneamente, retornar ranking ordenado por score.",
@@ -631,7 +631,7 @@
         "updatedAt": "2025-11-18T19:32:01.115Z"
       },
       {
-        "id": "8",
+        "id": 8,
         "title": "Desenvolver integração com API ERP",
         "description": "Implementar ferramenta fetchERPPrices para consultar preços atualizados de planos. Sistema completo implementado com 6 fases: configuração workspace, cliente HTTP robusto, cálculo familiar, cache inteligente, graceful degradation e suite de testes.",
         "status": "done",
@@ -723,7 +723,7 @@
         "expansionPrompt": "Dividir em: 1) Projetar interface de configuração por workspace para credenciais ERP, 2) Implementar cliente HTTP com timeout, retry e tratamento de erros, 3) Desenvolver cálculo de preços familiares (titular + dependentes), 4) Implementar sistema de cache inteligente (15 min) com invalidação, 5) Criar graceful degradation quando API falha, 6) Implementar testes com mock servers e validação de edge cases."
       },
       {
-        "id": "9",
+        "id": 9,
         "title": "Desenvolver ferramenta generateRecommendation",
         "description": "Implementar geração de recomendação humanizada usando GPT-4o",
         "details": "Criar function em /lib/tools/health-plan/generate-recommendation.ts que gera: recomendação principal + justificativa, alternativas (econômica/premium), comparativo top 3 em tabela Markdown, alertas importantes (carências, exclusões), próximos passos. Usar temperatura baixa (0.1) para consistência, linguagem empática e clara, termos técnicos explicados.",
@@ -807,7 +807,7 @@
         "updatedAt": "2025-11-24T01:18:46.884Z"
       },
       {
-        "id": "10",
+        "id": 10,
         "title": "Criar orquestrador multi-step",
         "description": "Implementar API route que coordena os 5 passos do processo de recomendação",
         "details": "Criar /app/api/chat/health-plan-agent/route.ts com: execução sequencial dos 5 tools, gerenciamento de estado de sessão, streaming de respostas via Vercel AI SDK, timeout total 60s (Node.js runtime), tratamento de erros por step, logs detalhados, integração com LangSmith para rastreamento. Implementar session-manager.ts para persistir estado entre steps.",
@@ -885,7 +885,7 @@
         "updatedAt": "2025-11-27T20:43:39.734Z"
       },
       {
-        "id": "11",
+        "id": 11,
         "title": "Implementar controle de acesso por workspace",
         "description": "Configurar sistema de permissões para liberar agente apenas para workspaces autorizados",
         "details": "Utilizar sistema existente assistant_workspaces para controle de acesso. Implementar verificação automática no frontend (assistente só aparece se autorizado), validação backend (403 se não autorizado), interface admin para gerenciar workspaces autorizados. RLS do Supabase garante segurança a nível de banco. Aproveitar sistema de permissões existente da aplicação.",
@@ -955,7 +955,7 @@
         "updatedAt": "2025-11-18T01:52:17.687Z"
       },
       {
-        "id": "12",
+        "id": 12,
         "title": "Desenvolver componentes React especializados",
         "description": "Criar interface especializada para interação com agente de planos de saúde",
         "details": "Criar componentes em /components/health-plan/: health-plan-chat.tsx (wrapper principal), progress-indicator.tsx (barra 5 steps), client-info-card.tsx (resumo info coletadas), plan-comparison.tsx (tabela comparativa), recommendation-panel.tsx (recomendação final). Usar design system existente (Radix UI + Tailwind), compatível com tema escuro/claro, responsivo mobile.",
@@ -1069,7 +1069,7 @@
         "updatedAt": "2025-11-28T18:44:30.731Z"
       },
       {
-        "id": "13",
+        "id": 13,
         "title": "Implementar sistema de auditoria e compliance",
         "description": "Criar sistema de logs para compliance LGPD e auditoria de recomendações",
         "details": "Implementar registro automático em health_plan_recommendations: timestamp, workspace/usuário, informações cliente (anonimizadas se necessário), planos analisados, recomendação + justificativa, preços consultados, langsmith_run_id. Interface de consulta histórico com filtros, exportação CSV, retenção configurável (2 anos default). Criptografia em repouso via Supabase.",
@@ -1159,7 +1159,7 @@
         "updatedAt": "2025-11-28T20:28:59.185Z"
       },
       {
-        "id": "14",
+        "id": 14,
         "title": "Integrar monitoramento LangSmith",
         "description": "Configurar observabilidade completa com LangSmith SDK para rastreamento e análise",
         "details": "Configurar LangSmith SDK: rastreamento todas chamadas LLM (GPT-4o), tracking cada step do orquestrador, métricas (latência por tool, tokens consumidos, custos, taxa sucesso/erro), dashboards performance, alertas para erros/timeouts. Implementar em cada tool individual e no orquestrador principal. Correlation ID para tracking completo da sessão.",
@@ -1284,7 +1284,7 @@
         "updatedAt": "2025-11-29T13:46:38.286Z"
       },
       {
-        "id": "15",
+        "id": 15,
         "title": "Criar interface admin para gerenciamento de documentos",
         "description": "Estender interface existing de Collections para gerenciar documentos de planos com chunking configurável",
         "details": "Estender interface existing sidebar Collections: adicionar campos chunk_size/chunk_overlap configuráveis, preview como documentos serão divididos, tags/categorias para collections (plano_specific, geral), status processamento por collection, estatísticas (chunks, tokens, documentos), controle associação assistente ↔ collections. Manter drag-and-drop upload, progress bars, filtros existentes.",
@@ -1379,7 +1379,7 @@
         "updatedAt": "2025-12-02T18:53:36.587Z"
       },
       {
-        "id": "16",
+        "id": 16,
         "title": "Teste de Autopilot TDD",
         "description": "Task de demonstração para testar os 3 agentes do autopilot",
         "details": "",
@@ -1449,7 +1449,7 @@
         ]
       },
       {
-        "id": "17",
+        "id": 17,
         "title": "Criar interface administrativa para configuração ERP por workspace",
         "description": "Desenvolver UI completa para gerenciar credenciais da API ERP, incluindo formulário CRUD de configurações, dashboard de estatísticas do cache, histórico de chamadas à API, painel de monitoramento de health checks, validação de credenciais e gestão de permissões.",
         "details": "Implementar interface administrativa em /components/admin/erp-config/ com os seguintes componentes:\n\n1. **erp-config-form.tsx**: Formulário CRUD completo para workspace_erp_config usando helpers de db/workspace-erp-config.ts (getERPConfigByWorkspaceId, createERPConfig, updateERPConfig, deleteERPConfig). Campos: api_url (validação URL), api_key (input type password, sem exibir valor atual), custom_headers (JSON editor), timeout_ms (number, 1000-60000), max_retries (number, 0-5), cache_ttl_seconds (number, 60-86400). Botão \"Testar Conectividade\" que chama endpoint de validação usando ERPClient.fetchPrices() com dados mock.\n\n2. **cache-stats-dashboard.tsx**: Dashboard de estatísticas do cache usando dados de lib/cache/erp-cache-manager.ts. Métricas em cards: Hit Rate (%), Miss Rate (%), Total Entries, Evictions (últimas 24h). Gráfico temporal de hits/misses usando Recharts. Botão \"Limpar Cache\" que chama endpoint clear cache por workspace.\n\n3. **api-call-history.tsx**: Tabela de histórico de chamadas à API ERP. Colunas: timestamp, workspace, status (success/error), response_time_ms, cache_hit, error_message. Filtros: range de datas (react-day-picker), workspace (dropdown), status (checkboxes). Paginação server-side (20 registros por página). Implementar tabela supabase erp_api_logs via migration.\n\n4. **health-monitor-panel.tsx**: Painel de monitoramento com indicador visual (verde/amarelo/vermelho) do status da API ERP. Últimos 5 health checks com timestamps e latência. Configurar cron job (Vercel/Supabase) que executa health check a cada 5 minutos e armazena em erp_health_checks table. Alertas automáticos se taxa de erro > 20% em 1 hora.\n\n5. **erp-config-page.tsx**: Página principal em /app/[locale]/[workspaceId]/admin/erp-config/page.tsx que integra todos componentes. Verificação de permissões: apenas admins do workspace (checar role via Supabase auth.users metadata ou workspace_users table). Usar layout admin existente, Radix UI components (Dialog, Tabs, Select, Card), Tailwind classes do design system, suporte dark/light mode.\n\n**Migrations necessárias:**\n- 20251119000001_create_erp_api_logs.sql: tabela erp_api_logs (id, workspace_id, timestamp, status, response_time_ms, cache_hit, error_message, request_params JSONB)\n- 20251119000002_create_erp_health_checks.sql: tabela erp_health_checks (id, workspace_id, timestamp, status, latency_ms, error_details)\n- Ambas com RLS policies baseadas em workspace_id\n\n**API Endpoints:**\n- POST /api/admin/erp-config/test: valida credenciais chamando ERPClient\n- DELETE /api/admin/erp-config/cache/clear: limpa cache por workspace\n- GET /api/admin/erp-config/logs: retorna histórico paginado\n- GET /api/admin/erp-config/health: retorna últimos health checks",
@@ -1531,7 +1531,7 @@
         "updatedAt": "2025-11-30T22:05:48.351Z"
       },
       {
-        "id": "18",
+        "id": 18,
         "title": "Corrigir falha de validação Zod e melhorar UX de coleta de dados na primeira interação",
         "description": "Resolver falha de validação quando usuário envia saudação inicial (\"ola\", \"oi\") implementando detecção de saudações, melhorando prompts GPT-4o para retornar JSON vazio quando não há dados, e consolidando coleta de campos obrigatórios em pergunta única inicial.",
         "details": "## Contexto do Problema\n\n**Arquivos Afetados:**\n- `lib/tools/health-plan/extract-client-info.ts` (linhas 42-170)\n- `lib/tools/health-plan/prompts/extraction-prompts.ts` (linhas 10-134)\n- `lib/tools/health-plan/validators/missing-fields-detector.ts` (linhas 98-153)\n- `lib/tools/health-plan/orchestrator.ts` (linhas 537-557)\n\n**Diagnóstico:**\n1. **Validação Zod falha com tipos inválidos**: Quando usuário diz \"ola\", GPT-4o tenta extrair dados e retorna `{\"age\": \"não informado\"}`. O `PartialClientInfoSchema` aceita campos ausentes mas NÃO aceita tipos errados (age deve ser number, não string)\n2. **Sem detecção de saudação**: Código sempre executa extração mesmo para mensagens sem informações\n3. **UX ruim - coleta incremental**: Fluxo pergunta um campo por vez (idade → cidade → estado → orçamento) ao invés de pedir tudo na primeira interação\n\n## Implementação\n\n### 1. Melhorar Prompt de Extração (extraction-prompts.ts)\n\n**Adicionar ao EXTRACTION_SYSTEM_PROMPT (após linha 44):**\n```typescript\n6. **Saudações e Mensagens Vazias**:\n   - Se a mensagem é apenas uma saudação (\"oi\", \"olá\", \"bom dia\") sem informações → retorne {}\n   - Se não há NENHUMA informação extraível → retorne {}\n   - Exemplo: \"ola\" → {}\n   - Exemplo: \"bom dia\" → {}\n   - Exemplo: \"oi, tudo bem?\" → {}\n```\n\n**Adicionar exemplo no EDGE_CASE_EXAMPLES (após linha 219):**\n```typescript\ngreetingOnly: {\n  input: \"ola\",\n  output: {} // JSON vazio quando não há informações\n},\ninitialGreeting: {\n  input: \"bom dia! como funciona?\",\n  output: {} // JSON vazio para saudação sem dados\n}\n```\n\n### 2. Adicionar Fallback de Validação (extract-client-info.ts)\n\n**Modificar após linha 100 (bloco de validação falha):**\n```typescript\nif (!parseResult.success || !parseResult.data) {\n  // Se não há currentInfo, é primeira interação - retornar pergunta inicial ao invés de erro\n  if (!params.currentInfo) {\n    console.log(\"[extract-client-info] ⚠️ Validation failed on first interaction, returning initial question\")\n    return {\n      clientInfo: {},\n      missingFields: [\"idade\", \"cidade\", \"estado\", \"orçamento mensal\"],\n      isComplete: false,\n      completeness: 0,\n      nextQuestion: await generateInitialQuestion(openai)\n    }\n  }\n  \n  // Se já tem currentInfo, significa que extração falhou - lançar erro\n  throw new Error(\n    `Erro ao validar resposta: ${parseResult.errors?.join(\", \")}`\n  )\n}\n```\n\n### 3. Criar Pergunta Inicial Consolidada (extract-client-info.ts)\n\n**Adicionar nova função após linha 232:**\n```typescript\n/**\n * Gera pergunta inicial consolidada pedindo TODOS os campos obrigatórios\n * de uma vez na primeira interação\n * \n * @param openai - OpenAI client\n * @returns Pergunta consolidada\n */\nasync function generateInitialQuestion(openai: OpenAI): Promise<string> {\n  const defaultQuestion = `Olá! Para encontrar os melhores planos de saúde para você, preciso de algumas informações básicas:\n\n📋 **Informações necessárias:**\n- Sua **idade**\n- **Cidade** e **estado** onde você mora\n- **Orçamento mensal** disponível para o plano\n\nVocê também pode me contar se vai incluir **dependentes** (cônjuge, filhos, pais) ou se tem alguma **condição de saúde** que eu deva considerar.\n\nPode compartilhar essas informações? Pode ser de forma natural, sem se preocupar com a ordem! 😊`\n\n  try {\n    const response = await openai.chat.completions.create({\n      model: \"gpt-4o\",\n      messages: [\n        {\n          role: \"system\",\n          content: \"Você é um assistente empático que coleta informações para recomendação de planos de saúde. Gere uma pergunta inicial amigável que pede TODOS os campos obrigatórios de uma vez: idade, cidade, estado, orçamento mensal. Mantenha tom conversacional e empático.\"\n        },\n        {\n          role: \"user\",\n          content: \"Gere a pergunta inicial consolidada pedindo idade, cidade, estado e orçamento de forma natural e amigável.\"\n        }\n      ],\n      temperature: 0.7,\n      max_tokens: 200\n    })\n\n    return response.choices[0]?.message?.content || defaultQuestion\n  } catch (error) {\n    console.error(\"[generateInitialQuestion] Error:\", error)\n    return defaultQuestion\n  }\n}\n```\n\n### 4. Modificar generateNextQuestion para Campos Faltantes (extract-client-info.ts)\n\n**Modificar função generateNextQuestion (linha 180) para só ser chamada quando já há ALGUNS dados:**\n```typescript\nasync function generateNextQuestion(\n  field: string,\n  currentInfo: PartialClientInfo,\n  openai: OpenAI\n): Promise<string> {\n  // Se não há NENHUM campo obrigatório preenchido, usar pergunta inicial consolidada\n  const hasAnyRequired = currentInfo.age || currentInfo.city || currentInfo.state || currentInfo.budget\n  \n  if (!hasAnyRequired) {\n    return generateInitialQuestion(openai)\n  }\n  \n  // Caso contrário, perguntar apenas o campo específico faltante\n  const questionPrompts: Record<string, string> = {\n    age: \"Só falta me dizer: quantos anos você tem?\",\n    city: \"E em qual cidade você mora?\",\n    state: \"Qual é o estado? (sigla, tipo SP, RJ, MG...)\",\n    budget: \"Por último, quanto você pode investir mensalmente no plano? (valor aproximado)\",\n    dependents: \"Você vai incluir dependentes no plano? Se sim, pode me contar sobre eles?\",\n    preExistingConditions: \"Você ou alguém da sua família tem alguma condição de saúde pré-existente?\",\n    medications: \"Alguém usa medicamentos de forma contínua? Quais?\",\n    preferences: \"Tem alguma preferência específica de rede credenciada ou hospitais?\"\n  }\n  \n  // ... resto do código permanece igual\n}\n```\n\n### 5. Adicionar Testes (extract-client-info.test.ts)\n\n**Adicionar novos casos de teste:**\n```typescript\ndescribe(\"Greeting detection and initial question\", () => {\n  it(\"deve retornar JSON vazio para saudação simples\", () => {\n    const greetingJson = JSON.stringify({})\n    const result = parseClientInfo(greetingJson)\n    \n    expect(result.success).toBe(true)\n    expect(result.data).toBeDefined()\n    expect(Object.keys(result.data || {}).length).toBe(0)\n  })\n  \n  it(\"deve gerar pergunta inicial quando não há dados extraídos\", async () => {\n    const messages = [\n      { role: \"user\" as const, content: \"ola\" }\n    ]\n    \n    const result = await extractClientInfo(\n      { messages, currentInfo: undefined },\n      process.env.OPENAI_API_KEY!\n    )\n    \n    expect(result.isComplete).toBe(false)\n    expect(result.nextQuestion).toBeDefined()\n    expect(result.nextQuestion).toContain(\"idade\")\n    expect(result.nextQuestion).toContain(\"cidade\")\n    expect(result.nextQuestion).toContain(\"estado\")\n    expect(result.nextQuestion).toContain(\"orçamento\")\n  })\n  \n  it(\"deve aceitar dados parciais na primeira resposta\", () => {\n    const partialJson = JSON.stringify({\n      age: 35,\n      city: \"São Paulo\",\n      state: \"SP\"\n      // budget faltando\n    })\n    \n    const result = parseClientInfo(partialJson)\n    expect(result.success).toBe(true)\n    expect(result.data?.age).toBe(35)\n  })\n})\n```\n\n### 6. Integração com Orquestrador (orchestrator.ts)\n\n**Verificar que handleStepResult (linha 448) já trata corretamente:**\n- ✅ Retorna `nextQuestion` quando `isComplete: false`\n- ✅ Atualiza sessão com `currentStep: 1` para permitir nova tentativa\n- ✅ Não avança para step 2 até `isComplete: true`\n\nNenhuma modificação necessária no orquestrador.\n\n## Arquivos a Criar/Modificar\n\n1. **Modificar:** `lib/tools/health-plan/prompts/extraction-prompts.ts`\n2. **Modificar:** `lib/tools/health-plan/extract-client-info.ts` \n3. **Modificar:** `lib/tools/health-plan/__tests__/extract-client-info.test.ts`\n\n## Resultado Esperado\n\n**Antes (comportamento atual):**\n```\nUser: \"ola\"\nGPT: [tenta extrair] → {\"age\": \"não informado\"}\nZod: ❌ Validation Error: Expected number, received string\nLangSmith: Erro capturado\n```\n\n**Depois (comportamento esperado):**\n```\nUser: \"ola\"\nGPT: {} (JSON vazio)\nZod: ✅ Valid (PartialClientInfoSchema aceita objeto vazio)\nAgent: \"Olá! Para encontrar os melhores planos para você, preciso de:\n        - Sua idade\n        - Cidade e estado\n        - Orçamento mensal\n        Pode compartilhar?\"\n```\n\n**Fluxo de dados parciais:**\n```\nUser: \"Tenho 35 anos e moro em SP\"\nGPT: {\"age\": 35, \"state\": \"SP\"}\nZod: ✅ Valid (campos parciais aceitos)\nAgent: \"Ótimo! Só falta: qual cidade em SP e quanto pode investir mensalmente?\"\n```",
@@ -1612,7 +1612,7 @@
         "updatedAt": "2025-12-01T13:46:26.585Z"
       },
       {
-        "id": "19",
+        "id": 19,
         "title": "Fase 1: Setup + Endpoint Stub + Frontend",
         "description": "Configurar infraestrutura base: dependências LangGraph.js, endpoint stub, assistente no banco, PostgresSaver.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7. Plano de Implementação > Fase 1 (linhas 775-787)\n\nItens de implementação:\n1. Instalar dependências LangGraph.js (@langchain/langgraph, @langchain/langgraph-checkpoint-postgres, @langchain/openai@0.5.10)\n2. Criar estrutura de diretórios lib/agents/health-plan-v2/\n3. Criar endpoint /api/chat/health-plan-agent-v2 com resposta stub\n4. Configurar streaming com LangChainAdapter.toDataStreamResponse()\n5. Criar assistente \"Health Plan v2\" no banco (visibilidade por workspace)\n6. Copiar schemas/prompts/templates do v1 (lib/tools/health-plan/)\n7. Configurar PostgresSaver com DATABASE_URL_POOLER (seção 6.4)\n8. Criar migration para tabelas de checkpoint (schema: langgraph)\n\nVercel config (seção 6.4): runtime='nodejs', maxDuration=300",
@@ -1726,7 +1726,7 @@
         "updatedAt": "2025-12-03T18:31:03.875Z"
       },
       {
-        "id": "20",
+        "id": 20,
         "title": "Fase 2: State + Persistência",
         "description": "Implementar HealthPlanStateAnnotation e integrar checkpointer para persistência de conversas.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 2 (linhas 789-798)\n📍 Seção: 3.1 HealthPlanStateAnnotation\n\nItens de implementação:\n1. Implementar HealthPlanStateAnnotation (seção 3.1):\n   - messages: BaseMessage[]\n   - clientInfo: Partial<ClientData>\n   - searchResults: HealthPlan[] | null\n   - compatibilityAnalysis: CompatibilityResult[] | null\n   - prices: PriceInfo[] | null\n   - recommendation: string | null\n   - currentIntent: UserIntent\n   - conversationPhase: string\n   - cacheVersion: Record<string, number>\n2. Definir tipos UserIntent (seção 3.2)\n3. Integrar checkpointer no endpoint\n4. Testar persistência: refresh mantém histórico\n5. Implementar versionamento de estado para cache",
@@ -1819,7 +1819,7 @@
         "updatedAt": "2025-12-03T22:07:51.905Z"
       },
       {
-        "id": "21",
+        "id": 21,
         "title": "Fase 3: Classificador de Intenções",
         "description": "Criar classificador GPT-4o que identifica intenções e extrai dados relevantes.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 3 (linhas 800-810)\n📍 Seção: 4 > RF-001 Classificação de Intenção\n\nItens de implementação:\n1. Criar prompt de classificação GPT-4o\n2. Implementar intent-classifier.ts em lib/agents/health-plan-v2/\n3. Integrar classificador no endpoint\n4. Adicionar metadata de debug na resposta (intenção detectada)\n5. Testar com inputs naturais variados\n6. Ajustar prompt baseado em testes\n\nIntenções a classificar (RF-001):\n- saudacao: \"oi\", \"olá\", \"bom dia\"\n- fornecer_dados: \"tenho 35 anos\", \"moro em SP\"\n- solicitar_recomendacao: \"qual plano você recomenda?\"\n- perguntar_plano: \"o que é coparticipação?\"\n- comparar_planos: \"qual a diferença entre X e Y?\"\n- simular_cenario: \"e se eu adicionar um dependente?\"\n- confirmar_contratacao: \"quero contratar esse\"\n- encerrar: \"obrigado, pode encerrar\"\n- outro: fallback\n\nOutput esperado: { intent, confidence, extractedData? }",
@@ -1833,7 +1833,7 @@
         "updatedAt": "2025-12-03T22:15:55.799Z"
       },
       {
-        "id": "22",
+        "id": 22,
         "title": "Fase 4: Orquestrador + Loop Básico",
         "description": "Implementar orquestrador e router com loop conversacional contínuo.",
         "status": "done",
@@ -1963,12 +1963,12 @@
         "updatedAt": "2025-12-04T17:22:54.035Z"
       },
       {
-        "id": "23",
+        "id": 23,
         "title": "Fase 5: Capacidade - Coleta de Dados (updateClientInfo)",
         "description": "Implementar capacidade que extrai e valida dados do cliente das mensagens.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 5 (linhas 823-832)\n📍 Seção: 3.4 > updateClientInfo\n📍 Seção: 4 > RF-003 Coleta Iterativa de Dados\n\nItens de implementação:\n1. Implementar updateClientInfo capability em lib/agents/health-plan-v2/capabilities/\n2. Extrair dados de mensagens do usuário usando GPT-4o\n3. Fazer perguntas de follow-up inteligentes para dados faltantes\n4. Validar dados coletados (idade, estado, profissão, dependentes)\n5. Atualizar state.clientInfo com informações do cliente\n6. Merge inteligente: novos dados + dados existentes\n\nDados a coletar (RF-003):\n- idade, sexo, estado, cidade\n- profissão, renda\n- dependentes (array com idade, sexo, parentesco)\n- condições pré-existentes\n- preferências (coparticipação, reembolso, rede)",
         "testStrategy": "🎯 QA pode testar: Agente pergunta e coleta informações\n\nCheckpoints:\n- [ ] Dizer \"tenho 35 anos, moro em SP\" → agente extrai e confirma\n- [ ] Agente pergunta \"quantos dependentes?\" se não informado\n- [ ] Dizer \"minha esposa tem 32 e meu filho 5\" → extrai dependentes\n- [ ] Dados parciais são preservados entre mensagens\n\nLangSmith:\n- [ ] Span updateClientInfo aparece\n- [ ] Input: mensagem + state atual\n- [ ] Output: clientInfo atualizado\n- [ ] Dados extraídos visíveis no trace",
-        "status": "review",
+        "status": "done",
         "dependencies": [
           "22"
         ],
@@ -2056,10 +2056,10 @@
             "updatedAt": "2025-12-04T12:30:21.801Z"
           }
         ],
-        "updatedAt": "2025-12-04T17:23:15.029Z"
+        "updatedAt": "2025-12-05T12:16:32.554Z"
       },
       {
-        "id": "24",
+        "id": 24,
         "title": "Fase 6: Capacidade - Busca RAG (searchPlans)",
         "description": "Implementar busca de planos usando RAG existente com cache por hash.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 6 (linhas 834-842)\n📍 Seção: 3.4 > searchPlans\n📍 Seção: 4 > RF-004 Busca Idempotente\n\nItens de implementação:\n1. Implementar searchPlans capability em lib/agents/health-plan-v2/capabilities/\n2. Integrar com busca RAG existente (lib/tools/health-plan/search-health-plans.ts)\n3. Implementar cache de resultados por hash de parâmetros:\n   - hash = SHA256(JSON.stringify(clientInfo relevante))\n   - Se hash igual → retorna cache\n   - Se hash diferente → nova busca\n4. Mostrar planos encontrados na resposta (resumo)\n5. Atualizar state.searchResults\n\nIdempotência (RF-004):\n- Mesmos dados de entrada → mesma busca não é reexecutada\n- Cache invalidado quando clientInfo muda significativamente",
@@ -2149,7 +2149,7 @@
         "updatedAt": "2025-12-04T22:53:42.542Z"
       },
       {
-        "id": "25",
+        "id": 25,
         "title": "Fase 7: Capacidade - Análise + Recomendação",
         "description": "Implementar analyzeCompatibility e generateRecommendation com invalidação de cache.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 7 (linhas 844-852)\n📍 Seção: 3.4 > analyzeCompatibility, generateRecommendation\n📍 Seção: 4 > RF-005, RF-006, RF-008\n\nItens de implementação:\n1. Implementar analyzeCompatibility capability:\n   - Reutilizar lib/tools/health-plan/analyze-compatibility.ts\n   - Cache por hash de (clientInfo + planos)\n   - Score 0-100 para cada plano\n\n2. Implementar generateRecommendation capability:\n   - Reutilizar lib/tools/health-plan/generate-recommendation.ts\n   - Recomendação humanizada com top 3 planos\n   - Tabela comparativa markdown\n\n3. Lógica de invalidação de cache (RF-008):\n   - Detectar mudanças em clientInfo\n   - Invalidar análise se dados relevantes mudaram\n   - Preservar cache se mudança irrelevante\n\n4. Recomendação iterativa: pode melhorar com mais dados",
@@ -2162,7 +2162,7 @@
         "subtasks": []
       },
       {
-        "id": "26",
+        "id": 26,
         "title": "Fase 8: Capacidade - Preços ERP (fetchPrices)",
         "description": "Implementar busca de preços do ERP com graceful degradation.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 8 (linhas 854-862)\n📍 Seção: 3.4 > fetchPrices\n📍 Seção: 4 > RF-007\n\nItens de implementação:\n1. Implementar fetchPrices capability em lib/agents/health-plan-v2/capabilities/\n2. Integrar com ERP existente (lib/tools/health-plan/fetch-erp-prices.ts)\n3. Graceful degradation se ERP indisponível:\n   - Timeout de 10s\n   - Fallback para \"preços estimados\"\n   - Mensagem clara para usuário\n4. Mostrar preços na recomendação\n5. Atualizar state.prices\n\nComportamento (RF-007):\n- Se ERP disponível: preços reais\n- Se ERP timeout: continuar sem preços, informar usuário\n- Se ERP erro: fallback para estimativa",
@@ -2175,7 +2175,7 @@
         "subtasks": []
       },
       {
-        "id": "27",
+        "id": 27,
         "title": "Fase 9: Capacidades - Conversa Geral + Finalização",
         "description": "Implementar respondToUser e endConversation com audit.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 9 (linhas 864-872)\n📍 Seção: 3.4 > respondToUser, endConversation\n📍 Seção: 4 > RF-009, RF-010\n\nItens de implementação:\n1. Implementar respondToUser capability:\n   - Perguntas sobre planos de saúde em geral\n   - Explicação de termos (coparticipação, carência, etc.)\n   - Usar contexto da conversa para respostas relevantes\n\n2. Implementar endConversation capability:\n   - Gera resumo da conversa\n   - Salva audit log com dados coletados + recomendação\n   - Mensagem de despedida personalizada\n   - Marca conversa como finalizada\n\n3. Usuário controla quando encerra (RF-010):\n   - Apenas intent=encerrar aciona endConversation\n   - Conversa não termina automaticamente",
@@ -2188,7 +2188,7 @@
         "subtasks": []
       },
       {
-        "id": "28",
+        "id": 28,
         "title": "Fase 10: Simulação de Cenários",
         "description": "Implementar fork de estado para cenários 'e se' sem alterar dados permanentemente.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 10 (linhas 874-882)\n📍 Seção: 3.4 > simulateScenario\n📍 Seção: 4 > RF-011\n\nItens de implementação:\n1. Implementar lógica de \"fork\" do estado:\n   - Clonar state atual\n   - Aplicar mudanças hipotéticas\n   - Recalcular busca + análise + recomendação\n\n2. Simulação sem alteração permanente:\n   - State original preservado\n   - Resultados mostrados como \"simulação\"\n\n3. Confirmação/descarte de simulação:\n   - \"Confirmar\" → aplica mudanças ao state real\n   - \"Descartar\" → volta ao state original\n\n4. Comparação antes/depois:\n   - Mostrar diferenças de recomendação\n   - Destacar impacto das mudanças",
@@ -2201,7 +2201,7 @@
         "subtasks": []
       },
       {
-        "id": "29",
+        "id": 29,
         "title": "Fase 11: Polish + Testes E2E",
         "description": "Testes de integração completos e ajustes de UX baseados em feedback QA.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 11 (linhas 884-894)\n📍 Seção: 9. Critérios de Sucesso\n\nItens de implementação:\n1. Testes de integração do grafo completo\n2. Testes de fluxos conversacionais variados:\n   - Fluxo feliz: saudação → dados → recomendação → finalização\n   - Fluxo iterativo: dados parciais → mais dados → atualização\n   - Fluxo simulação: recomendação → \"e se\" → confirmar/descartar\n\n3. Testes de invalidação de cache:\n   - Mudar idade → cache invalida\n   - Mudar dependente → cache invalida\n\n4. Testes de persistência/retomada:\n   - Refresh mantém estado\n   - Retomada após 24h funciona\n\n5. Testes de edge cases:\n   - Mensagens vazias\n   - Dados inválidos\n   - Timeout de ERP\n\n6. Ajustes de UX baseados em feedback QA",
@@ -2214,7 +2214,7 @@
         "subtasks": []
       },
       {
-        "id": "30",
+        "id": 30,
         "title": "Fase 12: Deploy e Monitoramento",
         "description": "Deploy em staging/produção com validação completa e monitoramento LangSmith.",
         "details": "📄 PRD: .taskmaster/docs/health-plan-agent-v2-langgraph-prd.md\n📍 Seção: 7 > Fase 12 (linhas 896-903)\n📍 Seção: 6.4 Configuração Deploy Vercel\n📍 Seção: 5 > RNF-006\n\nItens de implementação:\n1. Code review final de todo o código\n2. Deploy em staging:\n   - Verificar variáveis de ambiente\n   - DATABASE_URL_POOLER configurado\n   - LANGCHAIN_CALLBACKS_BACKGROUND=false\n\n3. Validação completa em staging:\n   - Executar roteiro de testes E2E\n   - Verificar traces no LangSmith\n\n4. Deploy em produção:\n   - Verificar configuração Vercel Pro\n   - runtime = 'nodejs'\n   - maxDuration = 300\n\n5. Monitoramento LangSmith ativo:\n   - Dashboard de métricas\n   - Alertas para erros\n   - Alertas para loops excessivos",
@@ -2227,7 +2227,7 @@
         "subtasks": []
       },
       {
-        "id": "31",
+        "id": 31,
         "title": "Fase 6A: Fundação de Dados - Agentic RAG",
         "description": "Popular plan_metadata nos chunks existentes, criar índices GIN, adicionar campo rag_model em collections, implementar generate-queries.ts e result-fusion.ts (RRF)",
         "status": "done",
@@ -2239,20 +2239,21 @@
         "updatedAt": "2025-12-05T00:04:23.403Z"
       },
       {
-        "id": "32",
+        "id": 32,
         "title": "Fase 6B: Grading & Rewriting - Agentic RAG",
         "description": "Implementar avaliação de relevância de documentos (grading) e reformulação de queries (rewriting) com GPT-5-mini para Corrective RAG",
         "details": "**PRD Referência:** .taskmaster/docs/agentic-rag-implementation-prd.md (Fase 6B)\n\n**Objetivo:** Grading filtrando documentos irrelevantes, Rewriting reformulando queries quando insuficiente (Corrective RAG pattern).\n\n---\n\n**6B.1 Implementar grade-documents.ts**\n- Criar `lib/agents/health-plan-v2/nodes/rag/grade-documents.ts`\n- Prompt para avaliar relevância de cada documento vs clientInfo\n- Batch processing (5 docs por vez) para otimizar tokens\n- Retornar classificação: `relevant`, `partially_relevant`, `irrelevant`\n- Filtrar `irrelevant` do resultado final\n- Usar `state.ragModel` (default: gpt-5-mini)\n- Testes unitários (> 12 casos)\n\n**QA - O que testar:** (via headers debug ou console)\n```\nEnviar: \"Tenho 35 anos, moro em SP, orçamento R$500\"\n```\n**Resposta esperada:** Headers/logs mostram `X-Docs-Graded: 15`, `X-Docs-Relevant: 8`\n\n---\n\n**6B.2 Implementar rewrite-query.ts**\n- Criar `lib/agents/health-plan-v2/nodes/rag/rewrite-query.ts`\n- Prompt para reformular query quando < 3 docs relevantes\n- Identificar problema (nenhum resultado, baixa similaridade, termos muito específicos)\n- Limite de 2 tentativas de rewrite\n- Flag `limitedResults: true` após atingir limite\n- Usar `state.ragModel` (default: gpt-5-mini)\n- Testes unitários (> 8 casos)\n\n**QA - O que testar:** (forçar cenário com busca sem resultados)\n```\nEnviar: \"Plano que cubra tratamento experimental de câncer raro\"\n```\n**Resposta esperada:** Headers mostram `X-Query-Rewrites: 2`, `X-Limited-Results: true`\n\n---\n\n**6B.3 Criar rag-schemas.ts**\n- Criar `lib/agents/health-plan-v2/schemas/rag-schemas.ts`\n- Schema `QueryItem`: { query: string, focus: string, priority: number }\n- Schema `GradeResult`: { score: 'relevant'|'partially_relevant'|'irrelevant', reason: string, missingInfo?: string[] }\n- Schema `SearchMetadata`: { queryCount: number, rewriteCount: number, totalDocs: number, relevantDocs: number, limitedResults: boolean }\n- Validação Zod com mensagens de erro claras\n\n**QA - O que testar:** Validação TypeScript - `npm run build` sem erros de tipo\n\n---\n\n**6B.4 Criar rag-prompts.ts**\n- Criar `lib/agents/health-plan-v2/prompts/rag-prompts.ts`\n- `MULTI_QUERY_PROMPT`: Gerar queries especializadas do perfil do cliente\n- `GRADE_DOCUMENT_PROMPT`: Avaliar relevância documento vs perfil\n- `REWRITE_QUERY_PROMPT`: Reformular query identificando problema\n- Temperatura 0.1 para consistência\n- Exemplos inline para guiar o modelo\n\n**QA - O que testar:** Prompts existem e são importados corretamente nos nodes\n\n---\n\n**6B.5 Testes unitários grading/rewriting**\n- `__tests__/grade-documents.test.ts` (12+ casos)\n- `__tests__/rewrite-query.test.ts` (8+ casos)\n- Mocks para GPT-5-mini usando Vitest\n- Cenários: docs relevantes, irrelevantes, parciais, edge cases\n- Cobertura > 85%\n\n**QA - O que testar:** `npm test` passa sem erros\n\n---\n\n**Entregável:** Grading filtrando irrelevantes, Rewriting reformulando queries com limite de 2 tentativas",
         "testStrategy": "**Validação por etapa:**\n\n1. **grade-documents (Debug/Logs):**\n   - Headers debug mostram contagem de docs avaliados\n   - Filtro remove docs com score 'irrelevant'\n   - Batch de 5 docs por chamada GPT confirmado em logs\n\n2. **rewrite-query (Debug/Logs):**\n   - Headers mostram número de rewrites (0-2)\n   - Flag limitedResults=true após 2 tentativas\n   - Query reescrita é diferente da original\n\n3. **rag-schemas (Build):**\n   - npm run build compila sem erros TypeScript\n   - Schemas validam dados corretamente (testar com dados inválidos)\n\n4. **rag-prompts (Imports):**\n   - Nodes importam prompts corretamente\n   - Prompts seguem formato esperado pelo modelo\n\n5. **Testes unitários:**\n   - npm test passa para todos os arquivos\n   - Cobertura > 85% verificada com --coverage\n   - 20+ casos de teste total (12 grading + 8 rewriting)",
-        "status": "pending",
+        "status": "in-progress",
         "dependencies": [
           "31"
         ],
         "priority": "high",
-        "subtasks": []
+        "subtasks": [],
+        "updatedAt": "2025-12-05T12:16:40.466Z"
       },
       {
-        "id": "33",
+        "id": 33,
         "title": "Fase 6C: Hierarquia & Grafo - Agentic RAG",
         "description": "Implementar busca hierárquica (geral → específico), criar sub-grafo searchPlansGraph no LangGraph, integrar com workflow v2",
         "details": "**PRD Referência:** .taskmaster/docs/agentic-rag-implementation-prd.md (Fase 6C)\n\n**Objetivo:** Busca hierárquica completa funcionando no frontend com planos retornados.\n\n---\n\n**6C.1 Implementar retrieve-hierarchical.ts**\n- Criar `lib/agents/health-plan-v2/nodes/rag/retrieve-hierarchical.ts`\n- Buscar `documentType=\"general\"` primeiro (Top-K: 5)\n- Extrair operadoras mencionadas nos docs gerais\n- Buscar `documentType IN (\"operator\", \"product\")` (Top-K: 10)\n- Combinar com peso: gerais 0.3, específicos 0.7\n- Usar `plan_metadata` para filtrar por tipo\n\n**QA - O que testar:** (via debug headers)\n```\nEnviar: \"Quero plano Amil para família\"\n```\n**Resposta esperada:** Headers mostram `X-General-Docs: 5`, `X-Specific-Docs: 10`, operadora \"Amil\" priorizada\n\n---\n\n**6C.2 Refatorar search-health-plans.ts**\n- Modificar `lib/tools/health-plan/search-health-plans.ts`\n- Usar `plan_metadata` para filtrar por tipo de documento\n- Implementar busca hierárquica (general → operator/product)\n- **Manter compatibilidade com v1** (flag `useHierarchical: boolean`)\n\n**QA - O que testar:** Busca v1 continua funcionando (regressão) - testar assistente v1 após mudanças\n\n---\n\n**6C.3 Criar search-plans-graph.ts**\n- Criar `lib/agents/health-plan-v2/graphs/search-plans-graph.ts`\n- StateGraph com estado próprio (`SearchPlansState`)\n- **Receber `assistantId` do state pai para isolamento de dados** (ver PRD seção 3.3)\n- Ler `rag_model` da collection via `getHealthPlanCollections()` (ver PRD seção 5.1)\n- Nós: generateQueries → retrieveGeneral → retrieveSpecific → fusionResults → gradeDocuments → (rewriteQuery loop) → formatResults\n- Edges condicionais após gradeDocuments: >=3 docs → formatResults, <3 docs → rewriteQuery\n- Loop de rewrite (max 2x) com contador no state\n\n**QA - O que testar:** (via LangSmith)\nTrace mostra todos os nós executando em sequência correta com edges condicionais\n\n---\n\n**6C.4 Integrar no workflow v2**\n- Modificar `lib/agents/health-plan-v2/workflow/workflow.ts`\n- Importar e invocar `searchPlansGraph.invoke(state)`\n- Passar `assistantId` do state principal\n- Salvar resultado em `HealthPlanState.searchResults`\n- Adicionar `searchMetadata` ao state\n\n**QA - O que testar:** (frontend completo)\n```\n1. Abrir chat com assistente v2\n2. Enviar: \"Tenho 35 anos, moro em SP, orçamento R$800\"\n3. Aguardar coleta de dados adicional\n4. Quando agente tiver dados suficientes...\n```\n**Resposta esperada:** Agente retorna resumo de planos encontrados com nomes e características\n\n---\n\n**6C.5 Atualizar search-plans.ts capability**\n- Modificar `lib/agents/health-plan-v2/nodes/capabilities/search-plans.ts`\n- Invocar `compiledSearchGraph.invoke(searchState)`\n- Retornar `searchResults` e `searchMetadata`\n- Adicionar AIMessage com resumo dos planos encontrados\n- Formatar resposta humanizada para o usuário\n\n**QA - O que testar:** (frontend)\n```\nEnviar dados completos do cliente\n```\n**Resposta esperada:** Mensagem mostra \"Encontrei X planos compatíveis: [lista]\"\n\n---\n\n**6C.6 Testes de integração**\n- `__tests__/search-plans-graph.test.ts`\n- Fluxo completo: clientInfo → queries → busca → grading → resultado\n- Cenário de rewrite (< 3 docs relevantes)\n- Cenário limitedResults (após 2 rewrites)\n- Cenário isolamento por assistantId\n- Cobertura > 80%\n\n**QA - O que testar:** `npm test` passa, todos os cenários cobertos\n\n---\n\n**Entregável:** Busca hierárquica completa funcionando no frontend com isolamento por usuário",
@@ -2265,7 +2266,7 @@
         "subtasks": []
       },
       {
-        "id": "34",
+        "id": 34,
         "title": "Fase 6D: Evaluation & Polish - Agentic RAG",
         "description": "Implementar sistema de evaluation com LangSmith, criar dataset de testes, configurar dashboards de métricas de qualidade RAG",
         "details": "**PRD Referência:** .taskmaster/docs/agentic-rag-implementation-prd.md (Fase 6D)\n\n**Objetivo:** Sistema de evaluation funcionando, métricas de qualidade visíveis no LangSmith, fluxo estável.\n\n---\n\n**6D.1 Implementar rag-evaluation.ts**\n- Criar `lib/agents/health-plan-v2/monitoring/rag-evaluation.ts`\n- Avaliadores customizados:\n  - `relevance`: Docs retornados são relevantes ao perfil? (0-1)\n  - `groundedness`: Resposta está fundamentada nos docs? (0-1)\n  - `retrieval_quality`: Qualidade geral da busca (0-1)\n- Integração com LangSmith `evaluate()` API\n- Exportar métricas para tracking\n\n**QA - O que testar:** Dashboard LangSmith mostra métricas de RAG após execução\n\n---\n\n**6D.2 Criar dataset de testes**\n- 20+ casos de teste variados em `__tests__/fixtures/rag-test-cases.json`\n- Perfis cobertos:\n  - Individual jovem (25-35 anos, saudável)\n  - Família com crianças (casal + 2 filhos)\n  - Idoso (60+ anos, condições pré-existentes)\n  - Condições pré-existentes específicas (diabetes, hipertensão, câncer prévio)\n  - Orçamentos variados (R$200-2000)\n  - Regiões diversas (SP, RJ, interior)\n- Expected outputs definidos para cada caso\n- Formato: `{ input: ClientInfo, expectedBehavior: string, minRelevantDocs: number }`\n\n**QA - O que testar:** Arquivo existe com 20+ casos documentados e validados\n\n---\n\n**6D.3 Executar evaluation baseline**\n- Rodar evaluation com dataset completo\n- Documentar baseline metrics:\n  - % docs relevantes por busca (target: >= 5)\n  - Taxa de rewrite (target: < 30%)\n  - Latência média por fase (target: < 8s total)\n- Identificar casos problemáticos (< 3 docs relevantes)\n- Ajustar prompts se necessário\n\n**QA - O que testar:** Relatório de baseline gerado em `.taskmaster/reports/rag-baseline-evaluation.md`\n\n---\n\n**6D.4 Configurar dashboards LangSmith**\n- Dashboard: **RAG Quality**\n  - Docs relevantes por busca\n  - Taxa de rewrite\n  - Score médio de grading\n- Dashboard: **Performance**\n  - Latência por nó (generateQueries, retrieve, grade, rewrite)\n  - Latência total do fluxo\n- Alertas configurados:\n  - Latência > 12s\n  - Docs relevantes < 3\n  - Taxa rewrite > 50%\n\n**QA - O que testar:** Dashboards acessíveis em LangSmith e populados com dados\n\n---\n\n**6D.5 Documentação técnica**\n- Atualizar README com nova arquitetura RAG\n- Documentar configuração `rag_model` por collection\n- Troubleshooting comum:\n  - \"Poucos docs relevantes\" → verificar plan_metadata\n  - \"Muitos rewrites\" → ajustar prompts de query\n  - \"Latência alta\" → verificar índices GIN\n- Diagrama de fluxo atualizado\n\n**QA - O que testar:** Documentação existe e está atualizada no README\n\n---\n\n**Entregável:** Sistema de evaluation funcionando, métricas de qualidade baseline documentadas",
@@ -2280,12 +2281,15 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-12-05T00:04:23.410Z",
+      "lastModified": "2025-12-05T12:16:40.472Z",
       "taskCount": 34,
-      "completedCount": 22,
+      "completedCount": 23,
       "tags": [
         "master"
-      ]
+      ],
+      "created": "2025-12-05T12:46:10.013Z",
+      "description": "Tasks for master context",
+      "updated": "2025-12-05T12:46:10.013Z"
     }
   }
 }
