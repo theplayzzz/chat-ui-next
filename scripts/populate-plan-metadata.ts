@@ -46,7 +46,7 @@ interface FileItem {
   id: string
   file_id: string
   content: string
-  files: FileInfo
+  files: FileInfo | FileInfo[]
 }
 
 /**
@@ -167,7 +167,8 @@ async function populatePlanMetadata(dryRun: boolean = false): Promise<void> {
 
   // Processar cada file_item
   for (const item of fileItems as FileItem[]) {
-    const fileName = item.files?.name || "unknown"
+    const fileObj = Array.isArray(item.files) ? item.files[0] : item.files
+    const fileName = fileObj?.name || "unknown"
     const metadata = classifyDocument(fileName)
 
     stats[metadata.documentType]++

@@ -211,14 +211,14 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
         )}
       </div>
 
-      <div className="border-input relative mt-3 flex min-h-[60px] w-full items-center justify-center rounded-xl border-2">
+      <div className="border-input relative mt-3 flex min-h-[60px] w-full items-center justify-center rounded-xl border-2 shadow-sm transition-all duration-200 focus-within:border-blue-500/50 focus-within:ring-2 focus-within:ring-blue-500/20 hover:border-gray-300 dark:hover:border-gray-700">
         <div className="absolute bottom-[76px] left-0 max-h-[300px] w-full overflow-auto rounded-xl dark:border-none">
           <ChatCommandInput />
         </div>
 
         <>
           <IconCirclePlus
-            className="absolute bottom-[12px] left-3 cursor-pointer p-1 hover:opacity-50"
+            className="absolute bottom-[12px] left-3 cursor-pointer p-1 transition-all duration-200 hover:scale-110 hover:opacity-50 active:scale-95"
             size={32}
             onClick={() => fileInputRef.current?.click()}
           />
@@ -247,23 +247,24 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
           value={userInput}
           minRows={1}
           maxRows={18}
+          autoFocus
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           onCompositionStart={() => setIsTyping(true)}
           onCompositionEnd={() => setIsTyping(false)}
         />
 
-        <div className="absolute bottom-[14px] right-3 cursor-pointer hover:opacity-50">
+        <div className="absolute bottom-[14px] right-3 cursor-pointer">
           {isGenerating ? (
             <IconPlayerStopFilled
-              className="hover:bg-background animate-pulse rounded bg-transparent p-1"
+              className="hover:bg-background animate-pulse rounded bg-transparent p-1 transition-all duration-200 hover:scale-110 hover:opacity-50 active:scale-95"
               onClick={handleStopMessage}
               size={30}
             />
           ) : (
             <IconSend
               className={cn(
-                "bg-primary text-secondary rounded p-1",
+                "bg-primary text-secondary rounded p-1 transition-all duration-200 hover:scale-110 hover:opacity-80 active:scale-95",
                 !userInput && "cursor-not-allowed opacity-50"
               )}
               onClick={() => {
