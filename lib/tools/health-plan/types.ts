@@ -64,6 +64,12 @@ export interface SearchHealthPlansParams {
   assistantId: string
   clientInfo: PartialClientInfo
   topK?: number // Número de resultados por collection (default: 10)
+  /**
+   * Ativa busca hierárquica (v2):
+   * - false (default): busca flat tradicional (v1)
+   * - true: busca hierárquica geral → específico com pesos 0.3/0.7
+   */
+  useHierarchical?: boolean
   filters?: {
     region?: {
       state?: string
@@ -75,6 +81,11 @@ export interface SearchHealthPlansParams {
       max?: number
     }
     planType?: string
+    /**
+     * Filtrar por tipo de documento (plan_metadata->>'documentType')
+     * Valores: 'general', 'operator', 'product', 'clause', 'faq'
+     */
+    documentType?: string
   }
 }
 
@@ -100,6 +111,15 @@ export interface SearchHealthPlansResponse {
     query: string
     executionTimeMs: number
     totalResultsBeforeFiltering?: number
+    /**
+     * Metadados adicionais para modo hierárquico (v2)
+     */
+    hierarchicalMetadata?: {
+      generalDocsCount: number
+      specificDocsCount: number
+      extractedOperators: string[]
+      useHierarchical: boolean
+    }
   }
 }
 

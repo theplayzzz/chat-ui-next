@@ -91,15 +91,15 @@ Gere as queries agora:`
  * @param model - Modelo LLM a usar (default: gpt-5-mini)
  * @returns Array de queries com foco e prioridade
  *
- * Nota: GPT-5 models não suportam temperature/top_p.
- * Usam: reasoning.effort e text.verbosity
+ * Nota: GPT-5 models usam reasoning_effort ao invés de temperature.
+ * Ref: https://cookbook.openai.com/examples/gpt-5/gpt-5_new_params_and_tools
  */
 export async function generateQueries(
   clientInfo: ClientInfoForQueries,
   model: string = "gpt-5-mini"
 ): Promise<GeneratedQueries> {
   // Configuração para modelos GPT-5 (não suportam temperature)
-  // Ref: https://platform.openai.com/docs/guides/latest-model
+  // Chat Completions API usa reasoning_effort flat, não objeto aninhado
   const isGpt5Model = model.startsWith("gpt-5")
 
   const llm = new ChatOpenAI({
@@ -108,12 +108,12 @@ export async function generateQueries(
     maxRetries: 2,
     // Tags para LangSmith
     tags: ["generate-queries", "health-plan-v2", "rag"],
-    // GPT-5 não suporta temperature - usa reasoning.effort no modelKwargs
+    // GPT-5 usa reasoning_effort (Chat Completions API)
+    // GPT-4 usa temperature
     ...(isGpt5Model
       ? {
           modelKwargs: {
-            reasoning: { effort: "low" },
-            text: { verbosity: "medium" }
+            reasoning_effort: "low"
           }
         }
       : {

@@ -170,12 +170,12 @@ async function gradeBatch(
     timeout: options.timeout,
     maxRetries: 2,
     tags: ["grade-documents", "health-plan-v2", "rag"],
-    // GPT-5 não suporta temperature
+    // GPT-5 usa reasoning_effort (Chat Completions API)
+    // GPT-4 usa temperature
     ...(isGpt5Model
       ? {
           modelKwargs: {
-            reasoning: { effort: "low" },
-            text: { verbosity: "medium" }
+            reasoning_effort: "low"
           }
         }
       : {

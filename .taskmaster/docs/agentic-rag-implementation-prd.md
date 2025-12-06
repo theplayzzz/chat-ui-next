@@ -1,7 +1,7 @@
 # PRD: Agentic RAG - Nova Estrutura de Busca
 
-**Versão:** 1.2
-**Data:** 2025-12-04
+**Versão:** 1.4
+**Data:** 2025-12-05
 **Autor:** Claude Code
 **Status:** Draft
 **Dependência:** health-plan-agent-v2-langgraph-prd.md (Fase 6)
@@ -70,9 +70,12 @@ retrieveSpecific ──► Busca docs type="operator"|"product" (Top-K: 10)
 fusionResults ──► RRF (k=60) combina resultados
   │
   ▼
-gradeDocuments ──► GPT-5-mini: avalia relevância
+gradeDocuments ──► GPT-5-mini: avalia relevância semântica
   │
-  ├──► >= 3 docs relevantes ──► formatResults ──► END
+  ▼
+filterByBudget ──► Filtro matemático: preço(faixaEtária) ≤ orçamento
+  │
+  ├──► >= 3 docs compatíveis ──► formatResults ──► END
   │
   └──► < 3 docs ──► rewriteQuery (max 2x) ──► volta para retrieveGeneral
                          │
@@ -92,7 +95,8 @@ lib/agents/health-plan-v2/
 ├── nodes/rag/
 │   ├── generate-queries.ts          # Multi-Query
 │   ├── retrieve-hierarchical.ts     # Busca hierárquica
-│   ├── grade-documents.ts           # LLM grading
+│   ├── grade-documents.ts           # LLM grading (relevância semântica)
+│   ├── filter-by-budget.ts          # Filtro matemático (preço × faixa etária)
 │   ├── rewrite-query.ts             # Query rewriting
 │   └── result-fusion.ts             # RRF
 ├── schemas/
@@ -166,14 +170,57 @@ CREATE INDEX idx_file_items_tags ON file_items USING GIN ((plan_metadata->'tags'
 | RF-002 | Buscar docs gerais primeiro (Top-K: 5) | - | Seção 3.2.1 viability |
 | RF-003 | Buscar docs específicos por plano (Top-K: 10) | - | Seção 3.2.1 viability |
 | RF-004 | Combinar resultados via RRF (k=60) | - | Seção 3.2.3 viability |
-| RF-005 | Avaliar relevância de cada documento | GPT-5-mini | Seção 3.3.1 viability |
+| RF-005 | Avaliar relevância semântica de cada documento | GPT-5-mini | Seção 3.3.1 viability |
 | RF-006 | Reformular query se < 3 docs (max 2x) | GPT-5-mini | Seção 3.3.2 viability |
 | RF-007 | Modelo LLM configurável por collection | - | Nova feature |
 | RF-008 | Popular plan_metadata em 100% dos chunks | - | Seção 4 viability |
+| RF-009 | Filtrar docs por compatibilidade matemática preço × faixa etária | - | Seção 5.2 |
 
 ### 5.1 Detalhamento RF-007: Fluxo do rag_model
 
 O modelo LLM para operações RAG é lido da collection no início da busca:
+
+### 5.2 Detalhamento RF-009: Filtro de Compatibilidade por Orçamento
+
+#### Problema
+O grading semântico (RF-005) avalia se um documento é **relevante** para o perfil do cliente, mas não verifica se os planos mencionados são **matematicamente compatíveis** com o orçamento.
+
+Exemplo: Um documento sobre "Plano Executivo Premium R$850/mês" é semanticamente relevante para "cliente busca plano completo em SP", mas matematicamente incompatível com orçamento de R$500.
+
+#### Solução
+Adicionar etapa `filterByBudget` após `gradeDocuments` que:
+
+1. **Extrai preços do conteúdo** textual (tabelas Markdown, menções inline)
+2. **Determina faixa etária** do cliente baseado na idade (ANS)
+3. **Verifica compatibilidade**: `preço(faixaEtária) ≤ orçamento`
+4. **Filtra documentos** incompatíveis
+
+#### Faixas Etárias ANS
+| Faixa | Idade | Campo |
+|-------|-------|-------|
+| 1 | 0-18 anos | `band1` |
+| 2 | 19-38 anos | `band2` |
+| 3 | 39-59 anos | `band3` |
+| 4 | 60-75 anos | `band4` |
+| 5 | 76+ anos | `band5` |
+
+#### Padrões de Extração de Preços
+```
+Tabela Markdown: | Plano | R$ 180,00 | R$ 250,00 | ...
+Inline: "O plano custa R$450,00 para adultos"
+Estruturado: metadata.ageBands (quando disponível)
+```
+
+#### Comportamento
+- **Sem idade ou orçamento**: Retorna todos os documentos (filtro desabilitado)
+- **Sem preço no documento**: Mantém documento (pode ser info geral)
+- **Com preço incompatível**: Remove documento dos resultados
+
+#### Referência de Implementação
+- Arquivo: `lib/agents/health-plan-v2/nodes/rag/filter-by-budget.ts`
+- Funções: `getAgeBand()`, `extractPricesFromContent()`, `filterByBudget()`
+
+---
 
 ```
 searchPlansGraph.start
@@ -503,7 +550,28 @@ Enviar dados completos do cliente
 
 **QA - O que testar:** `npm test` passa, todos os cenários cobertos
 
-**Entregável Fase 6C:** Busca hierárquica completa funcionando no frontend
+---
+
+#### 6C.7 Implementar filter-by-budget.ts
+- [ ] Criar `lib/agents/health-plan-v2/nodes/rag/filter-by-budget.ts`
+- [ ] Função `getAgeBand(age)` - determina faixa ANS (1-5)
+- [ ] Função `extractPricesFromContent(content)` - extrai preços de tabelas Markdown
+- [ ] Função `filterByBudget(docs, clientInfo)` - filtra por compatibilidade
+- [ ] Integrar no grafo após `gradeDocuments`
+- [ ] Testes unitários (> 10 casos)
+- [ ] Testar cenário: 35 anos, R$500 → apenas 3 planos compatíveis
+
+**Justificativa:** O grading semântico (RF-005) avalia relevância, mas não compatibilidade matemática de preço. Um plano de R$850 é "relevante" para quem busca cobertura completa, mas incompatível com orçamento de R$500.
+
+**QA - O que testar:**
+```
+Input: { age: 35, budget: 500, city: "São Paulo" }
+```
+**Resposta esperada:**
+- Apenas planos com preço Faixa 2 ≤ R$500 retornados
+- Headers: `X-Compatible-Plans: 3`, `X-Incompatible-Plans: 6`
+
+**Entregável Fase 6C:** Busca hierárquica completa funcionando no frontend com filtro de orçamento
 
 ---
 
@@ -575,6 +643,7 @@ Enviar dados completos do cliente
 | 6C.1 | Hierárquico | Headers X-General/Specific-Docs | [ ] |
 | 6C.4 | Integração | Frontend mostra planos | [ ] |
 | 6C.5 | Capability | Mensagem lista planos | [ ] |
+| 6C.7 | Budget Filter | Apenas planos compatíveis retornados | [ ] |
 | 6D.4 | LangSmith | Dashboards visíveis | [ ] |
 
 ---
@@ -614,6 +683,7 @@ Enviar dados completos do cliente
 | 1.1 | 2025-12-04 | Simplificado: removido código extenso, adicionado QA por task, modelo GPT-5-mini, checkboxes |
 | 1.2 | 2025-12-04 | Adicionado: Seção 3.3 (Isolamento de Dados e Multi-tenant), Seção 5.1 (Fluxo do rag_model), referências de código para autenticação |
 | 1.3 | 2025-12-05 | **Fase 6A CONCLUÍDA:** Todos os 5 subtasks implementados e testados. 34 testes passando. Documentação atualizada com notas de implementação GPT-5 (modelKwargs vs temperature). |
+| 1.4 | 2025-12-05 | **RF-009 adicionado:** Filtro de compatibilidade matemática preço × faixa etária. Nova subtask 6C.7 (filter-by-budget.ts). Diagrama de fluxo atualizado com nó filterByBudget após gradeDocuments. |
 
 ---
 

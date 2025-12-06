@@ -50,3 +50,16 @@ export {
   type RewriteQueryOptions,
   type RewriteContext
 } from "./rewrite-query"
+
+// Hierarchical Retrieval (Fase 6C.1)
+export {
+  retrieveHierarchical,
+  retrieveHierarchicalWithQuery,
+  extractOperatorsFromDocs,
+  combineWithWeights,
+  createDebugHeaders,
+  type HierarchicalRetrieveOptions,
+  type HierarchicalRetrieveResult,
+  type HierarchicalDocument,
+  type HierarchicalMetadata
+} from "./retrieve-hierarchical"

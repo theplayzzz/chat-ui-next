@@ -66,6 +66,26 @@ export const HealthPlanStateAnnotation = Annotation.Root({
     default: () => 0 // Incrementa quando clientInfo muda
   }),
 
+  /**
+   * Metadados da busca hierárquica (v2)
+   * PRD: Fase 6C.4
+   */
+  searchMetadata: Annotation<{
+    queryCount?: number
+    rewriteCount?: number
+    relevantDocsCount?: number
+    totalDocsFound?: number
+    generalDocsCount?: number
+    specificDocsCount?: number
+    extractedOperators?: string[]
+    limitedResults?: boolean
+    ragModel?: string
+    executionTimeMs?: number
+  } | null>({
+    reducer: (_, y) => y,
+    default: () => null
+  }),
+
   // === ANÁLISE (CACHEÁVEL) ===
   compatibilityAnalysis: Annotation<RankedAnalysis | null>({
     reducer: (_, y) => y,

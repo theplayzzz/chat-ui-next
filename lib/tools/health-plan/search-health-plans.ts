@@ -25,6 +25,13 @@ import type {
   HealthPlanSearchResult
 } from "./types"
 
+// Import para busca hierárquica (v2)
+import {
+  retrieveHierarchical,
+  type HierarchicalRetrieveOptions,
+  type HierarchicalDocument
+} from "@/lib/agents/health-plan-v2/nodes/rag/retrieve-hierarchical"
+
 /**
  * Interface para resultado bruto da busca vetorial
  */
@@ -135,12 +142,17 @@ async function searchHealthPlansInternal(
   apiKey: string
 ): Promise<SearchHealthPlansResponse> {
   const startTime = Date.now()
+  const useHierarchical = params.useHierarchical ?? false
 
   console.log("[search-health-plans] ========================================")
   console.log("[search-health-plans] 🔍 searchHealthPlans called")
+  console.log(
+    `[search-health-plans] 🔄 Mode: ${useHierarchical ? "HIERARCHICAL (v2)" : "FLAT (v1)"}`
+  )
   console.log("[search-health-plans] 📋 Params:", {
     assistantId: params.assistantId,
     topK: params.topK || 10,
+    useHierarchical,
     hasFilters: !!params.filters,
     clientAge: params.clientInfo?.age,
     clientState: params.clientInfo?.state
@@ -150,6 +162,7 @@ async function searchHealthPlansInternal(
   addRunMetadata({
     assistantId: params.assistantId,
     topK: params.topK || 10,
+    useHierarchical,
     hasFilters: !!params.filters,
     clientAge: params.clientInfo?.age,
     clientState: params.clientInfo?.state
@@ -200,6 +213,84 @@ async function searchHealthPlansInternal(
 
     // 5. Gerar embedding da query
     const embedding = await generateEmbedding(searchQuery, openai)
+
+    // ========================================================================
+    // MODO HIERÁRQUICO (v2) - Busca geral → específico com pesos 0.3/0.7
+    // ========================================================================
+    if (useHierarchical) {
+      console.log("[search-health-plans] 🔄 Usando busca HIERÁRQUICA (v2)")
+
+      // Extrair todos os fileIds das collections
+      const fileIds = healthPlanCollections.flatMap(c => c.files.map(f => f.id))
+
+      console.log(
+        `[search-health-plans] Buscando em ${fileIds.length} arquivos com hierarquia`
+      )
+
+      // Executar busca hierárquica
+      const hierarchicalResult = await retrieveHierarchical({
+        queryEmbedding: embedding,
+        fileIds,
+        generalTopK: 5,
+        specificTopK: params.topK || 10,
+        generalWeight: 0.3,
+        specificWeight: 0.7,
+        supabaseClient: supabaseAdmin
+      })
+
+      // Converter resultados para formato HealthPlanSearchResult
+      const hierarchicalResults: HealthPlanSearchResult[] =
+        hierarchicalResult.documents.map(doc => ({
+          content: doc.content,
+          similarity: doc.hierarchicalScore,
+          collectionId: doc.metadata?.fileId || "",
+          collectionName: `${doc.hierarchyLevel} (${doc.metadata?.operator || "geral"})`,
+          fileId: doc.metadata?.fileId || doc.id,
+          metadata: {
+            ...doc.metadata,
+            hierarchyLevel: doc.hierarchyLevel,
+            operatorPrioritized: doc.operatorPrioritized,
+            originalScore: doc.score
+          }
+        }))
+
+      // Aplicar filtros adicionais se fornecidos
+      const filteredHierarchical = applyFiltersToHierarchical(
+        hierarchicalResults,
+        params.filters
+      )
+
+      const executionTimeMs = Date.now() - startTime
+
+      console.log("[search-health-plans] ✅ Busca hierárquica concluída:", {
+        executionTimeMs,
+        generalDocs: hierarchicalResult.metadata.generalDocsCount,
+        specificDocs: hierarchicalResult.metadata.specificDocsCount,
+        totalDocs: filteredHierarchical.length,
+        extractedOperators: hierarchicalResult.extractedOperators
+      })
+
+      return {
+        results: filteredHierarchical,
+        metadata: {
+          totalCollectionsSearched: healthPlanCollections.length,
+          query: searchQuery,
+          executionTimeMs,
+          totalResultsBeforeFiltering: hierarchicalResult.documents.length,
+          hierarchicalMetadata: {
+            generalDocsCount: hierarchicalResult.metadata.generalDocsCount,
+            specificDocsCount: hierarchicalResult.metadata.specificDocsCount,
+            extractedOperators: hierarchicalResult.extractedOperators,
+            useHierarchical: true
+          }
+        }
+      }
+    }
+
+    // ========================================================================
+    // MODO FLAT (v1) - Busca tradicional sem hierarquia
+    // ========================================================================
+    console.log("[search-health-plans] 📋 Usando busca FLAT (v1)")
 
     // 6. Executar busca em todas collections
     const topK = params.topK || 10
@@ -541,6 +632,121 @@ function applyFilters(
 
   console.log(
     `[searchHealthPlans] Filtros aplicados: ${initialCount} -> ${filtered.length} resultados`
+  )
+
+  return filtered
+}
+
+/**
+ * Aplica filtros opcionais nos resultados hierárquicos
+ * Usa plan_metadata para filtros específicos do v2
+ *
+ * @param results - Resultados da busca hierárquica
+ * @param filters - Filtros a aplicar
+ * @returns Resultados filtrados
+ */
+function applyFiltersToHierarchical(
+  results: HealthPlanSearchResult[],
+  filters?: SearchHealthPlansParams["filters"]
+): HealthPlanSearchResult[] {
+  if (!filters) {
+    return results
+  }
+
+  let filtered = results
+  const initialCount = results.length
+
+  // Filtrar por tipo de documento (plan_metadata->>'documentType')
+  if (filters.documentType) {
+    const docTypeBefore = filtered.length
+    filtered = filtered.filter(
+      r =>
+        r.metadata?.documentType?.toLowerCase() ===
+        filters.documentType?.toLowerCase()
+    )
+    console.log(
+      `[searchHealthPlans] Filtro de documentType removeu ${docTypeBefore - filtered.length} resultados`
+    )
+  }
+
+  // Filtrar por operadora (plan_metadata->>'operator')
+  if (filters.operator) {
+    const operatorBefore = filtered.length
+    filtered = filtered.filter(
+      r =>
+        r.metadata?.operator?.toLowerCase() === filters.operator?.toLowerCase()
+    )
+    console.log(
+      `[searchHealthPlans] Filtro de operadora removeu ${operatorBefore - filtered.length} resultados`
+    )
+  }
+
+  // Filtrar por região (estado/cidade) - verifica em metadata e content
+  if (filters.region?.state) {
+    const stateBefore = filtered.length
+    const stateNormalized = filters.region.state.toLowerCase()
+    filtered = filtered.filter(r => {
+      const metaState = r.metadata?.state?.toLowerCase()
+      const contentHasState = r.content.toLowerCase().includes(stateNormalized)
+      return metaState === stateNormalized || contentHasState
+    })
+    console.log(
+      `[searchHealthPlans] Filtro de estado removeu ${stateBefore - filtered.length} resultados`
+    )
+  }
+
+  if (filters.region?.city) {
+    const cityBefore = filtered.length
+    const cityNormalized = filters.region.city.toLowerCase()
+    filtered = filtered.filter(r => {
+      const metaCity = r.metadata?.city?.toLowerCase()
+      const contentHasCity = r.content.toLowerCase().includes(cityNormalized)
+      return metaCity === cityNormalized || contentHasCity
+    })
+    console.log(
+      `[searchHealthPlans] Filtro de cidade removeu ${cityBefore - filtered.length} resultados`
+    )
+  }
+
+  // Filtrar por faixa de preço
+  if (filters.priceRange) {
+    const priceBefore = filtered.length
+
+    if (filters.priceRange.min !== undefined) {
+      filtered = filtered.filter(
+        r =>
+          r.metadata?.price === undefined ||
+          r.metadata.price >= filters.priceRange!.min!
+      )
+    }
+
+    if (filters.priceRange.max !== undefined) {
+      filtered = filtered.filter(
+        r =>
+          r.metadata?.price === undefined ||
+          r.metadata.price <= filters.priceRange!.max!
+      )
+    }
+
+    console.log(
+      `[searchHealthPlans] Filtro de preço removeu ${priceBefore - filtered.length} resultados`
+    )
+  }
+
+  // Filtrar por tipo de plano (plan_metadata->>'planType')
+  if (filters.planType) {
+    const planTypeBefore = filtered.length
+    filtered = filtered.filter(
+      r =>
+        r.metadata?.planType?.toLowerCase() === filters.planType?.toLowerCase()
+    )
+    console.log(
+      `[searchHealthPlans] Filtro de tipo de plano removeu ${planTypeBefore - filtered.length} resultados`
+    )
+  }
+
+  console.log(
+    `[searchHealthPlans] Filtros hierárquicos aplicados: ${initialCount} -> ${filtered.length} resultados`
   )
 
   return filtered
