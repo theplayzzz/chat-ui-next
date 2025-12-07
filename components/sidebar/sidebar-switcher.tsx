@@ -1,14 +1,14 @@
 import { ContentType } from "@/types"
 import {
-  IconAdjustmentsHorizontal,
-  IconBolt,
-  IconBooks,
-  IconFile,
-  IconMessage,
-  IconPencil,
-  IconRobotFace,
-  IconSparkles
-} from "@tabler/icons-react"
+  Bot,
+  FileText,
+  Library,
+  MessageCircle,
+  Pencil,
+  SlidersHorizontal,
+  Sparkles,
+  Zap
+} from "lucide-react"
 import { FC } from "react"
 import { TabsList } from "../ui/tabs"
 import { WithTooltip } from "../ui/with-tooltip"
@@ -25,52 +25,52 @@ export const SidebarSwitcher: FC<SidebarSwitcherProps> = ({
   onContentTypeChange
 }) => {
   return (
-    <div className="flex flex-col justify-between border-r-2 pb-5">
+    <div className="flex flex-col justify-between pb-5">
       <TabsList className="bg-background grid h-[440px] grid-rows-7">
         <SidebarSwitchItem
-          icon={<IconMessage size={SIDEBAR_ICON_SIZE} />}
+          icon={<MessageCircle size={SIDEBAR_ICON_SIZE} />}
           contentType="chats"
           onContentTypeChange={onContentTypeChange}
         />
 
         <SidebarSwitchItem
-          icon={<IconAdjustmentsHorizontal size={SIDEBAR_ICON_SIZE} />}
+          icon={<SlidersHorizontal size={SIDEBAR_ICON_SIZE} />}
           contentType="presets"
           onContentTypeChange={onContentTypeChange}
         />
 
         <SidebarSwitchItem
-          icon={<IconPencil size={SIDEBAR_ICON_SIZE} />}
+          icon={<Pencil size={SIDEBAR_ICON_SIZE} />}
           contentType="prompts"
           onContentTypeChange={onContentTypeChange}
         />
 
         <SidebarSwitchItem
-          icon={<IconSparkles size={SIDEBAR_ICON_SIZE} />}
+          icon={<Sparkles size={SIDEBAR_ICON_SIZE} />}
           contentType="models"
           onContentTypeChange={onContentTypeChange}
         />
 
         <SidebarSwitchItem
-          icon={<IconFile size={SIDEBAR_ICON_SIZE} />}
+          icon={<FileText size={SIDEBAR_ICON_SIZE} />}
           contentType="files"
           onContentTypeChange={onContentTypeChange}
         />
 
         <SidebarSwitchItem
-          icon={<IconBooks size={SIDEBAR_ICON_SIZE} />}
+          icon={<Library size={SIDEBAR_ICON_SIZE} />}
           contentType="collections"
           onContentTypeChange={onContentTypeChange}
         />
 
         <SidebarSwitchItem
-          icon={<IconRobotFace size={SIDEBAR_ICON_SIZE} />}
+          icon={<Bot size={SIDEBAR_ICON_SIZE} />}
           contentType="assistants"
           onContentTypeChange={onContentTypeChange}
         />
 
         <SidebarSwitchItem
-          icon={<IconBolt size={SIDEBAR_ICON_SIZE} />}
+          icon={<Zap size={SIDEBAR_ICON_SIZE} />}
           contentType="tools"
           onContentTypeChange={onContentTypeChange}
         />

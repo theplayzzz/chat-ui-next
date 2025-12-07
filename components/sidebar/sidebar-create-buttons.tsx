@@ -2,7 +2,7 @@ import { useChatHandler } from "@/components/chat/chat-hooks/use-chat-handler"
 import { ChatbotUIContext } from "@/context/context"
 import { createFolder } from "@/db/folders"
 import { ContentType } from "@/types"
-import { IconFolderPlus, IconPlus } from "@tabler/icons-react"
+import { FolderPlus, Plus } from "lucide-react"
 import { FC, useContext, useState } from "react"
 import { Button } from "../ui/button"
 import { CreateAssistant } from "./items/assistants/create-assistant"
@@ -98,7 +98,7 @@ export const SidebarCreateButtons: FC<SidebarCreateButtonsProps> = ({
   return (
     <div className="flex w-full space-x-2">
       <Button className="flex h-[36px] grow" onClick={getCreateFunction()}>
-        <IconPlus className="mr-1" size={20} />
+        <Plus className="mr-1" size={20} />
         New{" "}
         {contentType.charAt(0).toUpperCase() +
           contentType.slice(1, contentType.length - 1)}
@@ -106,7 +106,7 @@ export const SidebarCreateButtons: FC<SidebarCreateButtonsProps> = ({
 
       {hasData && (
         <Button className="size-[36px] p-1" onClick={handleCreateFolder}>
-          <IconFolderPlus size={20} />
+          <FolderPlus size={20} />
         </Button>
       )}
 

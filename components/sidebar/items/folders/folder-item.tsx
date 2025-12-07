@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils"
 import { Tables } from "@/supabase/types"
 import { ContentType } from "@/types"
-import { IconChevronDown, IconChevronRight } from "@tabler/icons-react"
+import { ChevronDown, ChevronRight } from "lucide-react"
 import { FC, useRef, useState } from "react"
 import { DeleteFolder } from "./delete-folder"
 import { UpdateFolder } from "./update-folder"
@@ -63,7 +63,7 @@ export const Folder: FC<FolderProps> = ({
     <div
       ref={itemRef}
       id="folder"
-      className={cn("rounded focus:outline-none", isDragOver && "bg-accent")}
+      className={cn("rounded-xl focus:outline-none", isDragOver && "bg-accent")}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -75,16 +75,16 @@ export const Folder: FC<FolderProps> = ({
       <div
         tabIndex={0}
         className={cn(
-          "hover:bg-accent focus:bg-accent flex w-full cursor-pointer items-center justify-between rounded p-2 hover:opacity-50 focus:outline-none"
+          "hover:bg-accent hover:text-accent-foreground focus:bg-accent flex w-full cursor-pointer items-center justify-between rounded-xl p-3 focus:outline-none"
         )}
         onClick={handleClick}
       >
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center space-x-2">
             {isExpanded ? (
-              <IconChevronDown stroke={3} />
+              <ChevronDown className="size-5" strokeWidth={2} />
             ) : (
-              <IconChevronRight stroke={3} />
+              <ChevronRight className="size-5" strokeWidth={2} />
             )}
 
             <div>{folder.name}</div>

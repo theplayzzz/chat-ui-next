@@ -61,7 +61,7 @@ export const Sidebar: FC<SidebarProps> = ({ contentType, showSidebar }) => {
       value={contentType}
     >
       <div className="flex h-full flex-col p-3">
-        <div className="flex items-center border-b-2 pb-2">
+        <div className="mb-2 flex items-center pb-4">
           <WorkspaceSwitcher />
 
           <WorkspaceSettings />

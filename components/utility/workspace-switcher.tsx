@@ -9,8 +9,8 @@ import {
 import { ChatbotUIContext } from "@/context/context"
 import { createWorkspace } from "@/db/workspaces"
 import useHotkey from "@/lib/hooks/use-hotkey"
-import { IconBuilding, IconHome, IconPlus } from "@tabler/icons-react"
-import { ChevronsUpDown } from "lucide-react"
+import { IconPlus } from "@tabler/icons-react"
+import { Building, ChevronsUpDown, Home } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { FC, useContext, useEffect, useState } from "react"
@@ -98,13 +98,13 @@ export const WorkspaceSwitcher: FC<WorkspaceSwitcherProps> = ({}) => {
       ? ""
       : ""
 
-  const IconComponent = selectedWorkspace?.is_home ? IconHome : IconBuilding
+  const IconComponent = selectedWorkspace?.is_home ? Home : Building
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className="border-input flex h-[36px]
-        w-full cursor-pointer items-center justify-between rounded-md border px-2 py-1 hover:opacity-50"
+        className="hover:bg-accent hover:text-accent-foreground flex h-[36px]
+        w-full cursor-pointer items-center justify-between rounded-md px-2 py-1"
       >
         <div className="flex items-center truncate">
           {selectedWorkspace && (
@@ -173,7 +173,7 @@ export const WorkspaceSwitcher: FC<WorkspaceSwitcherProps> = ({}) => {
                         alt={workspace.name}
                       />
                     ) : (
-                      <IconHome className="mr-3" size={28} />
+                      <Home className="mr-3" size={28} />
                     )}
 
                     <div className="text-lg font-semibold">
@@ -212,7 +212,7 @@ export const WorkspaceSwitcher: FC<WorkspaceSwitcherProps> = ({}) => {
                         alt={workspace.name}
                       />
                     ) : (
-                      <IconBuilding className="mr-3" size={28} />
+                      <Building className="mr-3" size={28} />
                     )}
 
                     <div className="text-lg font-semibold">
