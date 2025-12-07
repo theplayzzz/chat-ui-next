@@ -779,6 +779,8 @@ export type Database = {
       }
       files: {
         Row: {
+          chunk_overlap: number | null
+          chunk_size: number | null
           created_at: string
           description: string
           file_path: string
@@ -793,6 +795,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          chunk_overlap?: number | null
+          chunk_size?: number | null
           created_at?: string
           description: string
           file_path: string
@@ -807,6 +811,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          chunk_overlap?: number | null
+          chunk_size?: number | null
           created_at?: string
           description?: string
           file_path?: string

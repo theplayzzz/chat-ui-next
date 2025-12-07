@@ -32,28 +32,16 @@ export async function POST(req: Request) {
       }
     }
 
-    // Get collection configuration for chunk settings
-    let chunkConfig: Partial<ChunkConfig> | undefined
-    const { data: collectionFile } = await supabaseAdmin
-      .from("collection_files")
-      .select("collection_id")
-      .eq("file_id", fileId)
-      .limit(1)
+    // Get chunk configuration from file metadata
+    const { data: fileMetadata } = await supabaseAdmin
+      .from("files")
+      .select("chunk_size, chunk_overlap")
+      .eq("id", fileId)
       .single()
 
-    if (collectionFile) {
-      const { data: collection } = await supabaseAdmin
-        .from("collections")
-        .select("chunk_size, chunk_overlap")
-        .eq("id", collectionFile.collection_id)
-        .single()
-
-      if (collection && collection.chunk_size && collection.chunk_overlap) {
-        chunkConfig = {
-          chunkSize: collection.chunk_size,
-          chunkOverlap: collection.chunk_overlap
-        }
-      }
+    const chunkConfig: Partial<ChunkConfig> = {
+      chunkSize: fileMetadata?.chunk_size ?? 4000,
+      chunkOverlap: fileMetadata?.chunk_overlap ?? 200
     }
 
     let chunks: FileItemChunk[] = []

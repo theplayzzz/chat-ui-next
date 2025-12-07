@@ -1,13 +1,11 @@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Slider } from "@/components/ui/slider"
 import { COLLECTION_DESCRIPTION_MAX, COLLECTION_NAME_MAX } from "@/db/limits"
 import { Tables } from "@/supabase/types"
 import { CollectionFile } from "@/types"
 import { IconBooks, IconHeartbeat } from "@tabler/icons-react"
 import { FC, useState } from "react"
 import { SidebarItem } from "../all/sidebar-display-item"
-import { ChunkPreview } from "./chunk-preview"
 import { CollectionFileSelect } from "./collection-file-select"
 import { CollectionStats } from "./collection-stats"
 import { AssistantCollectionLink } from "./assistant-collection-link"
@@ -36,10 +34,6 @@ export const CollectionItem: FC<CollectionItemProps> = ({ collection }) => {
   const [name, setName] = useState(collection.name)
   const [isTyping, setIsTyping] = useState(false)
   const [description, setDescription] = useState(collection.description)
-  const [chunkSize, setChunkSize] = useState(collection.chunk_size ?? 4000)
-  const [chunkOverlap, setChunkOverlap] = useState(
-    collection.chunk_overlap ?? 200
-  )
   const [collectionType, setCollectionType] = useState<CollectionType>(
     (collection.collection_type as CollectionType) ?? "general"
   )
@@ -80,8 +74,6 @@ export const CollectionItem: FC<CollectionItemProps> = ({ collection }) => {
       updateState={{
         name,
         description,
-        chunk_size: chunkSize,
-        chunk_overlap: chunkOverlap,
         collection_type: collectionType
       }}
       renderInputs={(renderState: {
@@ -164,61 +156,9 @@ export const CollectionItem: FC<CollectionItemProps> = ({ collection }) => {
               </select>
             </div>
 
-            <div className="space-y-1">
-              <Label className="flex items-center justify-between">
-                <span>Chunk Size</span>
-                <span className="text-muted-foreground text-xs">
-                  {chunkSize}
-                </span>
-              </Label>
-              <Slider
-                value={[chunkSize]}
-                onValueChange={([v]) => {
-                  setChunkSize(v)
-                  if (chunkOverlap >= v) {
-                    setChunkOverlap(Math.max(0, v - 100))
-                  }
-                }}
-                min={500}
-                max={8000}
-                step={100}
-              />
-              <p className="text-muted-foreground text-xs">
-                Tamanho de cada chunk em caracteres (500-8000)
-              </p>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="flex items-center justify-between">
-                <span>Chunk Overlap</span>
-                <span className="text-muted-foreground text-xs">
-                  {chunkOverlap}
-                </span>
-              </Label>
-              <Slider
-                value={[chunkOverlap]}
-                onValueChange={([v]) =>
-                  setChunkOverlap(Math.min(v, chunkSize - 100))
-                }
-                min={0}
-                max={Math.min(2000, chunkSize - 100)}
-                step={50}
-              />
-              <p className="text-muted-foreground text-xs">
-                Sobreposição entre chunks (0-{Math.min(2000, chunkSize - 100)})
-              </p>
-            </div>
-
-            <div className="pt-2">
-              <ChunkPreview chunkSize={chunkSize} chunkOverlap={chunkOverlap} />
-            </div>
-
             <div className="space-y-1 pt-2">
               <Label>Estatísticas</Label>
-              <CollectionStats
-                collectionId={collection.id}
-                chunkSize={chunkSize}
-              />
+              <CollectionStats collectionId={collection.id} />
             </div>
 
             <div className="pt-2">

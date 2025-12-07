@@ -1,0 +1,484 @@
+{
+  "version": "1.0.0",
+  "description": "Dataset de testes para RAG Evaluation - 24 casos variados",
+  "prdReference": ".taskmaster/docs/agentic-rag-implementation-prd.md (Fase 6D.2)",
+  "testCases": [
+    {
+      "id": "case-001",
+      "category": "individual-jovem",
+      "description": "Individual jovem SP baixo orcamento",
+      "input": {
+        "name": "Lucas Silva",
+        "age": 28,
+        "city": "Sao Paulo",
+        "state": "SP",
+        "budget": 300,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": ["consultas", "exames"]
+      },
+      "expectedBehavior": "Retornar planos basicos individuais SP ate R$300, priorizar operadoras com rede em SP",
+      "minRelevantDocs": 5,
+      "tags": ["individual", "jovem", "baixo-orcamento", "SP"]
+    },
+    {
+      "id": "case-002",
+      "category": "individual-jovem",
+      "description": "Individual jovem RJ orcamento medio",
+      "input": {
+        "name": "Mariana Costa",
+        "age": 32,
+        "city": "Rio de Janeiro",
+        "state": "RJ",
+        "budget": 450,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": ["academia", "telemedicina"]
+      },
+      "expectedBehavior": "Retornar planos individuais RJ com beneficios extras ate R$450",
+      "minRelevantDocs": 5,
+      "tags": ["individual", "jovem", "medio-orcamento", "RJ"]
+    },
+    {
+      "id": "case-003",
+      "category": "individual-jovem",
+      "description": "Individual jovem interior baixo orcamento",
+      "input": {
+        "name": "Pedro Souza",
+        "age": 25,
+        "city": "Campinas",
+        "state": "SP",
+        "budget": 250,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": []
+      },
+      "expectedBehavior": "Retornar planos regionais interior SP ate R$250",
+      "minRelevantDocs": 3,
+      "tags": ["individual", "jovem", "baixo-orcamento", "interior"]
+    },
+    {
+      "id": "case-004",
+      "category": "individual-jovem",
+      "description": "Individual jovem alto orcamento cobertura nacional",
+      "input": {
+        "name": "Fernanda Lima",
+        "age": 35,
+        "city": "Brasilia",
+        "state": "DF",
+        "budget": 600,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": ["cobertura-nacional", "reembolso"]
+      },
+      "expectedBehavior": "Retornar planos premium com cobertura nacional e reembolso",
+      "minRelevantDocs": 5,
+      "tags": ["individual", "jovem", "alto-orcamento", "nacional"]
+    },
+    {
+      "id": "case-005",
+      "category": "familia-criancas",
+      "description": "Familia com 2 filhos SP orcamento medio",
+      "input": {
+        "name": "Roberto Oliveira",
+        "age": 38,
+        "city": "Sao Paulo",
+        "state": "SP",
+        "budget": 800,
+        "dependents": [
+          { "age": 8, "relationship": "child" },
+          { "age": 5, "relationship": "child" }
+        ],
+        "healthConditions": [],
+        "preferences": ["pediatria", "emergencia"]
+      },
+      "expectedBehavior": "Retornar planos familiares com boa rede pediatrica, ate R$800 para 3 vidas",
+      "minRelevantDocs": 5,
+      "tags": ["familia", "criancas", "medio-orcamento", "SP"]
+    },
+    {
+      "id": "case-006",
+      "category": "familia-criancas",
+      "description": "Casal com bebe RJ",
+      "input": {
+        "name": "Patricia Santos",
+        "age": 33,
+        "city": "Niteroi",
+        "state": "RJ",
+        "budget": 700,
+        "dependents": [
+          { "age": 35, "relationship": "spouse" },
+          { "age": 1, "relationship": "child" }
+        ],
+        "healthConditions": [],
+        "preferences": ["maternidade", "pediatria"]
+      },
+      "expectedBehavior": "Retornar planos com cobertura maternidade e pediatrica RJ",
+      "minRelevantDocs": 5,
+      "tags": ["familia", "bebe", "medio-orcamento", "RJ"]
+    },
+    {
+      "id": "case-007",
+      "category": "familia-criancas",
+      "description": "Familia grande interior",
+      "input": {
+        "name": "Carlos Ferreira",
+        "age": 42,
+        "city": "Ribeirao Preto",
+        "state": "SP",
+        "budget": 1200,
+        "dependents": [
+          { "age": 40, "relationship": "spouse" },
+          { "age": 15, "relationship": "child" },
+          { "age": 12, "relationship": "child" },
+          { "age": 8, "relationship": "child" }
+        ],
+        "healthConditions": [],
+        "preferences": ["ortodontia", "psicologia"]
+      },
+      "expectedBehavior": "Retornar planos familiares para 5 vidas interior SP ate R$1200",
+      "minRelevantDocs": 4,
+      "tags": ["familia", "grande", "alto-orcamento", "interior"]
+    },
+    {
+      "id": "case-008",
+      "category": "familia-criancas",
+      "description": "Casal sem filhos jovem",
+      "input": {
+        "name": "Ana Paula",
+        "age": 30,
+        "city": "Belo Horizonte",
+        "state": "MG",
+        "budget": 600,
+        "dependents": [
+          { "age": 32, "relationship": "spouse" }
+        ],
+        "healthConditions": [],
+        "preferences": ["academia", "check-up"]
+      },
+      "expectedBehavior": "Retornar planos para casal jovem MG ate R$600",
+      "minRelevantDocs": 5,
+      "tags": ["casal", "jovem", "medio-orcamento", "MG"]
+    },
+    {
+      "id": "case-009",
+      "category": "idoso",
+      "description": "Idoso 60 anos SP",
+      "input": {
+        "name": "Jose Almeida",
+        "age": 62,
+        "city": "Sao Paulo",
+        "state": "SP",
+        "budget": 900,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": ["cardiologia", "geriatria"]
+      },
+      "expectedBehavior": "Retornar planos para faixa 60+ SP com boa rede cardiologica",
+      "minRelevantDocs": 5,
+      "tags": ["idoso", "60+", "alto-orcamento", "SP"]
+    },
+    {
+      "id": "case-010",
+      "category": "idoso",
+      "description": "Idoso 68 anos RJ com conjuge",
+      "input": {
+        "name": "Maria Helena",
+        "age": 68,
+        "city": "Rio de Janeiro",
+        "state": "RJ",
+        "budget": 1500,
+        "dependents": [
+          { "age": 70, "relationship": "spouse" }
+        ],
+        "healthConditions": [],
+        "preferences": ["home-care", "fisioterapia"]
+      },
+      "expectedBehavior": "Retornar planos senior para casal 60+ RJ com home care",
+      "minRelevantDocs": 4,
+      "tags": ["idoso", "casal", "premium", "RJ"]
+    },
+    {
+      "id": "case-011",
+      "category": "idoso",
+      "description": "Idoso 75 anos interior",
+      "input": {
+        "name": "Antonio Silva",
+        "age": 75,
+        "city": "Santos",
+        "state": "SP",
+        "budget": 1200,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": ["emergencia-24h", "ambulancia"]
+      },
+      "expectedBehavior": "Retornar planos para faixa 75+ litoral SP com servicos emergenciais",
+      "minRelevantDocs": 3,
+      "tags": ["idoso", "75+", "alto-orcamento", "litoral"]
+    },
+    {
+      "id": "case-012",
+      "category": "idoso",
+      "description": "Idosa 65 anos baixo orcamento",
+      "input": {
+        "name": "Francisca Reis",
+        "age": 65,
+        "city": "Fortaleza",
+        "state": "CE",
+        "budget": 700,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": []
+      },
+      "expectedBehavior": "Retornar planos acessiveis para 60+ nordeste",
+      "minRelevantDocs": 3,
+      "tags": ["idoso", "60+", "medio-orcamento", "nordeste"]
+    },
+    {
+      "id": "case-013",
+      "category": "condicoes-pre-existentes",
+      "description": "Adulto com diabetes tipo 2",
+      "input": {
+        "name": "Ricardo Mendes",
+        "age": 45,
+        "city": "Sao Paulo",
+        "state": "SP",
+        "budget": 800,
+        "dependents": [],
+        "healthConditions": ["diabetes tipo 2"],
+        "preferences": ["endocrinologia", "nutricao"]
+      },
+      "expectedBehavior": "Retornar planos que aceitem diabetes com boa rede endocrinologia",
+      "minRelevantDocs": 5,
+      "tags": ["diabetes", "pre-existente", "adulto", "SP"]
+    },
+    {
+      "id": "case-014",
+      "category": "condicoes-pre-existentes",
+      "description": "Adulto com hipertensao",
+      "input": {
+        "name": "Claudia Martins",
+        "age": 52,
+        "city": "Curitiba",
+        "state": "PR",
+        "budget": 650,
+        "dependents": [],
+        "healthConditions": ["hipertensao"],
+        "preferences": ["cardiologia", "check-up"]
+      },
+      "expectedBehavior": "Retornar planos com cobertura cardiologica para hipertensos",
+      "minRelevantDocs": 5,
+      "tags": ["hipertensao", "pre-existente", "adulto", "PR"]
+    },
+    {
+      "id": "case-015",
+      "category": "condicoes-pre-existentes",
+      "description": "Adulto com diabetes e hipertensao",
+      "input": {
+        "name": "Fernando Gomes",
+        "age": 58,
+        "city": "Porto Alegre",
+        "state": "RS",
+        "budget": 1000,
+        "dependents": [],
+        "healthConditions": ["diabetes tipo 2", "hipertensao", "colesterol alto"],
+        "preferences": ["cardiologia", "endocrinologia"]
+      },
+      "expectedBehavior": "Retornar planos que aceitem multiplas condicoes cronicas",
+      "minRelevantDocs": 4,
+      "tags": ["multiplas-condicoes", "pre-existente", "adulto", "RS"]
+    },
+    {
+      "id": "case-016",
+      "category": "condicoes-pre-existentes",
+      "description": "Adulto com historico de cancer",
+      "input": {
+        "name": "Sandra Pereira",
+        "age": 48,
+        "city": "Sao Paulo",
+        "state": "SP",
+        "budget": 1500,
+        "dependents": [],
+        "healthConditions": ["cancer mama tratado 2019"],
+        "preferences": ["oncologia", "mastologia"]
+      },
+      "expectedBehavior": "Retornar planos com boa cobertura oncologica e politica clara para cancer previo",
+      "minRelevantDocs": 4,
+      "tags": ["cancer", "pre-existente", "adulto", "SP"]
+    },
+    {
+      "id": "case-017",
+      "category": "condicoes-pre-existentes",
+      "description": "Familia com filho especial",
+      "input": {
+        "name": "Marcos Ribeiro",
+        "age": 40,
+        "city": "Rio de Janeiro",
+        "state": "RJ",
+        "budget": 1200,
+        "dependents": [
+          { "age": 38, "relationship": "spouse" },
+          { "age": 10, "relationship": "child", "healthConditions": ["autismo"] }
+        ],
+        "healthConditions": [],
+        "preferences": ["terapia ocupacional", "fonoaudiologia", "psicologia"]
+      },
+      "expectedBehavior": "Retornar planos com cobertura para tratamentos TEA",
+      "minRelevantDocs": 4,
+      "tags": ["autismo", "familia", "terapias", "RJ"]
+    },
+    {
+      "id": "case-018",
+      "category": "orcamento-variado",
+      "description": "Muito baixo orcamento jovem",
+      "input": {
+        "name": "Juliana Castro",
+        "age": 22,
+        "city": "Sao Paulo",
+        "state": "SP",
+        "budget": 200,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": []
+      },
+      "expectedBehavior": "Retornar planos mais economicos disponiveis, possivelmente com coparticipacao",
+      "minRelevantDocs": 3,
+      "tags": ["jovem", "muito-baixo-orcamento", "SP"]
+    },
+    {
+      "id": "case-019",
+      "category": "orcamento-variado",
+      "description": "Premium executivo",
+      "input": {
+        "name": "Eduardo Campos",
+        "age": 45,
+        "city": "Sao Paulo",
+        "state": "SP",
+        "budget": 2000,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": ["reembolso-alto", "quarto-individual", "internacional"]
+      },
+      "expectedBehavior": "Retornar planos executivos premium com cobertura internacional e alto reembolso",
+      "minRelevantDocs": 5,
+      "tags": ["executivo", "premium", "internacional", "SP"]
+    },
+    {
+      "id": "case-020",
+      "category": "orcamento-variado",
+      "description": "Familia premium",
+      "input": {
+        "name": "Renata Alves",
+        "age": 42,
+        "city": "Rio de Janeiro",
+        "state": "RJ",
+        "budget": 1800,
+        "dependents": [
+          { "age": 44, "relationship": "spouse" },
+          { "age": 16, "relationship": "child" }
+        ],
+        "healthConditions": [],
+        "preferences": ["melhores-hospitais", "sem-coparticipacao"]
+      },
+      "expectedBehavior": "Retornar melhores planos familiares RJ sem coparticipacao",
+      "minRelevantDocs": 5,
+      "tags": ["familia", "premium", "sem-coparticipacao", "RJ"]
+    },
+    {
+      "id": "case-021",
+      "category": "regiao-diversa",
+      "description": "Interior Minas Gerais",
+      "input": {
+        "name": "Luciana Barbosa",
+        "age": 35,
+        "city": "Uberlandia",
+        "state": "MG",
+        "budget": 500,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": []
+      },
+      "expectedBehavior": "Retornar planos com rede no triangulo mineiro",
+      "minRelevantDocs": 3,
+      "tags": ["individual", "interior", "MG"]
+    },
+    {
+      "id": "case-022",
+      "category": "regiao-diversa",
+      "description": "Nordeste Salvador",
+      "input": {
+        "name": "Thiago Santos",
+        "age": 30,
+        "city": "Salvador",
+        "state": "BA",
+        "budget": 450,
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": ["telemedicina"]
+      },
+      "expectedBehavior": "Retornar planos com rede em Salvador e regiao metropolitana",
+      "minRelevantDocs": 3,
+      "tags": ["individual", "nordeste", "BA"]
+    },
+    {
+      "id": "case-023",
+      "category": "regiao-diversa",
+      "description": "Sul Florianopolis familia",
+      "input": {
+        "name": "Gabriela Weber",
+        "age": 36,
+        "city": "Florianopolis",
+        "state": "SC",
+        "budget": 900,
+        "dependents": [
+          { "age": 38, "relationship": "spouse" },
+          { "age": 6, "relationship": "child" }
+        ],
+        "healthConditions": [],
+        "preferences": ["praia", "esportes"]
+      },
+      "expectedBehavior": "Retornar planos familiares com rede em SC",
+      "minRelevantDocs": 4,
+      "tags": ["familia", "sul", "SC"]
+    },
+    {
+      "id": "case-024",
+      "category": "caso-edge",
+      "description": "Sem orcamento definido",
+      "input": {
+        "name": "Paulo Mendes",
+        "age": 40,
+        "city": "Sao Paulo",
+        "state": "SP",
+        "dependents": [],
+        "healthConditions": [],
+        "preferences": []
+      },
+      "expectedBehavior": "Retornar variedade de planos em faixas de preco diferentes para comparacao",
+      "minRelevantDocs": 5,
+      "tags": ["sem-orcamento", "comparativo", "SP"]
+    }
+  ],
+  "statistics": {
+    "totalCases": 24,
+    "byCategory": {
+      "individual-jovem": 4,
+      "familia-criancas": 4,
+      "idoso": 4,
+      "condicoes-pre-existentes": 5,
+      "orcamento-variado": 3,
+      "regiao-diversa": 3,
+      "caso-edge": 1
+    },
+    "byRegion": {
+      "SP": 11,
+      "RJ": 5,
+      "outros": 8
+    },
+    "budgetRange": {
+      "min": 200,
+      "max": 2000,
+      "undefined": 1
+    }
+  }
+}

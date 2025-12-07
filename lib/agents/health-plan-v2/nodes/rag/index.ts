@@ -63,3 +63,14 @@ export {
   type HierarchicalDocument,
   type HierarchicalMetadata
 } from "./retrieve-hierarchical"
+
+// Budget Filter (Fase 6C.2)
+export {
+  filterByBudget,
+  getAgeBand,
+  getAgeBandName,
+  extractPricesFromContent,
+  countCompatiblePlans,
+  type PlanPricing,
+  type FilterByBudgetResult
+} from "./filter-by-budget"
