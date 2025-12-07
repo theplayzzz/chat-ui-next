@@ -1,44 +1,38 @@
 /**
  * Capacidade: searchPlans
  *
- * Busca planos de saúde via RAG com sub-grafo Agentic RAG.
+ * Busca planos de saúde via RAG simplificado.
  * Idempotente - pode ser chamada múltiplas vezes.
  *
  * Implementa:
- * - Multi-Query Generation (3-5 queries)
- * - Hierarchical Retrieval (general → specific)
- * - Reciprocal Rank Fusion (RRF k=60)
- * - Document Grading (LLM)
- * - Query Rewriting (max 2x)
+ * - Busca vetorial única com contexto enriquecido
+ * - Document Grading (LLM) com contexto de coleção/arquivo
  *
  * PRD: .taskmaster/docs/agentic-rag-implementation-prd.md
- * Seção: Fase 6C
  */
 
 import { AIMessage } from "@langchain/core/messages"
 import type { HealthPlanState } from "../../state/state-annotation"
 import {
-  compiledSearchPlansGraph,
-  type SearchPlansState
+  invokeSearchPlansGraph,
+  type SearchMetadata
 } from "../../graphs/search-plans-graph"
+import type { GradedChunk } from "../../nodes/rag/grade-documents"
 import type { HealthPlanDocument } from "../../types"
 
 /**
- * Busca planos de saúde usando sub-grafo Agentic RAG
+ * Busca planos de saúde usando sub-grafo RAG simplificado
  *
  * O sub-grafo executa:
  * 1. Carrega fileIds das collections
- * 2. Gera 3-5 queries multi-perspectiva
- * 3. Busca hierárquica (geral → específico)
- * 4. RRF fusion dos resultados
- * 5. Grading com LLM
- * 6. Rewrite se necessário (max 2x)
+ * 2. Busca vetorial única com contexto enriquecido
+ * 3. Grading com LLM usando contexto de coleção/arquivo
  */
 export async function searchPlans(
   state: HealthPlanState
 ): Promise<Partial<HealthPlanState>> {
   const startTime = Date.now()
-  console.log("[searchPlans] 🔍 Iniciando busca via sub-grafo Agentic RAG...")
+  console.log("[searchPlans] Iniciando busca via sub-grafo RAG...")
 
   // Verificar se há dados suficientes para busca
   const clientInfo = state.clientInfo || {}
@@ -51,7 +45,7 @@ export async function searchPlans(
       "Preciso de algumas informações para buscar os melhores planos para você. " +
       "Pode me dizer sua idade, cidade e orçamento aproximado?"
 
-    console.log("[searchPlans] ⚠ Dados insuficientes para busca")
+    console.log("[searchPlans] Dados insuficientes para busca")
 
     return {
       currentResponse: response,
@@ -60,69 +54,53 @@ export async function searchPlans(
   }
 
   try {
-    // Invocar o sub-grafo de busca
-    const searchInput: Partial<SearchPlansState> = {
-      assistantId: state.assistantId,
-      clientInfo: state.clientInfo,
-      ragModel: "gpt-5-mini" // PRD: gpt-5-mini com reasoning_effort
-    }
+    // Construir query baseada na última mensagem ou clientInfo
+    const lastMessage = state.messages?.[state.messages.length - 1]
+    const userQuery =
+      typeof lastMessage?.content === "string"
+        ? lastMessage.content
+        : `buscar planos de saúde para cliente ${clientInfo.age || ""} anos ${clientInfo.city || ""}`
 
+    // Invocar o sub-grafo de busca
     console.log("[searchPlans] Invocando searchPlansGraph...")
-    const result = await compiledSearchPlansGraph.invoke(searchInput)
+    const result = await invokeSearchPlansGraph({
+      assistantId: state.assistantId,
+      userQuery,
+      clientInfo: state.clientInfo,
+      ragModel: "gpt-4o-mini"
+    })
 
     const executionTimeMs = Date.now() - startTime
 
-    // Converter FusedDocument[] para HealthPlanDocument[]
-    // Os documentos RAG são extraídos e mapeados para o formato esperado
-    const searchResults: HealthPlanDocument[] = (
-      result.searchResults || []
-    ).map(doc => ({
-      id: doc.id,
-      operadora: doc.metadata?.operator || "Desconhecida",
-      nome_plano: doc.metadata?.planCode || doc.id,
-      tipo: doc.metadata?.documentType || "general",
-      abrangencia: "nacional", // Default - será extraído do conteúdo posteriormente
-      coparticipacao: false, // Default - será extraído do conteúdo posteriormente
-      rede_credenciada: [],
-      carencias: {},
-      preco_base: undefined,
-      metadata: {
-        content: doc.content,
-        similarity: doc.rrfScore || doc.score || 0,
-        originalMetadata: doc.metadata,
-        hierarchyLevel: (doc as any).hierarchyLevel
-      }
-    }))
+    // Converter GradedChunk[] para HealthPlanDocument[]
+    const searchResults: HealthPlanDocument[] = (result.results || []).map(
+      chunk => convertChunkToDocument(chunk)
+    )
 
-    // Atualizar metadata com tempo de execução real
-    const searchMetadata = result.searchMetadata
+    // Preparar metadata
+    const searchMetadata = result.metadata
       ? {
-          ...result.searchMetadata,
+          ...result.metadata,
           executionTimeMs
         }
       : {
-          queryCount: 0,
-          rewriteCount: 0,
-          relevantDocsCount: searchResults.length,
-          totalDocsFound: 0,
-          generalDocsCount: 0,
-          specificDocsCount: 0,
-          extractedOperators: [],
-          limitedResults: false,
-          ragModel: "gpt-5-mini",
-          executionTimeMs
+          query: userQuery,
+          retrievedCount: 0,
+          relevantCount: searchResults.length,
+          ragModel: "gpt-4o-mini",
+          executionTimeMs,
+          gradingStats: { relevant: 0, partiallyRelevant: 0, irrelevant: 0 }
         }
 
     // Gerar resposta baseada nos resultados
     const response = generateSearchResponse(
       searchResults,
-      result.limitedResults || false,
       clientInfo,
       executionTimeMs
     )
 
     console.log(
-      `[searchPlans] ✅ Busca concluída: ${searchResults.length} docs em ${executionTimeMs}ms`
+      `[searchPlans] Busca concluída: ${searchResults.length} docs em ${executionTimeMs}ms`
     )
 
     return {
@@ -133,7 +111,7 @@ export async function searchPlans(
       messages: [new AIMessage(response)]
     }
   } catch (error) {
-    console.error("[searchPlans] ❌ Erro na busca:", error)
+    console.error("[searchPlans] Erro na busca:", error)
 
     const errorResponse =
       "Desculpe, houve um problema ao buscar os planos. Vou tentar de outra forma. " +
@@ -154,12 +132,34 @@ export async function searchPlans(
 }
 
 /**
+ * Converte GradedChunk para HealthPlanDocument
+ */
+function convertChunkToDocument(chunk: GradedChunk): HealthPlanDocument {
+  return {
+    id: chunk.id,
+    operadora: chunk.collection?.name || "Desconhecida",
+    nome_plano: chunk.file.name,
+    tipo: "general",
+    abrangencia: "nacional",
+    coparticipacao: false,
+    rede_credenciada: [],
+    carencias: {},
+    preco_base: undefined,
+    metadata: {
+      content: chunk.content,
+      similarity: chunk.similarity,
+      fileDescription: chunk.file.description,
+      collectionDescription: chunk.collection?.description,
+      gradeResult: chunk.gradeResult
+    }
+  }
+}
+
+/**
  * Gera resposta humanizada baseada nos resultados
- * Inclui lista dos planos encontrados para análise
  */
 function generateSearchResponse(
   searchResults: HealthPlanDocument[],
-  limitedResults: boolean,
   clientInfo: Record<string, any>,
   executionTimeMs: number
 ): string {
@@ -173,7 +173,7 @@ function generateSearchResponse(
 
   const profileSummary = details.length > 0 ? ` (${details.join(", ")})` : ""
 
-  // Extrair lista de planos únicos (operadora - plano)
+  // Extrair lista de planos únicos
   const plansList = extractUniquePlans(searchResults)
   const plansListFormatted =
     plansList.length > 0
@@ -184,14 +184,6 @@ function generateSearchResponse(
     return (
       `Não encontrei planos que correspondam exatamente ao seu perfil${profileSummary}. ` +
       "Podemos ajustar alguns critérios para encontrar mais opções?"
-    )
-  }
-
-  if (limitedResults) {
-    return (
-      `Encontrei ${resultsCount} plano${resultsCount > 1 ? "s" : ""} que podem se adequar ao seu perfil${profileSummary}, ` +
-      `mas os resultados foram limitados.${plansListFormatted}\n\n` +
-      "Gostaria que eu refinasse a busca com mais detalhes sobre suas necessidades?"
     )
   }
 
@@ -210,7 +202,6 @@ function generateSearchResponse(
 
 /**
  * Extrai lista de planos únicos dos resultados
- * Formato: "Operadora - Nome do Plano"
  */
 function extractUniquePlans(searchResults: HealthPlanDocument[]): string[] {
   const seen = new Set<string>()

@@ -1,3 +1,4 @@
+npm warn exec The following package was not found and will be installed: supabase@2.65.6
 export type Json =
   | string
   | number
@@ -566,6 +567,7 @@ export type Database = {
           folder_id: string | null
           id: string
           name: string
+          rag_model: string | null
           sharing: string
           updated_at: string | null
           user_id: string
@@ -579,6 +581,7 @@ export type Database = {
           folder_id?: string | null
           id?: string
           name: string
+          rag_model?: string | null
           sharing?: string
           updated_at?: string | null
           user_id: string
@@ -592,6 +595,7 @@ export type Database = {
           folder_id?: string | null
           id?: string
           name?: string
+          rag_model?: string | null
           sharing?: string
           updated_at?: string | null
           user_id?: string
@@ -915,6 +919,7 @@ export type Database = {
       }
       health_plan_sessions: {
         Row: {
+          chat_id: string | null
           client_info: Json | null
           compatibility_analysis: Json | null
           completed_at: string | null
@@ -934,6 +939,7 @@ export type Database = {
           workspace_id: string
         }
         Insert: {
+          chat_id?: string | null
           client_info?: Json | null
           compatibility_analysis?: Json | null
           completed_at?: string | null
@@ -953,6 +959,7 @@ export type Database = {
           workspace_id: string
         }
         Update: {
+          chat_id?: string | null
           client_info?: Json | null
           compatibility_analysis?: Json | null
           completed_at?: string | null
@@ -972,6 +979,13 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "health_plan_sessions_chat_id_fkey"
+            columns: ["chat_id"]
+            isOneToOne: false
+            referencedRelation: "chats"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "health_plan_sessions_workspace_id_fkey"
             columns: ["workspace_id"]
@@ -1737,6 +1751,14 @@ export type Database = {
         Args: { new_chat_id: string; new_user_id: string; old_chat_id: string }
         Returns: undefined
       }
+      create_health_plan_v2_assistant: {
+        Args: { p_user_id: string; p_workspace_id?: string }
+        Returns: string
+      }
+      create_my_health_plan_v2_assistant: {
+        Args: { p_workspace_id?: string }
+        Returns: string
+      }
       decrypt_api_key: { Args: { encrypted_key: string }; Returns: string }
       delete_message_including_and_after: {
         Args: {
@@ -1784,6 +1806,25 @@ export type Database = {
       is_workspace_owner: {
         Args: { check_user_id: string; ws_id: string }
         Returns: boolean
+      }
+      match_file_items_enriched: {
+        Args: {
+          file_ids?: string[]
+          match_count?: number
+          query_embedding: string
+        }
+        Returns: {
+          chunk_content: string
+          chunk_id: string
+          chunk_tokens: number
+          collection_description: string
+          collection_id: string
+          collection_name: string
+          file_description: string
+          file_id: string
+          file_name: string
+          similarity: number
+        }[]
       }
       match_file_items_local: {
         Args: {

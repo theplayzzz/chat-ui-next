@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { COLLECTION_DESCRIPTION_MAX, COLLECTION_NAME_MAX } from "@/db/limits"
 import { Tables } from "@/supabase/types"
 import { CollectionFile } from "@/types"
@@ -130,14 +131,19 @@ export const CollectionItem: FC<CollectionItemProps> = ({ collection }) => {
             </div>
 
             <div className="space-y-1">
-              <Label>Description</Label>
+              <Label>Description *</Label>
 
-              <Input
-                placeholder="Collection description..."
+              <Textarea
+                placeholder="Descreva o conteúdo desta coleção. Ex: 'Documentos de planos de saúde Amil com preços e coberturas para SP'..."
                 value={description}
                 onChange={e => setDescription(e.target.value)}
                 maxLength={COLLECTION_DESCRIPTION_MAX}
+                rows={3}
+                className="resize-none"
               />
+              <p className="text-muted-foreground text-xs">
+                A descrição ajuda o sistema a encontrar documentos relevantes
+              </p>
             </div>
 
             <div className="space-y-1">

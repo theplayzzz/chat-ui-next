@@ -1,41 +1,30 @@
 /**
- * Grade Documents - Document Grading para Corrective RAG
+ * Grade Documents - Avaliador de Relevância com Contexto Enriquecido
  *
- * Avalia a relevância de documentos recuperados em relação ao perfil do cliente.
- * Usa GPT-5-mini para classificar documentos como relevant, partially_relevant ou irrelevant.
- *
- * Features:
- * - Batch processing (5 docs por vez) para otimizar tokens
- * - Suporte a GPT-5 (modelKwargs) e outros modelos (temperature)
- * - Fallback robusto quando LLM falha
+ * Avalia a relevância de chunks recuperados usando:
+ * - Nome e descrição da coleção
+ * - Nome e descrição do arquivo
+ * - Conteúdo do chunk
+ * - Perfil do cliente
  *
  * PRD: .taskmaster/docs/agentic-rag-implementation-prd.md
- * Seção: RF-005, Fase 6B.1
  */
 
 import { ChatOpenAI } from "@langchain/openai"
 
-import type { FusedDocument } from "./result-fusion"
-import type { ClientInfoForQueries } from "./generate-queries"
+import type { EnrichedChunk, ClientInfo } from "./retrieve-simple"
 import {
   type GradeResult,
   type GradeScore,
-  type GradedDocument,
   GradingResponseSchema
 } from "../../schemas/rag-schemas"
-import {
-  GRADE_DOCUMENTS_BATCH_PROMPT,
-  GRADING_TEMPERATURE,
-  formatClientInfoForPrompt,
-  formatDocumentsForBatchPrompt
-} from "../../prompts/rag-prompts"
 
 // =============================================================================
 // Types
 // =============================================================================
 
 export interface GradeDocumentsOptions {
-  /** Modelo LLM a usar (default: gpt-5-mini) */
+  /** Modelo LLM a usar (default: gpt-4o-mini) */
   model?: string
   /** Tamanho do batch para processamento (default: 5) */
   batchSize?: number
@@ -45,11 +34,18 @@ export interface GradeDocumentsOptions {
   filterIrrelevant?: boolean
 }
 
+export interface GradedChunk extends EnrichedChunk {
+  /** Resultado do grading */
+  gradeResult: GradeResult
+  /** Flag se é relevante */
+  isRelevant: boolean
+}
+
 export interface GradeDocumentsResult {
-  /** Documentos com grading aplicado */
-  documents: GradedDocument[]
-  /** Documentos filtrados (apenas relevant e partially_relevant) */
-  relevantDocuments: GradedDocument[]
+  /** Todos os chunks com grading aplicado */
+  allChunks: GradedChunk[]
+  /** Chunks filtrados (apenas relevant e partially_relevant) */
+  relevantChunks: GradedChunk[]
   /** Estatísticas do grading */
   stats: {
     total: number
@@ -61,36 +57,87 @@ export interface GradeDocumentsResult {
 }
 
 const DEFAULT_OPTIONS: Required<GradeDocumentsOptions> = {
-  model: "gpt-5-mini",
+  model: "gpt-4o-mini",
   batchSize: 5,
   timeout: 15000,
   filterIrrelevant: true
 }
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+const GRADING_TEMPERATURE = 0.1
+
+/**
+ * Prompt para grading com contexto enriquecido
+ */
+const GRADE_ENRICHED_BATCH_PROMPT = `Você é um avaliador especializado em planos de saúde no Brasil.
+
+Avalie CADA documento listado abaixo quanto à relevância para o perfil do cliente.
+Use o CONTEXTO (nome/descrição da coleção e arquivo) para entender melhor o conteúdo.
+
+## Critérios de Avaliação
+
+- **relevant**: Documento aborda diretamente o que o cliente precisa
+  - Compatível com idade, localização, orçamento do cliente
+  - Cobre dependentes e condições pré-existentes mencionadas
+
+- **partially_relevant**: Documento tem alguma relação mas não é ideal
+  - Operadora diferente da preferida
+  - Faixa de preço próxima mas não exata
+  - Cobertura parcial das necessidades
+
+- **irrelevant**: Documento não serve para este cliente
+  - Região de cobertura diferente
+  - Fora do orçamento declarado
+  - Não atende necessidades específicas
+
+## Perfil do Cliente
+{clientInfo}
+
+## Documentos a Avaliar
+{documents}
+
+## Formato de Resposta (JSON)
+{
+  "results": [
+    {
+      "documentId": "id do documento",
+      "score": "relevant" | "partially_relevant" | "irrelevant",
+      "reason": "Explicação breve (1-2 frases)"
+    }
+  ]
+}
+
+IMPORTANTE: Avalie TODOS os documentos. Use o contexto de coleção/arquivo para inferir relevância.
+
+Avalie agora:`
+
+// =============================================================================
 // Main Function
 // =============================================================================
 
 /**
- * Avalia relevância de documentos em relação ao perfil do cliente
+ * Avalia relevância de chunks enriquecidos em relação ao perfil do cliente
  *
- * @param documents - Documentos a avaliar (resultado do RRF fusion)
+ * @param chunks - Chunks enriquecidos a avaliar
  * @param clientInfo - Dados do cliente para comparação
  * @param options - Configurações de grading
- * @returns Documentos com grading e estatísticas
+ * @returns Chunks com grading e estatísticas
  */
 export async function gradeDocuments(
-  documents: FusedDocument[],
-  clientInfo: ClientInfoForQueries,
+  chunks: EnrichedChunk[],
+  clientInfo: ClientInfo,
   options: GradeDocumentsOptions = {}
 ): Promise<GradeDocumentsResult> {
   const opts = { ...DEFAULT_OPTIONS, ...options }
 
-  if (documents.length === 0) {
-    console.log("[gradeDocuments] Nenhum documento para avaliar")
+  if (chunks.length === 0) {
+    console.log("[gradeDocuments] Nenhum chunk para avaliar")
     return {
-      documents: [],
-      relevantDocuments: [],
+      allChunks: [],
+      relevantChunks: [],
       stats: {
         total: 0,
         relevant: 0,
@@ -102,50 +149,50 @@ export async function gradeDocuments(
   }
 
   console.log(
-    `[gradeDocuments] Avaliando ${documents.length} documentos em batches de ${opts.batchSize}`
+    `[gradeDocuments] Avaliando ${chunks.length} chunks em batches de ${opts.batchSize}`
   )
 
   // Dividir em batches
-  const batches = chunkArray(documents, opts.batchSize)
-  const allGradedDocs: GradedDocument[] = []
+  const batches = chunkArray(chunks, opts.batchSize)
+  const allGradedChunks: GradedChunk[] = []
 
   // Processar cada batch
   for (let i = 0; i < batches.length; i++) {
     const batch = batches[i]
     console.log(
-      `[gradeDocuments] Processando batch ${i + 1}/${batches.length} (${batch.length} docs)`
+      `[gradeDocuments] Processando batch ${i + 1}/${batches.length} (${batch.length} chunks)`
     )
 
     try {
       const gradedBatch = await gradeBatch(batch, clientInfo, opts)
-      allGradedDocs.push(...gradedBatch)
+      allGradedChunks.push(...gradedBatch)
     } catch (error) {
       console.error(`[gradeDocuments] Erro no batch ${i + 1}:`, error)
       // Fallback: marcar todos como partially_relevant
-      const fallbackDocs = batch.map(doc => ({
-        ...doc,
-        gradeResult: createFallbackGrade(doc.id),
-        isRelevant: true // Manter no resultado por segurança
+      const fallbackChunks = batch.map(chunk => ({
+        ...chunk,
+        gradeResult: createFallbackGrade(chunk.id),
+        isRelevant: true
       }))
-      allGradedDocs.push(...fallbackDocs)
+      allGradedChunks.push(...fallbackChunks)
     }
   }
 
   // Calcular estatísticas
-  const stats = calculateStats(allGradedDocs)
+  const stats = calculateStats(allGradedChunks)
 
   // Filtrar irrelevantes se solicitado
-  const relevantDocuments = opts.filterIrrelevant
-    ? allGradedDocs.filter(doc => doc.gradeResult?.score !== "irrelevant")
-    : allGradedDocs
+  const relevantChunks = opts.filterIrrelevant
+    ? allGradedChunks.filter(chunk => chunk.gradeResult.score !== "irrelevant")
+    : allGradedChunks
 
   console.log(
     `[gradeDocuments] Resultado: ${stats.relevant} relevantes, ${stats.partiallyRelevant} parciais, ${stats.irrelevant} irrelevantes`
   )
 
   return {
-    documents: allGradedDocs,
-    relevantDocuments,
+    allChunks: allGradedChunks,
+    relevantChunks,
     stats
   }
 }
@@ -155,39 +202,26 @@ export async function gradeDocuments(
 // =============================================================================
 
 /**
- * Processa um batch de documentos
+ * Processa um batch de chunks
  */
 async function gradeBatch(
-  documents: FusedDocument[],
-  clientInfo: ClientInfoForQueries,
+  chunks: EnrichedChunk[],
+  clientInfo: ClientInfo,
   options: Required<GradeDocumentsOptions>
-): Promise<GradedDocument[]> {
-  // Configurar LLM
-  const isGpt5Model = options.model.startsWith("gpt-5")
-
+): Promise<GradedChunk[]> {
   const llm = new ChatOpenAI({
     modelName: options.model,
+    temperature: GRADING_TEMPERATURE,
     timeout: options.timeout,
     maxRetries: 2,
-    tags: ["grade-documents", "health-plan-v2", "rag"],
-    // GPT-5 usa reasoning_effort (Chat Completions API)
-    // GPT-4 usa temperature
-    ...(isGpt5Model
-      ? {
-          modelKwargs: {
-            reasoning_effort: "low"
-          }
-        }
-      : {
-          temperature: GRADING_TEMPERATURE
-        })
+    tags: ["grade-documents", "health-plan-v2", "rag-simple"]
   })
 
   // Preparar prompt
-  const clientInfoText = formatClientInfoForPrompt(clientInfo)
-  const documentsText = formatDocumentsForBatchPrompt(documents)
+  const clientInfoText = formatClientInfo(clientInfo)
+  const documentsText = formatEnrichedChunksForPrompt(chunks)
 
-  const prompt = GRADE_DOCUMENTS_BATCH_PROMPT.replace(
+  const prompt = GRADE_ENRICHED_BATCH_PROMPT.replace(
     "{clientInfo}",
     clientInfoText
   ).replace("{documents}", documentsText)
@@ -203,9 +237,9 @@ async function gradeBatch(
   const jsonMatch = content.match(/\{[\s\S]*\}/)
   if (!jsonMatch) {
     console.warn("[gradeBatch] Não foi possível extrair JSON da resposta")
-    return documents.map(doc => ({
-      ...doc,
-      gradeResult: createFallbackGrade(doc.id),
+    return chunks.map(chunk => ({
+      ...chunk,
+      gradeResult: createFallbackGrade(chunk.id),
       isRelevant: true
     }))
   }
@@ -214,30 +248,30 @@ async function gradeBatch(
     const parsed = JSON.parse(jsonMatch[0])
     const validated = GradingResponseSchema.parse(parsed)
 
-    // Mapear resultados para documentos
-    return documents.map(doc => {
-      const gradeResult = validated.results.find(r => r.documentId === doc.id)
+    // Mapear resultados para chunks
+    return chunks.map(chunk => {
+      const gradeResult = validated.results.find(r => r.documentId === chunk.id)
 
       if (gradeResult) {
         return {
-          ...doc,
+          ...chunk,
           gradeResult,
           isRelevant: gradeResult.score !== "irrelevant"
         }
       }
 
-      // Documento não encontrado na resposta - usar fallback
+      // Chunk não encontrado na resposta - usar fallback
       return {
-        ...doc,
-        gradeResult: createFallbackGrade(doc.id),
+        ...chunk,
+        gradeResult: createFallbackGrade(chunk.id),
         isRelevant: true
       }
     })
   } catch (error) {
     console.error("[gradeBatch] Erro ao parsear resposta:", error)
-    return documents.map(doc => ({
-      ...doc,
-      gradeResult: createFallbackGrade(doc.id),
+    return chunks.map(chunk => ({
+      ...chunk,
+      gradeResult: createFallbackGrade(chunk.id),
       isRelevant: true
     }))
   }
@@ -251,11 +285,11 @@ async function gradeBatch(
  * Divide array em chunks de tamanho fixo
  */
 function chunkArray<T>(array: T[], size: number): T[][] {
-  const chunks: T[][] = []
+  const result: T[][] = []
   for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size))
+    result.push(array.slice(i, i + size))
   }
-  return chunks
+  return result
 }
 
 /**
@@ -274,16 +308,14 @@ function createFallbackGrade(documentId: string): GradeResult {
 /**
  * Calcula estatísticas do grading
  */
-function calculateStats(
-  documents: GradedDocument[]
-): GradeDocumentsResult["stats"] {
+function calculateStats(chunks: GradedChunk[]): GradeDocumentsResult["stats"] {
   let relevant = 0
   let partiallyRelevant = 0
   let irrelevant = 0
   let failed = 0
 
-  for (const doc of documents) {
-    const score = doc.gradeResult?.score
+  for (const chunk of chunks) {
+    const score = chunk.gradeResult?.score
 
     switch (score) {
       case "relevant":
@@ -301,7 +333,7 @@ function calculateStats(
   }
 
   return {
-    total: documents.length,
+    total: chunks.length,
     relevant,
     partiallyRelevant,
     irrelevant,
@@ -310,48 +342,160 @@ function calculateStats(
 }
 
 /**
- * Versão simplificada que retorna apenas documentos relevantes
+ * Formata informações do cliente para o prompt
  */
-export async function filterRelevantDocuments(
-  documents: FusedDocument[],
-  clientInfo: ClientInfoForQueries,
-  model: string = "gpt-5-mini"
-): Promise<FusedDocument[]> {
-  const result = await gradeDocuments(documents, clientInfo, {
-    model,
-    filterIrrelevant: true
-  })
+function formatClientInfo(clientInfo: ClientInfo): string {
+  const parts: string[] = []
 
-  // Retornar como FusedDocument (sem campos de grading)
-  return result.relevantDocuments.map(doc => ({
-    id: doc.id,
-    content: doc.content,
-    score: doc.score,
-    metadata: doc.metadata,
-    rrfScore: (doc as FusedDocument).rrfScore || 0,
-    appearances: (doc as FusedDocument).appearances || 1,
-    queryMatches: (doc as FusedDocument).queryMatches || []
-  }))
+  if (clientInfo.age !== undefined) {
+    parts.push(`- **Idade:** ${clientInfo.age} anos`)
+  }
+
+  if (clientInfo.city || clientInfo.state) {
+    const location = [clientInfo.city, clientInfo.state]
+      .filter(Boolean)
+      .join(", ")
+    parts.push(`- **Localização:** ${location}`)
+  }
+
+  if (clientInfo.budget !== undefined) {
+    parts.push(
+      `- **Orçamento:** até R$ ${clientInfo.budget.toLocaleString("pt-BR")}/mês`
+    )
+  }
+
+  if (clientInfo.dependents && clientInfo.dependents.length > 0) {
+    const depsDescriptions = clientInfo.dependents.map(dep => {
+      const depParts = []
+      if (dep.relationship) depParts.push(dep.relationship)
+      if (dep.age !== undefined) depParts.push(`${dep.age} anos`)
+      return depParts.join(" de ") || "dependente"
+    })
+    parts.push(`- **Dependentes:** ${depsDescriptions.join(", ")}`)
+  }
+
+  if (
+    clientInfo.preExistingConditions &&
+    clientInfo.preExistingConditions.length > 0
+  ) {
+    parts.push(
+      `- **Condições pré-existentes:** ${clientInfo.preExistingConditions.join(", ")}`
+    )
+  }
+
+  if (clientInfo.preferences && clientInfo.preferences.length > 0) {
+    parts.push(`- **Preferências:** ${clientInfo.preferences.join(", ")}`)
+  }
+
+  if (parts.length === 0) {
+    return "Nenhuma informação específica do cliente disponível"
+  }
+
+  return parts.join("\n")
 }
 
 /**
- * Conta documentos por score
+ * Formata chunks enriquecidos para o prompt de grading
  */
-export function countByScore(
-  documents: GradedDocument[]
-): Record<GradeScore, number> {
-  const counts: Record<GradeScore, number> = {
-    relevant: 0,
-    partially_relevant: 0,
-    irrelevant: 0
-  }
+function formatEnrichedChunksForPrompt(chunks: EnrichedChunk[]): string {
+  return chunks
+    .map((chunk, index) => {
+      const lines: string[] = []
 
-  for (const doc of documents) {
-    const score = doc.gradeResult?.score
-    if (score && score in counts) {
-      counts[score]++
-    }
-  }
+      lines.push(`### Documento ${index + 1} (ID: ${chunk.id})`)
 
-  return counts
+      // Contexto da coleção
+      if (chunk.collection) {
+        lines.push(`**Coleção:** ${chunk.collection.name}`)
+        lines.push(`**Descrição da Coleção:** ${chunk.collection.description}`)
+      }
+
+      // Contexto do arquivo
+      lines.push(`**Arquivo:** ${chunk.file.name}`)
+      lines.push(`**Descrição do Arquivo:** ${chunk.file.description}`)
+
+      // Similaridade
+      lines.push(`**Similaridade:** ${(chunk.similarity * 100).toFixed(1)}%`)
+
+      // Conteúdo (truncado se muito longo)
+      const content =
+        chunk.content.length > 600
+          ? chunk.content.substring(0, 600) + "..."
+          : chunk.content
+      lines.push(`**Conteúdo:**\n${content}`)
+
+      return lines.join("\n")
+    })
+    .join("\n\n---\n\n")
+}
+
+// =============================================================================
+// Legacy Compatibility (para transição gradual)
+// =============================================================================
+
+/**
+ * Tipo legado para compatibilidade
+ * @deprecated Use EnrichedChunk em vez disso
+ */
+export interface FusedDocument {
+  id: string
+  content: string
+  score?: number
+  metadata?: {
+    documentType?: string
+    operator?: string
+    planCode?: string
+    tags?: string[]
+    fileId?: string
+    fileName?: string
+    fileDescription?: string
+    collectionId?: string
+    collectionName?: string
+    collectionDescription?: string
+  }
+  rrfScore?: number
+  appearances?: number
+  queryMatches?: string[]
+}
+
+/**
+ * Tipo legado para compatibilidade
+ * @deprecated Use ClientInfo em vez disso
+ */
+export interface ClientInfoForQueries {
+  age?: number
+  city?: string
+  state?: string
+  budget?: number
+  dependents?: Array<{
+    age?: number
+    relationship?: string
+  }>
+  preExistingConditions?: string[]
+  preferences?: string[]
+}
+
+/**
+ * Converte FusedDocument[] para EnrichedChunk[] para compatibilidade
+ * @deprecated Use retrieve-simple diretamente
+ */
+export function convertFusedToEnriched(docs: FusedDocument[]): EnrichedChunk[] {
+  return docs.map(doc => ({
+    id: doc.id,
+    content: doc.content,
+    tokens: 0,
+    similarity: doc.score || doc.rrfScore || 0,
+    file: {
+      id: doc.metadata?.fileId || "",
+      name: doc.metadata?.fileName || "Arquivo sem nome",
+      description: doc.metadata?.fileDescription || ""
+    },
+    collection: doc.metadata?.collectionId
+      ? {
+          id: doc.metadata.collectionId,
+          name: doc.metadata.collectionName || "Coleção sem nome",
+          description: doc.metadata.collectionDescription || ""
+        }
+      : null
+  }))
 }

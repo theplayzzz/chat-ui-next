@@ -1,57 +1,31 @@
 /**
- * Search Plans Graph - Sub-grafo Agentic RAG
+ * Search Plans Graph - Sub-grafo RAG Simplificado
  *
- * Implementa busca hierárquica inteligente com:
- * - Multi-Query Generation (3-5 queries)
- * - Hierarchical Retrieval (general → specific)
- * - Reciprocal Rank Fusion (RRF k=60)
- * - Document Grading (LLM)
- * - Budget Filter (preço × faixa etária × orçamento)
- * - Query Rewriting (max 2x)
+ * Implementa busca vetorial simples com contexto enriquecido:
+ * - Busca única com embedding
+ * - Retorno enriquecido (nome/descrição de coleção e arquivo)
+ * - Document Grading (LLM) usando contexto completo
  *
- * Fluxo: initialize → generateQueries → retrieveHierarchical → fusionResults
- *        → gradeDocuments → filterByBudget → [formatResults | rewriteQuery]
+ * Fluxo: initialize → retrieveSimple → gradeDocuments → formatResults
  *
  * PRD: .taskmaster/docs/agentic-rag-implementation-prd.md
- * Seção: Fase 6C
  */
 
 import { StateGraph, Annotation, END, START } from "@langchain/langgraph"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/supabase/types"
 
-// Import dos nós RAG
+// Import dos nós RAG simplificados
 import {
-  generateQueries,
-  extractQueryStrings,
-  type GeneratedQueries
-} from "../nodes/rag/generate-queries"
-import {
-  reciprocalRankFusion,
-  type QueryResult,
-  type FusedDocument
-} from "../nodes/rag/result-fusion"
+  retrieveSimple,
+  type EnrichedChunk,
+  type ClientInfo
+} from "../nodes/rag/retrieve-simple"
 import {
   gradeDocuments,
-  type GradeDocumentsResult
+  type GradeDocumentsResult,
+  type GradedChunk
 } from "../nodes/rag/grade-documents"
-import {
-  rewriteQuery,
-  detectProblem,
-  shouldRewrite,
-  MAX_REWRITE_ATTEMPTS
-} from "../nodes/rag/rewrite-query"
-import {
-  retrieveHierarchical,
-  type HierarchicalRetrieveResult,
-  type HierarchicalDocument
-} from "../nodes/rag/retrieve-hierarchical"
-import {
-  filterByBudget,
-  getAgeBand,
-  getAgeBandName,
-  type FilterByBudgetResult
-} from "../nodes/rag/filter-by-budget"
 
 // Types
 import type { PartialClientInfo } from "../../health-plan-v2/types"
@@ -61,99 +35,66 @@ import type { PartialClientInfo } from "../../health-plan-v2/types"
 // =============================================================================
 
 /**
- * Estado do sub-grafo de busca de planos
+ * Estado simplificado do sub-grafo de busca de planos
  */
 export const SearchPlansStateAnnotation = Annotation.Root({
-  // === INPUT DO GRAFO PRINCIPAL ===
+  // === INPUT ===
+  /** ID do assistente */
   assistantId: Annotation<string>,
+  /** Informações do cliente */
   clientInfo: Annotation<PartialClientInfo>({
     reducer: (_, y) => y,
     default: () => ({})
   }),
+  /** Query de busca do usuário */
+  userQuery: Annotation<string>({
+    reducer: (_, y) => y,
+    default: () => ""
+  }),
 
-  // === CONFIGURAÇÃO RAG ===
+  // === CONFIGURAÇÃO ===
+  /** Modelo para grading (default: gpt-4o-mini) */
   ragModel: Annotation<string>({
     reducer: (_, y) => y,
-    default: () => "gpt-5-mini" // PRD: gpt-5-mini com reasoning_effort
+    default: () => "gpt-4o-mini"
   }),
+  /** IDs dos arquivos para buscar */
   fileIds: Annotation<string[]>({
     reducer: (_, y) => y,
     default: () => []
   }),
-
-  // === MULTI-QUERY ===
-  queries: Annotation<GeneratedQueries["queries"]>({
+  /** Top-K para busca vetorial */
+  topK: Annotation<number>({
     reducer: (_, y) => y,
-    default: () => []
-  }),
-  queryStrings: Annotation<string[]>({
-    reducer: (_, y) => y,
-    default: () => []
+    default: () => 20
   }),
 
-  // === BUSCA HIERÁRQUICA ===
-  generalDocs: Annotation<HierarchicalDocument[]>({
-    reducer: (_, y) => y,
-    default: () => []
-  }),
-  specificDocs: Annotation<HierarchicalDocument[]>({
-    reducer: (_, y) => y,
-    default: () => []
-  }),
-  extractedOperators: Annotation<string[]>({
-    reducer: (_, y) => y,
-    default: () => []
-  }),
-
-  // === FUSION ===
-  fusedDocs: Annotation<FusedDocument[]>({
+  // === BUSCA ===
+  /** Chunks enriquecidos da busca */
+  retrievedChunks: Annotation<EnrichedChunk[]>({
     reducer: (_, y) => y,
     default: () => []
   }),
 
   // === GRADING ===
-  gradedDocs: Annotation<GradeDocumentsResult["documents"]>({
+  /** Chunks após avaliação de relevância */
+  gradedChunks: Annotation<GradedChunk[]>({
     reducer: (_, y) => y,
     default: () => []
   }),
-  relevantDocs: Annotation<FusedDocument[]>({
+  /** Chunks relevantes filtrados */
+  relevantChunks: Annotation<GradedChunk[]>({
     reducer: (_, y) => y,
     default: () => []
-  }),
-  relevantCount: Annotation<number>({
-    reducer: (_, y) => y,
-    default: () => 0
-  }),
-
-  // === REWRITE CONTROL ===
-  rewriteCount: Annotation<number>({
-    reducer: (_, y) => y,
-    default: () => 0
-  }),
-  currentQuery: Annotation<string>({
-    reducer: (_, y) => y,
-    default: () => ""
-  }),
-
-  // === BUDGET FILTER ===
-  budgetFilteredDocs: Annotation<FusedDocument[]>({
-    reducer: (_, y) => y,
-    default: () => []
-  }),
-  budgetFilterStats: Annotation<BudgetFilterStats | null>({
-    reducer: (_, y) => y,
-    default: () => null
   }),
 
   // === OUTPUT ===
-  searchResults: Annotation<FusedDocument[]>({
+  /** Resultados finais da busca */
+  searchResults: Annotation<GradedChunk[]>({
     reducer: (_, y) => y,
     default: () => []
   }),
-  limitedResults: Annotation<boolean>({
-    reducer: (_, y) => y,
-    default: () => false
-  }),
+  /** Metadados da busca */
   searchMetadata: Annotation<SearchMetadata | null>({
     reducer: (_, y) => y,
     default: () => null
@@ -163,34 +104,25 @@ export const SearchPlansStateAnnotation = Annotation.Root({
 export type SearchPlansState = typeof SearchPlansStateAnnotation.State
 
 /**
- * Estatísticas do filtro de orçamento
- */
-export interface BudgetFilterStats {
-  totalDocs: number
-  compatibleDocs: number
-  incompatibleDocs: number
-  noPriceInfo: number
-  ageBand: number
-  ageBandName: string
-  budget: number | null
-  appliedFilter: boolean
-}
-
-/**
  * Metadados da busca
  */
 export interface SearchMetadata {
-  queryCount: number
-  rewriteCount: number
-  relevantDocsCount: number
-  totalDocsFound: number
-  generalDocsCount: number
-  specificDocsCount: number
-  extractedOperators: string[]
-  limitedResults: boolean
+  /** Query utilizada */
+  query: string
+  /** Total de chunks recuperados */
+  retrievedCount: number
+  /** Chunks relevantes após grading */
+  relevantCount: number
+  /** Modelo usado para grading */
   ragModel: string
+  /** Tempo de execução em ms */
   executionTimeMs: number
-  budgetFilterStats: BudgetFilterStats | null
+  /** Stats do grading */
+  gradingStats: {
+    relevant: number
+    partiallyRelevant: number
+    irrelevant: number
+  }
 }
 
 // =============================================================================
@@ -203,7 +135,7 @@ export interface SearchMetadata {
 async function initializeNode(
   state: SearchPlansState
 ): Promise<Partial<SearchPlansState>> {
-  console.log("[search-plans-graph] 🚀 Inicializando busca...")
+  console.log("[search-plans-graph] Inicializando busca...")
   console.log(`[search-plans-graph] AssistantId: ${state.assistantId}`)
 
   const supabase = createClient<Database>(
@@ -235,328 +167,139 @@ async function initializeNode(
 
   if (error || !assistant) {
     console.error("[search-plans-graph] Erro ao buscar assistente:", error)
-    return { fileIds: [], ragModel: "gpt-5-mini" }
+    return { fileIds: [] }
   }
 
-  // Extrair fileIds - o modelo será o default do state ou passado pelo grafo principal
+  // Extrair fileIds
   const collections = assistant.collections || []
   const fileIds = collections.flatMap(c =>
     (c.files || []).map((f: { id: string }) => f.id)
   )
 
-  // ragModel usa default do state (gpt-5-mini) ou pode ser passado pelo invoker
-  const ragModel = state.ragModel || "gpt-5-mini"
+  console.log(`[search-plans-graph] Files encontrados: ${fileIds.length}`)
 
-  console.log(
-    `[search-plans-graph] Files: ${fileIds.length}, Model: ${ragModel}`
-  )
-
-  return { fileIds, ragModel }
+  return { fileIds }
 }
 
 /**
- * Nó: Gerar Queries Multi-Perspectiva
+ * Nó: Busca Vetorial Simples com Contexto Enriquecido
  */
-async function generateQueriesNode(
+async function retrieveSimpleNode(
   state: SearchPlansState
 ): Promise<Partial<SearchPlansState>> {
-  console.log("[search-plans-graph] 📝 Gerando queries...")
-
-  const result = await generateQueries(state.clientInfo, state.ragModel)
-
-  const queryStrings = extractQueryStrings({ queries: result.queries })
-  const currentQuery = queryStrings[0] || ""
-
-  console.log(`[search-plans-graph] Geradas ${result.queries.length} queries`)
-
-  return {
-    queries: result.queries,
-    queryStrings,
-    currentQuery
-  }
-}
-
-/**
- * Nó: Busca Hierárquica (General + Specific)
- */
-async function retrieveHierarchicalNode(
-  state: SearchPlansState
-): Promise<Partial<SearchPlansState>> {
-  console.log("[search-plans-graph] 🔍 Busca hierárquica...")
+  console.log("[search-plans-graph] Buscando chunks...")
 
   if (state.fileIds.length === 0) {
     console.log("[search-plans-graph] Nenhum arquivo para buscar")
-    return { generalDocs: [], specificDocs: [], extractedOperators: [] }
+    return { retrievedChunks: [] }
   }
 
-  const supabase = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
+  // Construir query combinando userQuery com contexto do cliente
+  const queryParts = [state.userQuery]
 
-  // Gerar embedding para a query atual
-  const OpenAI = (await import("openai")).default
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  if (state.clientInfo.city || state.clientInfo.state) {
+    const location = [state.clientInfo.city, state.clientInfo.state]
+      .filter(Boolean)
+      .join(", ")
+    queryParts.push(`localização: ${location}`)
+  }
 
-  const embeddingResponse = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: state.currentQuery
-  })
-  const queryEmbedding = embeddingResponse.data[0].embedding
+  if (state.clientInfo.age) {
+    queryParts.push(`idade: ${state.clientInfo.age} anos`)
+  }
 
-  // Executar busca hierárquica
-  const result = await retrieveHierarchical({
-    queryEmbedding,
+  const enrichedQuery = queryParts.join(" | ")
+
+  const result = await retrieveSimple({
+    query: enrichedQuery,
     fileIds: state.fileIds,
-    generalTopK: 5,
-    specificTopK: 10,
-    generalWeight: 0.3,
-    specificWeight: 0.7,
-    supabaseClient: supabase
+    topK: state.topK
   })
 
-  console.log(
-    `[search-plans-graph] General: ${result.generalDocs.length}, Specific: ${result.specificDocs.length}`
-  )
+  console.log(`[search-plans-graph] Recuperados ${result.chunks.length} chunks`)
 
-  return {
-    generalDocs: result.documents.filter(d => d.hierarchyLevel === "general"),
-    specificDocs: result.documents.filter(d => d.hierarchyLevel === "specific"),
-    extractedOperators: result.extractedOperators
-  }
+  return { retrievedChunks: result.chunks }
 }
 
 /**
- * Nó: RRF Fusion dos resultados
- */
-async function fusionResultsNode(
-  state: SearchPlansState
-): Promise<Partial<SearchPlansState>> {
-  console.log("[search-plans-graph] 🔀 Fusionando resultados...")
-
-  // Converter para QueryResult format
-  const allDocs = [...state.generalDocs, ...state.specificDocs]
-
-  // Criar QueryResults virtuais para RRF
-  const queryResults: QueryResult[] = state.queryStrings.map((query, idx) => ({
-    query,
-    documents: allDocs.map(doc => ({
-      id: doc.id,
-      content: doc.content,
-      score: doc.hierarchicalScore || doc.score || 0,
-      metadata: doc.metadata
-    }))
-  }))
-
-  const fusedDocs = reciprocalRankFusion(queryResults, { topK: 15 })
-
-  console.log(`[search-plans-graph] Fusionados ${fusedDocs.length} documentos`)
-
-  return { fusedDocs }
-}
-
-/**
- * Nó: Grading de documentos com LLM
+ * Nó: Grading de Documentos com LLM
  */
 async function gradeDocumentsNode(
   state: SearchPlansState
 ): Promise<Partial<SearchPlansState>> {
-  console.log("[search-plans-graph] ⭐ Avaliando documentos...")
+  console.log("[search-plans-graph] Avaliando relevância...")
 
-  const result = await gradeDocuments(state.fusedDocs, state.clientInfo, {
+  if (state.retrievedChunks.length === 0) {
+    return {
+      gradedChunks: [],
+      relevantChunks: []
+    }
+  }
+
+  // Converter PartialClientInfo para ClientInfo
+  const clientInfo: ClientInfo = {
+    age: state.clientInfo.age,
+    city: state.clientInfo.city,
+    state: state.clientInfo.state,
+    budget: state.clientInfo.budget,
+    dependents: state.clientInfo.dependents,
+    preExistingConditions: state.clientInfo.healthConditions,
+    preferences: state.clientInfo.preferences
+  }
+
+  const result = await gradeDocuments(state.retrievedChunks, clientInfo, {
     model: state.ragModel,
     batchSize: 5
   })
 
-  // gradeDocuments já retorna relevantDocuments filtrados
-  const relevantDocs = result.relevantDocuments as FusedDocument[]
-  const relevantCount = relevantDocs.length
-
   console.log(
-    `[search-plans-graph] Relevantes: ${relevantCount}/${state.fusedDocs.length}`
+    `[search-plans-graph] Relevantes: ${result.relevantChunks.length}/${state.retrievedChunks.length}`
   )
 
   return {
-    gradedDocs: result.documents,
-    relevantDocs,
-    relevantCount
+    gradedChunks: result.allChunks,
+    relevantChunks: result.relevantChunks
   }
 }
 
 /**
- * Nó: Filtro de Orçamento
- * Aplica filtro matemático baseado em preço × faixa etária × orçamento
- */
-async function filterByBudgetNode(
-  state: SearchPlansState
-): Promise<Partial<SearchPlansState>> {
-  console.log("[search-plans-graph] 💰 Filtrando por orçamento...")
-
-  const { clientInfo, relevantDocs } = state
-  const { age, budget } = clientInfo
-
-  // Se não tem idade ou orçamento, retorna docs sem filtrar
-  if (!age || !budget) {
-    console.log(
-      "[search-plans-graph] ⚠ Idade ou orçamento não informados, pulando filtro"
-    )
-    return {
-      budgetFilteredDocs: relevantDocs,
-      budgetFilterStats: {
-        totalDocs: relevantDocs.length,
-        compatibleDocs: relevantDocs.length,
-        incompatibleDocs: 0,
-        noPriceInfo: relevantDocs.length,
-        ageBand: 0,
-        ageBandName: "N/A",
-        budget: null,
-        appliedFilter: false
-      }
-    }
-  }
-
-  // Aplicar filtro de orçamento
-  const result = filterByBudget(relevantDocs, clientInfo)
-
-  const ageBand = getAgeBand(age)
-  const stats: BudgetFilterStats = {
-    totalDocs: result.stats.total,
-    compatibleDocs: result.compatibleDocs.length,
-    incompatibleDocs: result.incompatibleDocs.length,
-    noPriceInfo: result.stats.noPriceInfo,
-    ageBand,
-    ageBandName: getAgeBandName(ageBand),
-    budget,
-    appliedFilter: true
-  }
-
-  console.log(
-    `[search-plans-graph] Compatíveis: ${result.compatibleDocs.length}/${relevantDocs.length} (faixa ${stats.ageBandName}, orçamento R$${budget})`
-  )
-
-  return {
-    budgetFilteredDocs: result.compatibleDocs,
-    budgetFilterStats: stats
-  }
-}
-
-/**
- * Nó: Rewrite da Query
- */
-async function rewriteQueryNode(
-  state: SearchPlansState
-): Promise<Partial<SearchPlansState>> {
-  console.log(
-    `[search-plans-graph] ✏️ Reescrevendo query (tentativa ${state.rewriteCount + 1})...`
-  )
-
-  const problem = detectProblem(
-    state.fusedDocs.length,
-    state.relevantCount,
-    0.5
-  )
-
-  const result = await rewriteQuery(
-    {
-      originalQuery: state.currentQuery,
-      problem,
-      attemptCount: state.rewriteCount + 1,
-      clientInfo: state.clientInfo
-    },
-    { model: state.ragModel }
-  )
-
-  console.log(
-    `[search-plans-graph] Query reescrita: "${result.rewrittenQuery.substring(0, 50)}..."`
-  )
-
-  return {
-    currentQuery: result.rewrittenQuery,
-    rewriteCount: state.rewriteCount + 1
-  }
-}
-
-/**
- * Nó: Formatar resultados finais
- * Usa budgetFilteredDocs se disponível, senão relevantDocs
+ * Nó: Formatar Resultados Finais
  */
 async function formatResultsNode(
   state: SearchPlansState
 ): Promise<Partial<SearchPlansState>> {
-  console.log("[search-plans-graph] 📦 Formatando resultados finais...")
+  console.log("[search-plans-graph] Formatando resultados...")
 
-  // Usar docs filtrados por orçamento se disponível
-  const finalDocs =
-    state.budgetFilteredDocs.length > 0
-      ? state.budgetFilteredDocs
-      : state.relevantDocs
-
-  const limitedResults =
-    state.rewriteCount >= MAX_REWRITE_ATTEMPTS && finalDocs.length < 3
+  // Calcular stats do grading
+  const gradingStats = {
+    relevant: state.gradedChunks.filter(
+      c => c.gradeResult?.score === "relevant"
+    ).length,
+    partiallyRelevant: state.gradedChunks.filter(
+      c => c.gradeResult?.score === "partially_relevant"
+    ).length,
+    irrelevant: state.gradedChunks.filter(
+      c => c.gradeResult?.score === "irrelevant"
+    ).length
+  }
 
   const searchMetadata: SearchMetadata = {
-    queryCount: state.queries.length,
-    rewriteCount: state.rewriteCount,
-    relevantDocsCount: state.relevantCount,
-    totalDocsFound: state.fusedDocs.length,
-    generalDocsCount: state.generalDocs.length,
-    specificDocsCount: state.specificDocs.length,
-    extractedOperators: state.extractedOperators,
-    limitedResults,
+    query: state.userQuery,
+    retrievedCount: state.retrievedChunks.length,
+    relevantCount: state.relevantChunks.length,
     ragModel: state.ragModel,
     executionTimeMs: 0, // Será calculado no invoke
-    budgetFilterStats: state.budgetFilterStats
+    gradingStats
   }
 
   console.log(
-    `[search-plans-graph] ✅ Busca concluída: ${finalDocs.length} docs (${state.relevantCount} relevantes, ${state.budgetFilterStats?.compatibleDocs ?? "N/A"} compatíveis com orçamento)`
+    `[search-plans-graph] Busca concluída: ${state.relevantChunks.length} docs relevantes`
   )
 
   return {
-    searchResults: finalDocs,
-    limitedResults,
+    searchResults: state.relevantChunks,
     searchMetadata
   }
-}
-
-// =============================================================================
-// Routing Functions
-// =============================================================================
-
-/**
- * Decide se precisa reescrever query ou formatar resultados
- * Considera tanto relevantCount quanto budgetFilteredDocs
- */
-function routeAfterFiltering(state: SearchPlansState): string {
-  const { relevantCount, rewriteCount, budgetFilteredDocs, budgetFilterStats } =
-    state
-
-  // Usar contagem de docs filtrados por orçamento se disponível
-  const effectiveCount = budgetFilterStats?.appliedFilter
-    ? budgetFilteredDocs.length
-    : relevantCount
-
-  // Se temos docs suficientes, formata resultados
-  if (effectiveCount >= 3) {
-    console.log(
-      `[search-plans-graph] ✓ Docs suficientes (${effectiveCount}), formatando resultados`
-    )
-    return "formatResults"
-  }
-
-  // Se ainda podemos reescrever, tenta novamente
-  if (shouldRewrite(effectiveCount, rewriteCount)) {
-    console.log(
-      `[search-plans-graph] ⚠ Poucos docs (${effectiveCount}), reescrevendo query`
-    )
-    return "rewriteQuery"
-  }
-
-  // Limite de rewrites atingido
-  console.log(
-    "[search-plans-graph] ⚠ Limite de rewrites, usando resultados parciais"
-  )
-  return "formatResults"
 }
 
 // =============================================================================
@@ -564,35 +307,20 @@ function routeAfterFiltering(state: SearchPlansState): string {
 // =============================================================================
 
 /**
- * Cria o sub-grafo de busca de planos
+ * Cria o sub-grafo simplificado de busca de planos
  */
 export function createSearchPlansGraph() {
   const workflow = new StateGraph(SearchPlansStateAnnotation)
-    // === ADICIONA NÓS ===
+    // Adiciona nós
     .addNode("initialize", initializeNode)
-    .addNode("generateQueries", generateQueriesNode)
-    .addNode("retrieveHierarchical", retrieveHierarchicalNode)
-    .addNode("fusionResults", fusionResultsNode)
+    .addNode("retrieveSimple", retrieveSimpleNode)
     .addNode("gradeDocuments", gradeDocumentsNode)
-    .addNode("filterByBudget", filterByBudgetNode)
-    .addNode("rewriteQuery", rewriteQueryNode)
     .addNode("formatResults", formatResultsNode)
-    // === DEFINE FLUXO ===
+    // Define fluxo linear
     .addEdge(START, "initialize")
-    .addEdge("initialize", "generateQueries")
-    .addEdge("generateQueries", "retrieveHierarchical")
-    .addEdge("retrieveHierarchical", "fusionResults")
-    .addEdge("fusionResults", "gradeDocuments")
-    // Grading → Budget Filter
-    .addEdge("gradeDocuments", "filterByBudget")
-    // Edge condicional após filtro de orçamento
-    .addConditionalEdges("filterByBudget", routeAfterFiltering, [
-      "formatResults",
-      "rewriteQuery"
-    ])
-    // Rewrite → volta para busca
-    .addEdge("rewriteQuery", "retrieveHierarchical")
-    // Format → END
+    .addEdge("initialize", "retrieveSimple")
+    .addEdge("retrieveSimple", "gradeDocuments")
+    .addEdge("gradeDocuments", "formatResults")
     .addEdge("formatResults", END)
 
   return workflow
@@ -615,3 +343,41 @@ export const compiledSearchPlansGraph = compileSearchPlansGraph()
  * Tipo do sub-grafo compilado
  */
 export type SearchPlansGraphApp = ReturnType<typeof compileSearchPlansGraph>
+
+// =============================================================================
+// Helper para invocar o grafo
+// =============================================================================
+
+/**
+ * Invoca o grafo de busca de planos
+ */
+export async function invokeSearchPlansGraph(params: {
+  assistantId: string
+  userQuery: string
+  clientInfo?: PartialClientInfo
+  ragModel?: string
+  topK?: number
+}): Promise<{
+  results: GradedChunk[]
+  metadata: SearchMetadata | null
+}> {
+  const startTime = Date.now()
+
+  const result = await compiledSearchPlansGraph.invoke({
+    assistantId: params.assistantId,
+    userQuery: params.userQuery,
+    clientInfo: params.clientInfo || {},
+    ragModel: params.ragModel || "gpt-4o-mini",
+    topK: params.topK || 20
+  })
+
+  // Atualizar tempo de execução
+  if (result.searchMetadata) {
+    result.searchMetadata.executionTimeMs = Date.now() - startTime
+  }
+
+  return {
+    results: result.searchResults,
+    metadata: result.searchMetadata
+  }
+}

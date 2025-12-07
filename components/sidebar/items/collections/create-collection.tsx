@@ -1,6 +1,7 @@
 import { SidebarCreateItem } from "@/components/sidebar/items/all/sidebar-create-item"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { ChatbotUIContext } from "@/context/context"
 import { COLLECTION_DESCRIPTION_MAX, COLLECTION_NAME_MAX } from "@/db/limits"
 import { TablesInsert } from "@/supabase/types"
@@ -47,6 +48,8 @@ export const CreateCollection: FC<CreateCollectionProps> = ({
   if (!profile) return null
   if (!selectedWorkspace) return null
 
+  const isFormValid = name.trim() && description.trim()
+
   return (
     <SidebarCreateItem
       contentType="collections"
@@ -89,14 +92,19 @@ export const CreateCollection: FC<CreateCollectionProps> = ({
           </div>
 
           <div className="space-y-1">
-            <Label>Description</Label>
+            <Label>Description *</Label>
 
-            <Input
-              placeholder="Collection description..."
+            <Textarea
+              placeholder="Descreva o conteúdo desta coleção. Ex: 'Documentos de planos de saúde Amil com preços e coberturas para SP'..."
               value={description}
               onChange={e => setDescription(e.target.value)}
               maxLength={COLLECTION_DESCRIPTION_MAX}
+              rows={3}
+              className="resize-none"
             />
+            <p className="text-muted-foreground text-xs">
+              A descrição ajuda o sistema a encontrar documentos relevantes
+            </p>
           </div>
 
           <div className="space-y-1">
@@ -114,6 +122,12 @@ export const CreateCollection: FC<CreateCollectionProps> = ({
               <option value="financial">Financeiro</option>
             </select>
           </div>
+
+          {!isFormValid && (
+            <p className="text-destructive text-xs">
+              * Campos obrigatórios: preencha o nome e a descrição da coleção
+            </p>
+          )}
         </>
       )}
     />

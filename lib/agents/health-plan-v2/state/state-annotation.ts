@@ -67,20 +67,20 @@ export const HealthPlanStateAnnotation = Annotation.Root({
   }),
 
   /**
-   * Metadados da busca hierárquica (v2)
+   * Metadados da busca RAG simplificada
    * PRD: Fase 6C.4
    */
   searchMetadata: Annotation<{
-    queryCount?: number
-    rewriteCount?: number
-    relevantDocsCount?: number
-    totalDocsFound?: number
-    generalDocsCount?: number
-    specificDocsCount?: number
-    extractedOperators?: string[]
-    limitedResults?: boolean
+    query?: string
+    retrievedCount?: number
+    relevantCount?: number
     ragModel?: string
     executionTimeMs?: number
+    gradingStats?: {
+      relevant: number
+      partiallyRelevant: number
+      irrelevant: number
+    }
   } | null>({
     reducer: (_, y) => y,
     default: () => null
