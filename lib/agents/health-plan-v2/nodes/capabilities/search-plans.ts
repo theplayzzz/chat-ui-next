@@ -1,12 +1,14 @@
 /**
  * Capacidade: searchPlans
  *
- * Busca planos de saúde via RAG simplificado.
+ * Busca planos de saúde via RAG por arquivo.
  * Idempotente - pode ser chamada múltiplas vezes.
  *
  * Implementa:
- * - Busca vetorial única com contexto enriquecido
- * - Document Grading (LLM) com contexto de coleção/arquivo
+ * - Busca vetorial por arquivo (top 5 chunks por arquivo)
+ * - Grading por arquivo como unidade
+ * - Contexto de conversa para análise
+ * - Retorno de análise textual formatada
  *
  * PRD: .taskmaster/docs/agentic-rag-implementation-prd.md
  */
@@ -15,24 +17,30 @@ import { AIMessage } from "@langchain/core/messages"
 import type { HealthPlanState } from "../../state/state-annotation"
 import {
   invokeSearchPlansGraph,
-  type SearchMetadata
+  type SearchMetadata,
+  type SearchPlansGraphResult
 } from "../../graphs/search-plans-graph"
-import type { GradedChunk } from "../../nodes/rag/grade-documents"
+import type { FileGradingResult } from "../../nodes/rag/grade-documents"
+import type {
+  CollectionAnalysisResult,
+  IdentifiedPlan
+} from "../../nodes/rag/types"
 import type { HealthPlanDocument } from "../../types"
 
 /**
- * Busca planos de saúde usando sub-grafo RAG simplificado
+ * Busca planos de saúde usando sub-grafo RAG por arquivo
  *
  * O sub-grafo executa:
  * 1. Carrega fileIds das collections
- * 2. Busca vetorial única com contexto enriquecido
- * 3. Grading com LLM usando contexto de coleção/arquivo
+ * 2. Busca top 5 chunks de CADA arquivo
+ * 3. Grading por arquivo como unidade com contexto da conversa
+ * 4. Retorna análise textual formatada
  */
 export async function searchPlans(
   state: HealthPlanState
 ): Promise<Partial<HealthPlanState>> {
   const startTime = Date.now()
-  console.log("[searchPlans] Iniciando busca via sub-grafo RAG...")
+  console.log("[searchPlans] Iniciando busca via sub-grafo RAG por arquivo...")
 
   // Verificar se há dados suficientes para busca
   const clientInfo = state.clientInfo || {}
@@ -54,12 +62,19 @@ export async function searchPlans(
   }
 
   try {
-    // Construir query baseada na última mensagem ou clientInfo
-    const lastMessage = state.messages?.[state.messages.length - 1]
-    const userQuery =
-      typeof lastMessage?.content === "string"
-        ? lastMessage.content
-        : `buscar planos de saúde para cliente ${clientInfo.age || ""} anos ${clientInfo.city || ""}`
+    // Construir query semântica a partir do perfil do cliente E contexto da conversa
+    const messagesArray = Array.isArray(state.messages) ? state.messages : []
+    const userQuery = buildSearchQuery(clientInfo, messagesArray)
+
+    // Extrair mensagens da conversa para o grading
+    const conversationMessages = extractConversationMessages(messagesArray)
+
+    console.log(
+      `[searchPlans] Query construída: "${userQuery.substring(0, 100)}..."`
+    )
+    console.log(
+      `[searchPlans] Mensagens de contexto: ${conversationMessages.length}`
+    )
 
     // Invocar o sub-grafo de busca
     console.log("[searchPlans] Invocando searchPlansGraph...")
@@ -67,45 +82,59 @@ export async function searchPlans(
       assistantId: state.assistantId,
       userQuery,
       clientInfo: state.clientInfo,
-      ragModel: "gpt-4o-mini"
+      conversationMessages,
+      ragModel: "gpt-5-mini",
+      chunksPerFile: 5
     })
 
     const executionTimeMs = Date.now() - startTime
 
-    // Converter GradedChunk[] para HealthPlanDocument[]
-    const searchResults: HealthPlanDocument[] = (result.results || []).map(
-      chunk => convertChunkToDocument(chunk)
-    )
+    // Converter planos identificados para HealthPlanDocument[]
+    // FASE 6E: Usa collectionAnalyses com planos REAIS identificados
+    const searchResults: HealthPlanDocument[] =
+      result.collectionAnalyses.flatMap(collection =>
+        collection.identifiedPlans
+          .filter(plan => plan.clientRelevance !== "irrelevant")
+          .map(plan => convertPlanToDocument(plan, collection))
+      )
 
     // Preparar metadata
-    const searchMetadata = result.metadata
+    const searchMetadata: SearchMetadata = result.metadata
       ? {
           ...result.metadata,
           executionTimeMs
         }
       : {
           query: userQuery,
-          retrievedCount: 0,
-          relevantCount: searchResults.length,
-          ragModel: "gpt-4o-mini",
+          totalFiles: 0,
+          filesWithResults: 0,
+          totalChunks: 0,
+          ragModel: "gpt-5-mini",
           executionTimeMs,
-          gradingStats: { relevant: 0, partiallyRelevant: 0, irrelevant: 0 }
+          gradingStats: {
+            highRelevance: 0,
+            mediumRelevance: 0,
+            lowRelevance: 0,
+            irrelevant: 0
+          }
         }
 
-    // Gerar resposta baseada nos resultados
-    const response = generateSearchResponse(
-      searchResults,
+    // Gerar resposta baseada nas análises por collection (FASE 6E)
+    const response = generateSearchResponseFromCollections(
+      result.collectionAnalyses,
       clientInfo,
       executionTimeMs
     )
 
     console.log(
-      `[searchPlans] Busca concluída: ${searchResults.length} docs em ${executionTimeMs}ms`
+      `[searchPlans] Busca concluída: ${searchResults.length} planos identificados em ${executionTimeMs}ms`
     )
 
     return {
       searchResults,
       searchMetadata,
+      collectionAnalyses: result.collectionAnalyses, // NOVO: análises por collection
+      ragAnalysisContext: result.analysisText, // Texto formatado para o agente
       searchResultsVersion: (state.searchResultsVersion || 0) + 1,
       currentResponse: response,
       messages: [new AIMessage(response)]
@@ -132,39 +161,116 @@ export async function searchPlans(
 }
 
 /**
- * Converte GradedChunk para HealthPlanDocument
+ * Converte IdentifiedPlan (Fase 6E) para HealthPlanDocument
  */
-function convertChunkToDocument(chunk: GradedChunk): HealthPlanDocument {
+function convertPlanToDocument(
+  plan: IdentifiedPlan,
+  collection: CollectionAnalysisResult
+): HealthPlanDocument {
+  // Tentar extrair dias das carências (ex: "180 dias internação" -> 180)
+  const carencias: Record<string, number> = {}
+  if (plan.waitingPeriods) {
+    plan.waitingPeriods.forEach((period, index) => {
+      const daysMatch = period.match(/(\d+)\s*(dias?)?/i)
+      if (daysMatch) {
+        carencias[`carencia_${index + 1}`] = parseInt(daysMatch[1], 10)
+      }
+    })
+  }
+
   return {
-    id: chunk.id,
-    operadora: chunk.collection?.name || "Desconhecida",
-    nome_plano: chunk.file.name,
-    tipo: "general",
-    abrangencia: "nacional",
-    coparticipacao: false,
-    rede_credenciada: [],
-    carencias: {},
-    preco_base: undefined,
+    id: `${collection.collectionId}-${plan.planName}`,
+    operadora: collection.collectionName,
+    nome_plano: plan.planName,
+    tipo: plan.planType || "general",
+    abrangencia: plan.coverage?.length ? plan.coverage.join(", ") : "nacional",
+    coparticipacao: Boolean(plan.coparticipation),
+    rede_credenciada: plan.network || [],
+    carencias,
+    preco_base: plan.basePrice?.value,
     metadata: {
-      content: chunk.content,
-      similarity: chunk.similarity,
-      fileDescription: chunk.file.description,
-      collectionDescription: chunk.collection?.description,
-      gradeResult: chunk.gradeResult
+      relevance: plan.clientRelevance,
+      relevanceJustification: plan.relevanceJustification,
+      sourceFiles: plan.sourceFileNames,
+      importantRules: plan.importantRules,
+      waitingPeriods: plan.waitingPeriods, // Carências em texto original
+      coparticipationDetails: plan.coparticipation,
+      summary: plan.summary
     }
   }
 }
 
 /**
- * Gera resposta humanizada baseada nos resultados
+ * Extrai mensagens da conversa em formato string para o grading
  */
-function generateSearchResponse(
-  searchResults: HealthPlanDocument[],
+function extractConversationMessages(messages: any[]): string[] {
+  if (!messages || messages.length === 0) {
+    return []
+  }
+
+  // Pegar últimas 10 mensagens
+  const recentMessages = messages.slice(-10)
+
+  // Filtrar apenas mensagens do usuário e extrair conteúdo
+  return recentMessages
+    .filter(msg => {
+      const type = msg._getType?.() || msg.constructor?.name || ""
+      return type === "human" || type === "HumanMessage"
+    })
+    .map(msg => {
+      const content =
+        typeof msg.content === "string" ? msg.content : String(msg.content)
+      return content
+    })
+    .filter(content => {
+      // Filtrar mensagens muito curtas ou stop phrases
+      const normalized = content.toLowerCase().trim()
+      return normalized.length >= 5 && !STOP_PHRASES.has(normalized)
+    })
+}
+
+/**
+ * Gera resposta humanizada baseada nas análises por collection (FASE 6E)
+ *
+ * Usa os planos REAIS identificados, não arquivos individuais
+ */
+function generateSearchResponseFromCollections(
+  collectionAnalyses: CollectionAnalysisResult[],
   clientInfo: Record<string, any>,
   executionTimeMs: number
 ): string {
-  const resultsCount = searchResults.length
+  // Extrair todos os planos identificados
+  const allPlans: Array<{
+    plan: IdentifiedPlan
+    collection: CollectionAnalysisResult
+  }> = []
+  for (const collection of collectionAnalyses) {
+    for (const plan of collection.identifiedPlans) {
+      if (plan.clientRelevance !== "irrelevant") {
+        allPlans.push({ plan, collection })
+      }
+    }
+  }
 
+  // Ordenar por relevância
+  const sortedPlans = allPlans.sort((a, b) => {
+    const order: Record<string, number> = {
+      high: 0,
+      medium: 1,
+      low: 2,
+      irrelevant: 3
+    }
+    return order[a.plan.clientRelevance] - order[b.plan.clientRelevance]
+  })
+
+  const highRelevance = sortedPlans.filter(
+    p => p.plan.clientRelevance === "high"
+  )
+  const mediumRelevance = sortedPlans.filter(
+    p => p.plan.clientRelevance === "medium"
+  )
+
+  // Construir resumo do perfil
   const details = []
   if (clientInfo.age) details.push(`${clientInfo.age} anos`)
   if (clientInfo.city || clientInfo.state)
@@ -173,50 +279,333 @@ function generateSearchResponse(
 
   const profileSummary = details.length > 0 ? ` (${details.join(", ")})` : ""
 
-  // Extrair lista de planos únicos
-  const plansList = extractUniquePlans(searchResults)
-  const plansListFormatted =
-    plansList.length > 0
-      ? `\n\n**Planos encontrados:**\n${plansList.map(p => `• ${p}`).join("\n")}`
-      : ""
+  // Lista de planos identificados (nome real, não arquivo)
+  const plansList = sortedPlans
+    .slice(0, 5)
+    .map(p => {
+      const relevanceEmoji =
+        p.plan.clientRelevance === "high"
+          ? "🟢"
+          : p.plan.clientRelevance === "medium"
+            ? "🟡"
+            : "🟠"
+      return `${relevanceEmoji} **${p.plan.planName}** (${p.collection.collectionName})`
+    })
+    .join("\n")
 
-  if (resultsCount === 0) {
+  const plansListFormatted = plansList
+    ? `\n\n**Planos identificados:**\n${plansList}`
+    : ""
+
+  if (sortedPlans.length === 0) {
     return (
       `Não encontrei planos que correspondam exatamente ao seu perfil${profileSummary}. ` +
       "Podemos ajustar alguns critérios para encontrar mais opções?"
     )
   }
 
-  if (resultsCount <= 3) {
+  if (highRelevance.length > 0) {
+    const topPlan = highRelevance[0]
+    const priceInfo = topPlan.plan.basePrice
+      ? ` (R$${topPlan.plan.basePrice.value}/${topPlan.plan.basePrice.period})`
+      : ""
+
     return (
-      `Encontrei ${resultsCount} plano${resultsCount > 1 ? "s" : ""} interessante${resultsCount > 1 ? "s" : ""} para seu perfil${profileSummary}.${plansListFormatted}\n\n` +
-      "Quer que eu analise a compatibilidade de cada um com suas necessidades?"
+      `Ótimo! Encontrei ${sortedPlans.length} plano${sortedPlans.length > 1 ? "s" : ""} para seu perfil${profileSummary}.${plansListFormatted}\n\n` +
+      `O plano **${topPlan.plan.planName}**${priceInfo} da ${topPlan.collection.collectionName} tem alta compatibilidade com suas necessidades. ` +
+      "Quer que eu detalhe as regras e características deste plano?"
+    )
+  }
+
+  if (sortedPlans.length <= 3) {
+    return (
+      `Encontrei ${sortedPlans.length} plano${sortedPlans.length > 1 ? "s" : ""} para seu perfil${profileSummary}.${plansListFormatted}\n\n` +
+      "Posso detalhar as regras e características de cada um para você decidir qual é o melhor?"
     )
   }
 
   return (
-    `Ótimo! Encontrei ${resultsCount} planos compatíveis com seu perfil${profileSummary}.${plansListFormatted}\n\n` +
+    `Encontrei ${sortedPlans.length} planos compatíveis com seu perfil${profileSummary}.${plansListFormatted}\n\n` +
     "Posso analisar os mais relevantes e fazer uma recomendação personalizada para você?"
   )
 }
 
+// =============================================================================
+// Construção de Query
+// =============================================================================
+
 /**
- * Extrai lista de planos únicos dos resultados
+ * Constrói query semântica rica a partir do perfil do cliente E contexto da conversa
  */
-function extractUniquePlans(searchResults: HealthPlanDocument[]): string[] {
-  const seen = new Set<string>()
-  const plans: string[] = []
+function buildSearchQuery(
+  clientInfo: Record<string, any>,
+  messages: any[]
+): string {
+  const queryParts: string[] = []
 
-  for (const doc of searchResults) {
-    const operadora = doc.operadora || "Desconhecida"
-    const plano = doc.nome_plano || doc.id
-    const key = `${operadora} - ${plano}`.toLowerCase()
+  // === PARTE 1: EXTRAIR CONTEXTO DA CONVERSA ===
+  const conversationContext = extractConversationContext(messages)
+  if (conversationContext) {
+    queryParts.push(conversationContext)
+  }
 
-    if (!seen.has(key)) {
-      seen.add(key)
-      plans.push(`${operadora} - ${plano}`)
+  // === PARTE 2: CONSTRUIR CONTEXTO DO CLIENTE ===
+
+  // Base: sempre buscar planos de saúde
+  queryParts.push("plano de saúde")
+
+  // Idade e tipo de titular
+  if (clientInfo.age) {
+    const age = clientInfo.age
+    if (age < 18) {
+      queryParts.push(`criança ${age} anos`)
+    } else if (age >= 18 && age < 30) {
+      queryParts.push(`jovem adulto ${age} anos`)
+    } else if (age >= 30 && age < 50) {
+      queryParts.push(`adulto ${age} anos`)
+    } else if (age >= 50 && age < 60) {
+      queryParts.push(`adulto sênior ${age} anos`)
+    } else {
+      queryParts.push(`idoso ${age} anos terceira idade`)
     }
   }
 
-  return plans
+  // Localização
+  if (clientInfo.city) {
+    queryParts.push(`${clientInfo.city}`)
+  }
+  if (clientInfo.state) {
+    queryParts.push(`${clientInfo.state}`)
+  }
+  if (clientInfo.city || clientInfo.state) {
+    queryParts.push("cobertura regional")
+  }
+
+  // Orçamento
+  if (clientInfo.budget) {
+    const budget = clientInfo.budget
+    if (budget <= 300) {
+      queryParts.push("econômico popular baixo custo")
+    } else if (budget <= 500) {
+      queryParts.push("custo moderado intermediário")
+    } else if (budget <= 800) {
+      queryParts.push("intermediário completo")
+    } else if (budget <= 1500) {
+      queryParts.push("premium executivo")
+    } else {
+      queryParts.push("premium alto padrão completo")
+    }
+    queryParts.push(`preço até R$${budget}`)
+  }
+
+  // Dependentes
+  if (clientInfo.dependents && clientInfo.dependents.length > 0) {
+    queryParts.push("plano familiar dependentes")
+
+    const hasChildren = clientInfo.dependents.some(
+      (d: any) => d.age && d.age < 18
+    )
+    const hasElderly = clientInfo.dependents.some(
+      (d: any) => d.age && d.age >= 60
+    )
+    const hasSpouse = clientInfo.dependents.some(
+      (d: any) => d.relationship === "cônjuge" || d.relationship === "spouse"
+    )
+
+    if (hasChildren) queryParts.push("cobertura infantil pediatria")
+    if (hasElderly) queryParts.push("cobertura idoso geriátrico")
+    if (hasSpouse) queryParts.push("casal cônjuge")
+  } else {
+    queryParts.push("individual")
+  }
+
+  // Condições de saúde
+  if (clientInfo.healthConditions && clientInfo.healthConditions.length > 0) {
+    queryParts.push("cobertura doenças pré-existentes")
+    queryParts.push(clientInfo.healthConditions.join(" "))
+  }
+
+  // Preferências
+  if (clientInfo.preferences && clientInfo.preferences.length > 0) {
+    queryParts.push(clientInfo.preferences.join(" "))
+  }
+
+  // Tipo de plano
+  if (clientInfo.planType) {
+    queryParts.push(clientInfo.planType)
+  }
+
+  // Coparticipação
+  if (clientInfo.acceptsCoparticipation === true) {
+    queryParts.push("coparticipação")
+  } else if (clientInfo.acceptsCoparticipation === false) {
+    queryParts.push("sem coparticipação integral")
+  }
+
+  return queryParts.join(" ")
+}
+
+// =============================================================================
+// Extração de Contexto da Conversa
+// =============================================================================
+
+const STOP_PHRASES = new Set([
+  "sim",
+  "não",
+  "ok",
+  "certo",
+  "entendi",
+  "pode ser",
+  "beleza",
+  "blz",
+  "obrigado",
+  "obrigada",
+  "valeu",
+  "show",
+  "perfeito",
+  "legal",
+  "ótimo",
+  "bom",
+  "ta",
+  "tá",
+  "hmm",
+  "uhum",
+  "aham",
+  "claro",
+  "com certeza",
+  "isso",
+  "exato",
+  "isso mesmo"
+])
+
+const HEALTH_PLAN_KEYWORDS = [
+  "cirurgia",
+  "bariátrica",
+  "parto",
+  "cesárea",
+  "fisioterapia",
+  "psicologia",
+  "psicólogo",
+  "psiquiatra",
+  "nutricionista",
+  "fonoaudiologia",
+  "terapia",
+  "quimioterapia",
+  "radioterapia",
+  "hemodiálise",
+  "transplante",
+  "home care",
+  "internação",
+  "uti",
+  "emergência",
+  "urgência",
+  "exame",
+  "ressonância",
+  "tomografia",
+  "ultrassom",
+  "mamografia",
+  "cardiologista",
+  "ortopedista",
+  "ginecologista",
+  "pediatra",
+  "dermatologista",
+  "neurologista",
+  "oncologista",
+  "diabetes",
+  "hipertensão",
+  "câncer",
+  "gravidez",
+  "gestante",
+  "carência",
+  "coparticipação",
+  "reembolso",
+  "rede credenciada",
+  "hospital",
+  "unimed",
+  "bradesco",
+  "amil",
+  "sulamerica",
+  "hapvida"
+]
+
+function extractConversationContext(messages: any[]): string | null {
+  if (!messages || messages.length === 0) {
+    return null
+  }
+
+  const recentMessages = messages.slice(-10)
+  const userMessages = recentMessages.filter(msg => {
+    const type = msg._getType?.() || msg.constructor?.name || ""
+    return type === "human" || type === "HumanMessage"
+  })
+
+  if (userMessages.length === 0) {
+    return null
+  }
+
+  const relevantTerms: string[] = []
+
+  for (const msg of userMessages) {
+    const content =
+      typeof msg.content === "string" ? msg.content : String(msg.content)
+
+    const normalizedContent = content.toLowerCase().trim()
+    if (normalizedContent.length < 5 || STOP_PHRASES.has(normalizedContent)) {
+      continue
+    }
+
+    // Extrair termos de saúde
+    for (const keyword of HEALTH_PLAN_KEYWORDS) {
+      if (normalizedContent.includes(keyword.toLowerCase())) {
+        relevantTerms.push(keyword)
+      }
+    }
+
+    // Incluir mensagens longas
+    if (content.length > 20) {
+      const cleaned = cleanMessageForQuery(content)
+      if (cleaned) {
+        relevantTerms.push(cleaned)
+      }
+    }
+  }
+
+  const uniqueTerms = Array.from(new Set(relevantTerms))
+
+  if (uniqueTerms.length === 0) {
+    return null
+  }
+
+  const contextString = uniqueTerms.slice(0, 10).join(" ")
+  console.log(
+    `[buildSearchQuery] Contexto extraído da conversa: "${contextString}"`
+  )
+
+  return contextString
+}
+
+function cleanMessageForQuery(text: string): string | null {
+  const cleanPatterns = [
+    /^(oi|olá|ola|bom dia|boa tarde|boa noite|e aí|eai)[,!.\s]*/i,
+    /^(por favor|pf|pfv)[,.\s]*/i,
+    /(obrigado|obrigada|valeu|agradeço)[!.\s]*$/i,
+    /^(eu )?(quero|preciso|gostaria|queria)( de)?( saber)?/i,
+    /^(me )?(fala|conta|diz|explica)( sobre)?/i,
+    /\?+$/
+  ]
+
+  let cleaned = text.trim()
+  for (const pattern of cleanPatterns) {
+    cleaned = cleaned.replace(pattern, "").trim()
+  }
+
+  if (cleaned.length < 10 || STOP_PHRASES.has(cleaned.toLowerCase())) {
+    return null
+  }
+
+  if (cleaned.length > 100) {
+    cleaned = cleaned.substring(0, 100)
+  }
+
+  return cleaned
 }

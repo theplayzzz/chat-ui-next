@@ -1,5 +1,5 @@
 /**
- * Intent Classifier - Classificador de intenções via GPT-4o
+ * Intent Classifier - Classificador de intenções via GPT-5-mini
  *
  * Responsável por:
  * - Classificar a intenção do usuário
@@ -33,7 +33,7 @@ import {
 // ============================================================================
 
 /**
- * Schema Zod para validar output do GPT-4o
+ * Schema Zod para validar output do GPT-5-mini
  */
 const DependentSchema = z.object({
   age: z.number().optional(),
@@ -88,7 +88,7 @@ const IntentClassificationResponseSchema = z.object({
 // ============================================================================
 
 /**
- * Classifica a intenção do usuário usando GPT-4o
+ * Classifica a intenção do usuário usando GPT-5-mini
  *
  * O tracing para LangSmith é feito automaticamente pelo LangChain
  * quando LANGCHAIN_TRACING_V2=true está configurado.
@@ -118,13 +118,19 @@ export async function classifyIntent(
     const prompt = buildClassificationPrompt(input.message, fullContext)
 
     // Inicializar ChatOpenAI com tags para LangSmith
+    // GPT-5-mini requer temperature=1 e usa reasoning_effort
     const model = new ChatOpenAI({
-      modelName: "gpt-4o",
-      temperature: 0.1, // Baixa temperatura para consistência
-      timeout: 5000, // 5s timeout
+      modelName: "gpt-5-mini",
+      temperature: 1, // GPT-5 apenas suporta temperature=1
+      timeout: 10000, // 10s timeout (GPT-5 pode ser mais lento)
       maxRetries: 2,
       // Tags para identificar no LangSmith
-      tags: ["intent-classifier", "health-plan-v2"]
+      tags: ["intent-classifier", "health-plan-v2"],
+      // Parâmetros GPT-5 via modelKwargs (Chat Completions API)
+      modelKwargs: {
+        max_completion_tokens: 2048,
+        reasoning_effort: "low"
+      }
     })
 
     // Invocar modelo com runName para LangSmith

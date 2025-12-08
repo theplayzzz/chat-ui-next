@@ -1,7 +1,7 @@
 # PRD: Health Plan Agent 2.0 - Agente Conversacional com LangGraph.js
 
-**Versão:** 2.5
-**Data:** 2025-12-03
+**Versão:** 2.7
+**Data:** 2025-12-08
 **Autor:** Claude Code
 **Status:** Draft
 
@@ -923,26 +923,34 @@ O `messagesStateReducer` do LangGraph faz append de mensagens por ID. Problema: 
 
 **Checkpoint QA**: Dizer "tenho 35 anos, moro em SP". Agente extrai e confirma. Perguntar "quantos dependentes?" se não informado. Dizer "minha esposa de 32" → adiciona dependente. Dizer "na verdade é só eu" → remove dependente.
 
-### Fase 6: Capacidade - Busca RAG
-**🎯 Implementação delegada para PRD separado**
+### Fase 6: Capacidade - Busca RAG ✅ IMPLEMENTADA (com PIVOT)
+**🎯 Busca por arquivo + Grading contextual**
 
-> ⚠️ **IMPORTANTE:** A implementação completa da nova estrutura RAG está documentada em:
-> `.taskmaster/docs/agentic-rag-implementation-prd.md`
->
-> Este PRD cobre apenas a validação QA da integração final.
+> ⚠️ **IMPORTANTE:** Implementação completa documentada em:
+> `.taskmaster/docs/agentic-rag-implementation-prd.md` (v2.0)
 
-**Fases de Implementação (PRD RAG):**
-- **Fase 6A:** Fundação de Dados - popular `plan_metadata`, índices, campo `rag_model`
-- **Fase 6B:** Grading & Rewriting - avaliação de relevância, reformulação de queries
-- **Fase 6C:** Hierarquia & Grafo - busca hierárquica, sub-grafo LangGraph
-- **Fase 6D:** Evaluation & Polish - métricas LangSmith, dataset de testes
+**PIVOT: Arquitetura Simplificada**
 
-**Checkpoint QA Final (após implementação do PRD RAG):**
-- [ ] Fornecer dados completos → agente busca planos → mostra resumo dos planos encontrados
-- [ ] Verificar headers debug: `X-Docs-Graded`, `X-Docs-Relevant`, `X-Query-Rewrites`
-- [ ] Confirmar que busca hierárquica funciona (gerais primeiro, depois específicos)
-- [ ] Validar que `rag_model` da collection é respeitado
-- [ ] Testar com diferentes perfis: individual, familiar, idoso, condições pré-existentes
+| Planejado | Implementado |
+|-----------|--------------|
+| Multi-Query + RRF | Query única do perfil + conversa |
+| Busca hierárquica (geral→específico) | Top 5 chunks POR ARQUIVO |
+| Grading por chunk | Grading por ARQUIVO como unidade |
+| Rewrite query loop | Contexto de conversa no prompt |
+| `searchResults[]` JSON | `ragAnalysisContext` (texto formatado) |
+
+**Arquivos Implementados:**
+- `lib/agents/health-plan-v2/nodes/rag/retrieve-simple.ts` - Top 5 chunks por arquivo
+- `lib/agents/health-plan-v2/nodes/rag/grade-documents.ts` - Grading por arquivo (GPT-4o-mini)
+- `lib/agents/health-plan-v2/graphs/search-plans-graph.ts` - Sub-grafo LangGraph
+- `lib/agents/health-plan-v2/state/state-annotation.ts` - Campo `ragAnalysisContext`
+
+**Checkpoint QA:**
+- [x] Fornecer dados completos → agente busca planos → mostra resumo
+- [x] Grading avalia arquivo como unidade (5 chunks juntos)
+- [x] Contexto da conversa incluído no grading
+- [x] Saída como texto formatado para o LLM usar
+- [x] Testar com diferentes perfis: individual, familiar, idoso
 
 ### Fase 7: Capacidade - Análise + Recomendação (2 dias)
 **🎯 QA pode testar: Análise e recomendação completa**
@@ -1239,4 +1247,5 @@ tags CONTAINS "cache:miss"
 | 2.4 | 2025-12-03 | Claude Code | **Fase 2 Implementada**: Checkpointer integrado no endpoint com modo degradado (try/catch). Criado `cache-invalidation.ts` com INVALIDATION_RULES. 35 testes unitários. Headers de debug adicionados (X-Checkpointer-Enabled, X-Last-Intent). Polyfills para Jest (TextEncoder, ReadableStream). Matriz de Testabilidade atualizada com coluna Status. |
 | 2.5 | 2025-12-03 | Claude Code | **Fase 3 Implementada**: Classificador de intenções via GPT-4o com 9 tipos de intenção e 25 few-shot examples. Arquivos criados em `lib/agents/health-plan-v2/intent/`. Extração automática de dados (idade, cidade, dependentes). Integração no orchestrator com merge incremental de clientInfo. Debug metadata no stream (`__DEBUG__...`) e headers HTTP. Tracing via tags nativas do LangChain (não `@traceable` devido a conflito com LangGraph). Latência média: 1.4s (target <2s). |
 | 2.6 | 2025-12-04 | Claude Code | **Fase 4 Implementada**: Router com lógica de redirecionamento (verifica pré-requisitos). Workflow LangGraph com StateGraph e conditional edges. Arquitetura de respostas definida: orchestrator apenas classifica, capacidades geram respostas. Bug fixes: duplicação de mensagens (route.ts passa só última msg) e AIMessage persistida pelas capacidades. Proteção contra loop infinito (MAX_LOOP_ITERATIONS=10). |
+| 2.7 | 2025-12-08 | Claude Code | **Fase 6 Implementada (com PIVOT)**: Arquitetura RAG simplificada. Substituído Multi-Query+RRF por query única. Busca top 5 chunks POR ARQUIVO (não global). Grading por arquivo como unidade (GPT-4o-mini). Contexto de conversa no grading. Saída como `ragAnalysisContext` (texto formatado). Campo `ragAnalysisContext` adicionado ao state. |
 

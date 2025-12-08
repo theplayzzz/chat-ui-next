@@ -66,6 +66,60 @@ export const GradingResponseSchema = z.object({
 export type GradingResponse = z.infer<typeof GradingResponseSchema>
 
 // =============================================================================
+// Legacy Types (para compatibilidade com rag-evaluation.ts)
+// =============================================================================
+
+/**
+ * @deprecated Use FileGradingResult de grade-documents.ts
+ * Mantido para compatibilidade com rag-evaluation.ts
+ */
+export interface GradedDocument {
+  id: string
+  content: string
+  score: GradeScore
+  reason: string
+  /** Flag indicando se o documento é relevante */
+  isRelevant?: boolean
+  /** Resultado detalhado do grading */
+  gradeResult?: {
+    score: GradeScore
+    reason: string
+    missingInfo?: string[]
+    confidence?: number
+  }
+  metadata?: {
+    operator?: string
+    planName?: string
+    [key: string]: unknown
+  }
+}
+
+/**
+ * @deprecated Use SearchMetadata de search-plans-graph.ts
+ * Mantido para compatibilidade com rag-evaluation.ts
+ */
+export interface SearchMetadata {
+  query?: string
+  totalFiles?: number
+  filesWithResults?: number
+  totalChunks?: number
+  ragModel?: string
+  executionTimeMs?: number
+  /** Legacy: número de documentos relevantes */
+  relevantDocs?: number
+  /** Legacy: número de rewrites da query */
+  rewriteCount?: number
+  /** Legacy: flag indicando se resultados foram limitados */
+  limitedResults?: boolean
+  gradingStats?: {
+    highRelevance: number
+    mediumRelevance: number
+    lowRelevance: number
+    irrelevant: number
+  }
+}
+
+// =============================================================================
 // Helper Functions
 // =============================================================================
 

@@ -1,17 +1,16 @@
 /**
- * Retrieve Simple - Busca Vetorial Simplificada
+ * Retrieve Simple - Busca Vetorial por Arquivo
  *
- * Implementa busca vetorial única com retorno enriquecido:
- * - Nome e descrição da coleção
- * - Nome e descrição do arquivo
- * - Conteúdo do chunk
+ * Implementa busca vetorial com top K chunks POR ARQUIVO:
+ * - Busca top 5 chunks de cada arquivo
+ * - Agrupa resultados por arquivo
+ * - Inclui nome e descrição da coleção e arquivo
  *
- * Substitui: generate-queries, retrieve-hierarchical, result-fusion
  * Usa: match_file_items_enriched RPC
  */
 
 import { createClient } from "@supabase/supabase-js"
-import OpenAI from "openai"
+import { OpenAIEmbeddings } from "@langchain/openai"
 import type { Database } from "@/supabase/types"
 
 // =============================================================================
@@ -45,6 +44,28 @@ export interface EnrichedChunk {
 }
 
 /**
+ * Resultado da busca por arquivo individual
+ */
+export interface RetrieveByFileResult {
+  /** ID do arquivo */
+  fileId: string
+  /** Nome do arquivo */
+  fileName: string
+  /** Descrição do arquivo */
+  fileDescription: string
+  /** Contexto da coleção */
+  collection: {
+    id: string
+    name: string
+    description: string
+  } | null
+  /** Chunks encontrados neste arquivo */
+  chunks: EnrichedChunk[]
+  /** Total de chunks recuperados */
+  totalChunks: number
+}
+
+/**
  * Informações do cliente para grading
  */
 export interface ClientInfo {
@@ -68,27 +89,28 @@ export interface RetrieveSimpleOptions {
   query: string
   /** IDs dos arquivos para buscar */
   fileIds: string[]
-  /** Número máximo de chunks a retornar (default: 20) */
-  topK?: number
+  /** Número máximo de chunks POR ARQUIVO (default: 5) */
+  chunksPerFile?: number
   /** Cliente Supabase (opcional - cria um novo se não fornecido) */
   supabaseClient?: ReturnType<typeof createClient<Database>>
-  /** Cliente OpenAI (opcional - cria um novo se não fornecido) */
-  openaiClient?: OpenAI
+  /** Embeddings LangChain (opcional - cria um novo se não fornecido) */
+  embeddings?: OpenAIEmbeddings
 }
 
 /**
- * Resultado da busca simplificada
+ * Resultado da busca simplificada (agrupado por arquivo)
  */
 export interface RetrieveSimpleResult {
-  /** Chunks enriquecidos encontrados */
-  chunks: EnrichedChunk[]
+  /** Resultados agrupados por arquivo */
+  fileResults: RetrieveByFileResult[]
   /** Query original */
   query: string
   /** Metadados da busca */
   metadata: {
     totalChunks: number
+    totalFiles: number
     executionTimeMs: number
-    fileIdsSearched: number
+    filesWithResults: number
   }
 }
 
@@ -96,18 +118,22 @@ export interface RetrieveSimpleResult {
 // Constants
 // =============================================================================
 
-const DEFAULT_TOP_K = 20
+const DEFAULT_CHUNKS_PER_FILE = 5
 const EMBEDDING_MODEL = "text-embedding-3-small"
+const PARALLEL_BATCH_SIZE = 10 // Buscar até 10 arquivos em paralelo
 
 // =============================================================================
 // Main Function
 // =============================================================================
 
 /**
- * Executa busca vetorial simplificada com contexto enriquecido
+ * Executa busca vetorial por arquivo com contexto enriquecido
+ *
+ * Busca top K chunks de CADA arquivo individualmente,
+ * retornando resultados agrupados por arquivo.
  *
  * @param options - Configurações da busca
- * @returns Chunks enriquecidos com contexto de arquivo e coleção
+ * @returns Chunks enriquecidos agrupados por arquivo
  */
 export async function retrieveSimple(
   options: RetrieveSimpleOptions
@@ -117,24 +143,26 @@ export async function retrieveSimple(
   const {
     query,
     fileIds,
-    topK = DEFAULT_TOP_K,
+    chunksPerFile = DEFAULT_CHUNKS_PER_FILE,
     supabaseClient,
-    openaiClient
+    embeddings: embeddingsClient
   } = options
 
-  console.log("[retrieve-simple] Iniciando busca simplificada")
+  console.log("[retrieve-simple] Iniciando busca por arquivo")
   console.log(`[retrieve-simple] Query: "${query.substring(0, 100)}..."`)
-  console.log(`[retrieve-simple] fileIds: ${fileIds.length}, topK: ${topK}`)
+  console.log(
+    `[retrieve-simple] Arquivos: ${fileIds.length}, Chunks/arquivo: ${chunksPerFile}`
+  )
 
   // Validação básica
   if (!query.trim()) {
     console.warn("[retrieve-simple] Query vazia")
-    return createEmptyResult(query, fileIds.length)
+    return createEmptyResult(query)
   }
 
   if (fileIds.length === 0) {
     console.warn("[retrieve-simple] Nenhum fileId fornecido")
-    return createEmptyResult(query, 0)
+    return createEmptyResult(query)
   }
 
   // Criar clientes se não fornecidos
@@ -145,41 +173,53 @@ export async function retrieveSimple(
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-  const openai =
-    openaiClient || new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  // Criar embeddings com LangChain (aparece no LangSmith)
+  const embeddings =
+    embeddingsClient ||
+    new OpenAIEmbeddings({
+      modelName: EMBEDDING_MODEL,
+      // Tags para rastreamento no LangSmith
+      // @ts-ignore - LangChain aceita tags mas tipagem pode não reconhecer
+      tags: ["retrieve-simple", "health-plan-v2", "embedding"]
+    })
 
   try {
-    // Gerar embedding da query
-    console.log("[retrieve-simple] Gerando embedding...")
-    const embedding = await generateEmbedding(openai, query)
+    // Gerar embedding da query UMA VEZ (reutilizar para todos os arquivos)
+    console.log("[retrieve-simple] Gerando embedding via LangChain...")
+    const embedding = await generateEmbedding(embeddings, query)
 
-    // Buscar chunks enriquecidos
-    console.log("[retrieve-simple] Buscando chunks...")
-    const chunks = await searchEnrichedChunks(
+    // Buscar chunks de cada arquivo em paralelo (em batches)
+    console.log("[retrieve-simple] Buscando chunks por arquivo...")
+    const fileResults = await searchChunksByFile(
       supabase,
       embedding,
       fileIds,
-      topK
+      chunksPerFile
     )
 
     const executionTimeMs = Date.now() - startTime
 
+    // Calcular estatísticas
+    const totalChunks = fileResults.reduce((sum, f) => sum + f.totalChunks, 0)
+    const filesWithResults = fileResults.filter(f => f.totalChunks > 0).length
+
     console.log(
-      `[retrieve-simple] Busca completa: ${chunks.length} chunks em ${executionTimeMs}ms`
+      `[retrieve-simple] Busca completa: ${totalChunks} chunks em ${fileResults.length} arquivos (${executionTimeMs}ms)`
     )
 
     return {
-      chunks,
+      fileResults,
       query,
       metadata: {
-        totalChunks: chunks.length,
+        totalChunks,
+        totalFiles: fileResults.length,
         executionTimeMs,
-        fileIdsSearched: fileIds.length
+        filesWithResults
       }
     }
   } catch (error) {
     console.error("[retrieve-simple] Erro na busca:", error)
-    return createEmptyResult(query, fileIds.length)
+    return createEmptyResult(query)
   }
 }
 
@@ -188,18 +228,15 @@ export async function retrieveSimple(
 // =============================================================================
 
 /**
- * Gera embedding usando OpenAI
+ * Gera embedding usando LangChain OpenAIEmbeddings (traceado pelo LangSmith)
  */
 async function generateEmbedding(
-  openai: OpenAI,
+  embeddings: OpenAIEmbeddings,
   text: string
 ): Promise<number[]> {
-  const response = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: text
-  })
-
-  return response.data[0].embedding
+  // embedQuery retorna um array de números diretamente
+  const embedding = await embeddings.embedQuery(text)
+  return embedding
 }
 
 /**
@@ -219,38 +256,38 @@ interface EnrichedRPCResult {
 }
 
 /**
- * Busca chunks enriquecidos usando RPC
+ * Busca chunks para um único arquivo
  */
-async function searchEnrichedChunks(
+async function searchChunksForSingleFile(
   supabase: ReturnType<typeof createClient<Database>>,
   embedding: number[],
-  fileIds: string[],
+  fileId: string,
   topK: number
-): Promise<EnrichedChunk[]> {
-  // Usar cast para contornar tipos gerados que podem estar desatualizados
+): Promise<RetrieveByFileResult> {
   const { data, error } = await (supabase.rpc as any)(
     "match_file_items_enriched",
     {
       query_embedding: embedding,
       match_count: topK,
-      file_ids: fileIds
+      file_ids: [fileId]
     }
   )
 
   if (error) {
-    console.error("[retrieve-simple] Erro na RPC:", error)
-    throw error
+    console.error(`[retrieve-simple] Erro ao buscar arquivo ${fileId}:`, error)
+    return createEmptyFileResult(fileId)
   }
 
   const results = data as EnrichedRPCResult[] | null
 
   if (!results || results.length === 0) {
-    console.log("[retrieve-simple] Nenhum resultado encontrado")
-    return []
+    return createEmptyFileResult(fileId)
   }
 
-  // Mapear para EnrichedChunk
-  return results.map(row => ({
+  // Extrair info do arquivo/coleção do primeiro resultado
+  const firstResult = results[0]
+
+  const chunks: EnrichedChunk[] = results.map(row => ({
     id: row.chunk_id,
     content: row.chunk_content,
     tokens: row.chunk_tokens,
@@ -268,22 +305,80 @@ async function searchEnrichedChunks(
         }
       : null
   }))
+
+  return {
+    fileId: firstResult.file_id,
+    fileName: firstResult.file_name,
+    fileDescription: firstResult.file_description,
+    collection: firstResult.collection_id
+      ? {
+          id: firstResult.collection_id,
+          name: firstResult.collection_name || "",
+          description: firstResult.collection_description || ""
+        }
+      : null,
+    chunks,
+    totalChunks: chunks.length
+  }
+}
+
+/**
+ * Busca chunks de múltiplos arquivos em paralelo (com batching)
+ */
+async function searchChunksByFile(
+  supabase: ReturnType<typeof createClient<Database>>,
+  embedding: number[],
+  fileIds: string[],
+  chunksPerFile: number
+): Promise<RetrieveByFileResult[]> {
+  const results: RetrieveByFileResult[] = []
+
+  // Processar em batches para evitar sobrecarga
+  for (let i = 0; i < fileIds.length; i += PARALLEL_BATCH_SIZE) {
+    const batch = fileIds.slice(i, i + PARALLEL_BATCH_SIZE)
+
+    console.log(
+      `[retrieve-simple] Processando batch ${Math.floor(i / PARALLEL_BATCH_SIZE) + 1}/${Math.ceil(fileIds.length / PARALLEL_BATCH_SIZE)}`
+    )
+
+    const batchResults = await Promise.all(
+      batch.map(fileId =>
+        searchChunksForSingleFile(supabase, embedding, fileId, chunksPerFile)
+      )
+    )
+
+    results.push(...batchResults)
+  }
+
+  return results
+}
+
+/**
+ * Cria resultado vazio para um arquivo
+ */
+function createEmptyFileResult(fileId: string): RetrieveByFileResult {
+  return {
+    fileId,
+    fileName: "",
+    fileDescription: "",
+    collection: null,
+    chunks: [],
+    totalChunks: 0
+  }
 }
 
 /**
  * Cria resultado vazio
  */
-function createEmptyResult(
-  query: string,
-  fileIdsSearched: number
-): RetrieveSimpleResult {
+function createEmptyResult(query: string): RetrieveSimpleResult {
   return {
-    chunks: [],
+    fileResults: [],
     query,
     metadata: {
       totalChunks: 0,
+      totalFiles: 0,
       executionTimeMs: 0,
-      fileIdsSearched
+      filesWithResults: 0
     }
   }
 }
@@ -293,47 +388,47 @@ function createEmptyResult(
 // =============================================================================
 
 /**
- * Converte EnrichedChunks para formato compatível com gradeDocuments
- * Inclui contexto de arquivo/coleção no content para avaliação
+ * Concatena todos os chunks de um arquivo em um texto único
+ * Útil para grading do arquivo como unidade
  */
-export function enrichedChunksToGradableDocuments(
-  chunks: EnrichedChunk[]
-): Array<{
-  id: string
-  content: string
-  score: number
-  metadata: {
-    fileId: string
-    fileName: string
-    fileDescription: string
-    collectionId?: string
-    collectionName?: string
-    collectionDescription?: string
+export function concatenateFileChunks(
+  fileResult: RetrieveByFileResult
+): string {
+  if (fileResult.chunks.length === 0) {
+    return ""
   }
-  rrfScore: number
-  appearances: number
-  queryMatches: string[]
-}> {
-  return chunks.map(chunk => ({
-    id: chunk.id,
-    // Incluir contexto no content para o grading ter acesso
-    content: chunk.content,
-    score: chunk.similarity,
-    metadata: {
-      fileId: chunk.file.id,
-      fileName: chunk.file.name,
-      fileDescription: chunk.file.description,
-      ...(chunk.collection && {
-        collectionId: chunk.collection.id,
-        collectionName: chunk.collection.name,
-        collectionDescription: chunk.collection.description
-      })
-    },
-    // Campos de compatibilidade com FusedDocument
-    rrfScore: chunk.similarity,
-    appearances: 1,
-    queryMatches: []
-  }))
+
+  const lines: string[] = []
+
+  // Adicionar contexto do arquivo
+  if (fileResult.collection) {
+    lines.push(`[Operadora: ${fileResult.collection.name}]`)
+    if (fileResult.collection.description) {
+      lines.push(`Descrição: ${fileResult.collection.description}`)
+    }
+    lines.push("")
+  }
+
+  lines.push(`[Arquivo: ${fileResult.fileName}]`)
+  if (fileResult.fileDescription) {
+    lines.push(`Descrição: ${fileResult.fileDescription}`)
+  }
+  lines.push("")
+  lines.push("--- CONTEÚDO DO DOCUMENTO ---")
+  lines.push("")
+
+  // Concatenar chunks com separador
+  for (let i = 0; i < fileResult.chunks.length; i++) {
+    const chunk = fileResult.chunks[i]
+    lines.push(chunk.content)
+    if (i < fileResult.chunks.length - 1) {
+      lines.push("")
+      lines.push("[...]")
+      lines.push("")
+    }
+  }
+
+  return lines.join("\n")
 }
 
 /**
@@ -357,14 +452,19 @@ export function formatEnrichedContext(chunk: EnrichedChunk): string {
 }
 
 /**
- * Formata múltiplos chunks para prompt de grading
+ * Obtém lista de todos os chunks de todos os arquivos (flatten)
  */
-export function formatChunksForGrading(
-  chunks: EnrichedChunk[]
-): Array<{ id: string; formattedContent: string; similarity: number }> {
-  return chunks.map(chunk => ({
-    id: chunk.id,
-    formattedContent: formatEnrichedContext(chunk),
-    similarity: chunk.similarity
-  }))
+export function getAllChunks(
+  fileResults: RetrieveByFileResult[]
+): EnrichedChunk[] {
+  return fileResults.flatMap(f => f.chunks)
+}
+
+/**
+ * Filtra arquivos sem resultados
+ */
+export function filterEmptyFiles(
+  fileResults: RetrieveByFileResult[]
+): RetrieveByFileResult[] {
+  return fileResults.filter(f => f.totalChunks > 0)
 }

@@ -15,6 +15,7 @@ import type {
   GenerateRecommendationResult,
   StateError
 } from "../types"
+import type { CollectionAnalysisResult } from "../nodes/rag/types"
 
 /**
  * State Annotation do Health Plan Agent v2
@@ -67,23 +68,60 @@ export const HealthPlanStateAnnotation = Annotation.Root({
   }),
 
   /**
-   * Metadados da busca RAG simplificada
+   * Metadados da busca RAG por arquivo
    * PRD: Fase 6C.4
    */
   searchMetadata: Annotation<{
     query?: string
-    retrievedCount?: number
-    relevantCount?: number
+    totalFiles?: number
+    filesWithResults?: number
+    totalChunks?: number
     ragModel?: string
     executionTimeMs?: number
     gradingStats?: {
-      relevant: number
-      partiallyRelevant: number
+      highRelevance: number
+      mediumRelevance: number
+      lowRelevance: number
       irrelevant: number
+    }
+    /** Stats da análise por collection (Fase 6E) */
+    collectionStats?: {
+      totalCollections: number
+      totalPlansIdentified: number
+      highRelevancePlans: number
+      mediumRelevancePlans: number
+      lowRelevancePlans: number
     }
   } | null>({
     reducer: (_, y) => y,
     default: () => null
+  }),
+
+  /**
+   * Análises por collection com planos identificados (Fase 6E)
+   *
+   * Contém análises consolidadas por operadora/collection,
+   * identificando planos REAIS (não arquivos individuais).
+   */
+  collectionAnalyses: Annotation<CollectionAnalysisResult[]>({
+    reducer: (_, y) => y,
+    default: () => []
+  }),
+
+  /**
+   * Contexto de análise RAG formatado em texto
+   *
+   * Contém o texto formatado com todas as análises de planos,
+   * pronto para ser usado pelo agente principal nas respostas.
+   *
+   * Estrutura:
+   * - Análises por arquivo ordenadas por relevância (high → medium → low)
+   * - Cada análise inclui: COMPATIBILIDADE, DESTAQUES, ALERTAS, RESUMO
+   * - Contexto da conversa considerado na avaliação
+   */
+  ragAnalysisContext: Annotation<string>({
+    reducer: (_, newValue) => newValue,
+    default: () => ""
   }),
 
   // === ANÁLISE (CACHEÁVEL) ===

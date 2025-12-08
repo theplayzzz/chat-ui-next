@@ -112,13 +112,19 @@ export interface SearchHealthPlansResponse {
     executionTimeMs: number
     totalResultsBeforeFiltering?: number
     /**
-     * Metadados adicionais para modo hierárquico (v2)
+     * Metadados adicionais para modo por arquivo (v2)
      */
     hierarchicalMetadata?: {
       generalDocsCount: number
       specificDocsCount: number
       extractedOperators: string[]
       useHierarchical: boolean
+      /** Total de arquivos processados */
+      totalFiles?: number
+      /** Arquivos com resultados */
+      filesWithResults?: number
+      /** Chunks por arquivo */
+      chunksPerFile?: number
     }
   }
 }

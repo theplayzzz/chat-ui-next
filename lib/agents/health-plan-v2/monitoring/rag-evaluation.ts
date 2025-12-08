@@ -244,11 +244,11 @@ export function retrievalQualityEvaluator(
   const { documents, searchMetadata, queries } = input
 
   // Componente 1: Quantidade de docs relevantes (target >= 5)
-  const relevantCount = searchMetadata.relevantDocs
+  const relevantCount = searchMetadata.relevantDocs ?? 0
   const quantityScore = Math.min(1, relevantCount / 5)
 
   // Componente 2: Taxa de rewrites (target < 30%, max 2)
-  const rewriteRate = searchMetadata.rewriteCount / 2
+  const rewriteRate = (searchMetadata.rewriteCount ?? 0) / 2
   const rewriteScore = 1 - rewriteRate * 0.5 // Penalidade suave por rewrites
 
   // Componente 3: Diversidade de operadoras
@@ -360,7 +360,7 @@ function extractKeyTermsFromDocs(documents: GradedDocument[]): Set<string> {
     // Extrair termos do conteúdo (simplificado)
     const content = doc.content.toLowerCase()
     const words = content.match(/\b[a-záéíóúãõâêîôûç]{4,}\b/g) || []
-    words.slice(0, 50).forEach(w => terms.add(w))
+    words.slice(0, 50).forEach((w: string) => terms.add(w))
   })
 
   return terms

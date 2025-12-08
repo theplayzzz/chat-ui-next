@@ -96,12 +96,16 @@ function generateMockSearchResult(testCase: RAGTestCase): {
   const documents: GradedDocument[] = []
   for (let i = 0; i < totalDocs; i++) {
     const isRelevant = i < relevantCount
+    const gradeScore = isRelevant ? "relevant" : (Math.random() > 0.5 ? "partially_relevant" : "irrelevant") as "relevant" | "partially_relevant" | "irrelevant"
     documents.push({
       id: `doc-${testCase.id}-${i}`,
       content: `Documento ${i + 1} sobre planos de saúde para ${testCase.input.city || "Brasil"}.
         ${isRelevant ? `Ideal para clientes com orçamento de R$${testCase.input.budget}.` : "Conteúdo genérico."}
         ${testCase.input.healthConditions?.length ? `Cobertura para ${testCase.input.healthConditions.join(", ")}.` : ""}`,
-      score: isRelevant ? 0.7 + Math.random() * 0.3 : 0.3 + Math.random() * 0.3,
+      score: gradeScore,
+      reason: isRelevant
+        ? "Documento relevante para o perfil do cliente"
+        : "Documento não atende critérios específicos do cliente",
       metadata: {
         documentType: isRelevant ? "plan_details" : "general_info",
         operator: ["Unimed", "Bradesco Saúde", "SulAmérica", "Amil", "Hapvida"][Math.floor(Math.random() * 5)],
@@ -109,8 +113,7 @@ function generateMockSearchResult(testCase: RAGTestCase): {
         tags: isRelevant ? ["relevante"] : ["generico"]
       },
       gradeResult: {
-        documentId: `doc-${testCase.id}-${i}`,
-        score: isRelevant ? "relevant" : (Math.random() > 0.5 ? "partially_relevant" : "irrelevant"),
+        score: gradeScore,
         reason: isRelevant
           ? "Documento relevante para o perfil do cliente"
           : "Documento não atende critérios específicos do cliente"
@@ -120,12 +123,10 @@ function generateMockSearchResult(testCase: RAGTestCase): {
   }
 
   const searchMetadata: SearchMetadata = {
-    queryCount: 3 + Math.floor(Math.random() * 2),
     rewriteCount: relevantCount < 3 ? Math.floor(Math.random() * 3) : Math.floor(Math.random() * 2),
-    totalDocs,
+    totalChunks: totalDocs,
     relevantDocs: relevantCount,
-    limitedResults: relevantCount < 3,
-    timestamp: new Date().toISOString()
+    limitedResults: relevantCount < 3
   }
 
   return { documents, searchMetadata }
@@ -184,7 +185,8 @@ async function runEvaluation(
     const evaluation = evaluateRAG(evaluationInput)
 
     // Determinar se passou
-    const meetsMinDocs = searchMetadata.relevantDocs >= testCase.minRelevantDocs
+    const relevantDocsCount = searchMetadata.relevantDocs ?? 0
+    const meetsMinDocs = relevantDocsCount >= testCase.minRelevantDocs
     const passed = evaluation.overallScore >= CONFIG.targets.minOverallScore && meetsMinDocs
 
     const result: TestCaseResult = {
@@ -200,7 +202,7 @@ async function runEvaluation(
 
     // Log resumido
     const statusIcon = passed ? "✅" : "❌"
-    console.log(`   ${statusIcon} Score: ${evaluation.overallScore.toFixed(2)} | Docs: ${searchMetadata.relevantDocs}/${testCase.minRelevantDocs} | ${latencyMs}ms`)
+    console.log(`   ${statusIcon} Score: ${evaluation.overallScore.toFixed(2)} | Docs: ${relevantDocsCount}/${testCase.minRelevantDocs} | ${latencyMs}ms`)
   }
 
   return results
@@ -215,13 +217,13 @@ function analyzeSummary(results: TestCaseResult[]): EvaluationSummary {
   const failedCases = results.length - passedCases
 
   const avgRelevantDocs =
-    results.reduce((sum, r) => sum + r.searchMetadata.relevantDocs, 0) / results.length
+    results.reduce((sum, r) => sum + (r.searchMetadata.relevantDocs ?? 0), 0) / results.length
   const avgRewriteCount =
-    results.reduce((sum, r) => sum + r.searchMetadata.rewriteCount, 0) / results.length
+    results.reduce((sum, r) => sum + (r.searchMetadata.rewriteCount ?? 0), 0) / results.length
   const avgLatencyMs =
     results.reduce((sum, r) => sum + r.latencyMs, 0) / results.length
 
-  const casesWithRewrite = results.filter(r => r.searchMetadata.rewriteCount > 0).length
+  const casesWithRewrite = results.filter(r => (r.searchMetadata.rewriteCount ?? 0) > 0).length
   const rewriteRate = casesWithRewrite / results.length
 
   const evaluationResults = results.map(r => r.evaluation)
@@ -229,7 +231,7 @@ function analyzeSummary(results: TestCaseResult[]): EvaluationSummary {
 
   // Casos problemáticos: < 3 docs relevantes ou score < 0.5
   const problematicCases = results.filter(
-    r => r.searchMetadata.relevantDocs < 3 || r.evaluation.overallScore < 0.5
+    r => (r.searchMetadata.relevantDocs ?? 0) < 3 || r.evaluation.overallScore < 0.5
   )
 
   // Estatísticas por categoria
@@ -301,9 +303,9 @@ function generateReport(summary: EvaluationSummary, results: TestCaseResult[]): 
 
 ### Distribuição de Rewrites
 
-- Casos com 0 rewrites: ${results.filter(r => r.searchMetadata.rewriteCount === 0).length}
-- Casos com 1 rewrite: ${results.filter(r => r.searchMetadata.rewriteCount === 1).length}
-- Casos com 2 rewrites: ${results.filter(r => r.searchMetadata.rewriteCount === 2).length}
+- Casos com 0 rewrites: ${results.filter(r => (r.searchMetadata.rewriteCount ?? 0) === 0).length}
+- Casos com 1 rewrite: ${results.filter(r => (r.searchMetadata.rewriteCount ?? 0) === 1).length}
+- Casos com 2 rewrites: ${results.filter(r => (r.searchMetadata.rewriteCount ?? 0) === 2).length}
 
 ---
 
@@ -334,10 +336,11 @@ function generateReport(summary: EvaluationSummary, results: TestCaseResult[]): 
     report += "| ID | Descrição | Docs Relevantes | Score | Problema |\n"
     report += "|----|-----------|--------------------|-------|----------|\n"
     summary.problematicCases.forEach(r => {
-      const problem = r.searchMetadata.relevantDocs < 3
+      const relevantDocs = r.searchMetadata.relevantDocs ?? 0
+      const problem = relevantDocs < 3
         ? "Poucos docs"
         : "Score baixo"
-      report += `| ${r.testCase.id} | ${r.testCase.description.substring(0, 40)}... | ${r.searchMetadata.relevantDocs} | ${r.evaluation.overallScore.toFixed(2)} | ${problem} |\n`
+      report += `| ${r.testCase.id} | ${r.testCase.description.substring(0, 40)}... | ${relevantDocs} | ${r.evaluation.overallScore.toFixed(2)} | ${problem} |\n`
     })
   }
 
@@ -355,7 +358,7 @@ function generateReport(summary: EvaluationSummary, results: TestCaseResult[]): 
 
   results.forEach((r, i) => {
     const icon = r.passed ? "✅" : "❌"
-    report += `| ${i + 1} | ${r.testCase.id} | ${r.testCase.category} | ${r.searchMetadata.relevantDocs}/${r.testCase.minRelevantDocs} | ${r.searchMetadata.rewriteCount} | ${r.evaluation.overallScore.toFixed(2)} | ${icon} |\n`
+    report += `| ${i + 1} | ${r.testCase.id} | ${r.testCase.category} | ${r.searchMetadata.relevantDocs ?? 0}/${r.testCase.minRelevantDocs} | ${r.searchMetadata.rewriteCount ?? 0} | ${r.evaluation.overallScore.toFixed(2)} | ${icon} |\n`
   })
 
   report += `

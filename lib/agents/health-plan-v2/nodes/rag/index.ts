@@ -1,33 +1,32 @@
 /**
- * RAG Nodes - Sistema RAG Simplificado para Health Plan Agent v2
+ * RAG Nodes - Sistema RAG por Arquivo para Health Plan Agent v2
  *
  * Módulos:
- * - retrieve-simple: Busca vetorial única com contexto enriquecido
- * - grade-documents: Avaliação de relevância com LLM
+ * - retrieve-simple: Busca vetorial top K por arquivo com contexto enriquecido
+ * - grade-documents: Avaliação de arquivos como unidade com contexto de conversa
  *
  * PRD: .taskmaster/docs/agentic-rag-implementation-prd.md
  */
 
-// Busca Vetorial Simplificada
+// Busca Vetorial por Arquivo
 export {
   retrieveSimple,
-  enrichedChunksToGradableDocuments,
   formatEnrichedContext,
-  formatChunksForGrading,
+  concatenateFileChunks,
+  getAllChunks,
+  filterEmptyFiles,
   type EnrichedChunk,
   type ClientInfo,
   type RetrieveSimpleOptions,
-  type RetrieveSimpleResult
+  type RetrieveSimpleResult,
+  type RetrieveByFileResult
 } from "./retrieve-simple"
 
-// Document Grading
+// Grading por Arquivo como Unidade
 export {
-  gradeDocuments,
-  convertFusedToEnriched,
-  type GradeDocumentsOptions,
-  type GradeDocumentsResult,
-  type GradedChunk,
-  // Tipos legados para compatibilidade
-  type FusedDocument,
-  type ClientInfoForQueries
+  gradeByFile,
+  type FileGradingResult,
+  type FileRelevance,
+  type GradeByFileResult,
+  type GradeByFileOptions
 } from "./grade-documents"

@@ -25,12 +25,12 @@ import type {
   HealthPlanSearchResult
 } from "./types"
 
-// Import para busca hierárquica (v2)
+// Import para busca simplificada por arquivo (v2)
 import {
-  retrieveHierarchical,
-  type HierarchicalRetrieveOptions,
-  type HierarchicalDocument
-} from "@/lib/agents/health-plan-v2/nodes/rag/retrieve-hierarchical"
+  retrieveSimple,
+  type RetrieveSimpleOptions,
+  type RetrieveByFileResult
+} from "@/lib/agents/health-plan-v2/nodes/rag/retrieve-simple"
 
 /**
  * Interface para resultado bruto da busca vetorial
@@ -215,73 +215,80 @@ async function searchHealthPlansInternal(
     const embedding = await generateEmbedding(searchQuery, openai)
 
     // ========================================================================
-    // MODO HIERÁRQUICO (v2) - Busca geral → específico com pesos 0.3/0.7
+    // MODO POR ARQUIVO (v2) - Top K chunks por arquivo
     // ========================================================================
     if (useHierarchical) {
-      console.log("[search-health-plans] 🔄 Usando busca HIERÁRQUICA (v2)")
+      console.log("[search-health-plans] 🔄 Usando busca POR ARQUIVO (v2)")
 
       // Extrair todos os fileIds das collections
       const fileIds = healthPlanCollections.flatMap(c => c.files.map(f => f.id))
+      const chunksPerFile = 5
 
       console.log(
-        `[search-health-plans] Buscando em ${fileIds.length} arquivos com hierarquia`
+        `[search-health-plans] Buscando em ${fileIds.length} arquivos (${chunksPerFile} chunks/arquivo)`
       )
 
-      // Executar busca hierárquica
-      const hierarchicalResult = await retrieveHierarchical({
-        queryEmbedding: embedding,
+      // Executar busca por arquivo
+      // Nota: retrieveSimple agora usa LangChain OpenAIEmbeddings internamente
+      const retrieveResult = await retrieveSimple({
+        query: searchQuery,
         fileIds,
-        generalTopK: 5,
-        specificTopK: params.topK || 10,
-        generalWeight: 0.3,
-        specificWeight: 0.7,
+        chunksPerFile,
         supabaseClient: supabaseAdmin
       })
 
       // Converter resultados para formato HealthPlanSearchResult
-      const hierarchicalResults: HealthPlanSearchResult[] =
-        hierarchicalResult.documents.map(doc => ({
-          content: doc.content,
-          similarity: doc.hierarchicalScore,
-          collectionId: doc.metadata?.fileId || "",
-          collectionName: `${doc.hierarchyLevel} (${doc.metadata?.operator || "geral"})`,
-          fileId: doc.metadata?.fileId || doc.id,
-          metadata: {
-            ...doc.metadata,
-            hierarchyLevel: doc.hierarchyLevel,
-            operatorPrioritized: doc.operatorPrioritized,
-            originalScore: doc.score
-          }
-        }))
+      const perFileResults: HealthPlanSearchResult[] = []
+      for (const fileResult of retrieveResult.fileResults) {
+        for (const chunk of fileResult.chunks) {
+          perFileResults.push({
+            content: chunk.content,
+            similarity: chunk.similarity,
+            collectionId: fileResult.collection?.id || "",
+            collectionName: fileResult.collection?.name || fileResult.fileName,
+            fileId: fileResult.fileId,
+            metadata: {
+              fileName: fileResult.fileName,
+              fileDescription: fileResult.fileDescription,
+              collectionName: fileResult.collection?.name,
+              collectionDescription: fileResult.collection?.description
+            }
+          })
+        }
+      }
 
       // Aplicar filtros adicionais se fornecidos
-      const filteredHierarchical = applyFiltersToHierarchical(
-        hierarchicalResults,
+      const filteredResults = applyFiltersToHierarchical(
+        perFileResults,
         params.filters
       )
 
       const executionTimeMs = Date.now() - startTime
 
-      console.log("[search-health-plans] ✅ Busca hierárquica concluída:", {
+      console.log("[search-health-plans] ✅ Busca por arquivo concluída:", {
         executionTimeMs,
-        generalDocs: hierarchicalResult.metadata.generalDocsCount,
-        specificDocs: hierarchicalResult.metadata.specificDocsCount,
-        totalDocs: filteredHierarchical.length,
-        extractedOperators: hierarchicalResult.extractedOperators
+        totalFiles: retrieveResult.metadata.totalFiles,
+        filesWithResults: retrieveResult.metadata.filesWithResults,
+        totalChunks: retrieveResult.metadata.totalChunks,
+        filteredResults: filteredResults.length
       })
 
       return {
-        results: filteredHierarchical,
+        results: filteredResults,
         metadata: {
           totalCollectionsSearched: healthPlanCollections.length,
           query: searchQuery,
           executionTimeMs,
-          totalResultsBeforeFiltering: hierarchicalResult.documents.length,
+          totalResultsBeforeFiltering: perFileResults.length,
           hierarchicalMetadata: {
-            generalDocsCount: hierarchicalResult.metadata.generalDocsCount,
-            specificDocsCount: hierarchicalResult.metadata.specificDocsCount,
-            extractedOperators: hierarchicalResult.extractedOperators,
-            useHierarchical: true
+            generalDocsCount: 0, // Legacy field
+            specificDocsCount: retrieveResult.metadata.totalChunks,
+            extractedOperators: [],
+            useHierarchical: true,
+            // Novos campos
+            totalFiles: retrieveResult.metadata.totalFiles,
+            filesWithResults: retrieveResult.metadata.filesWithResults,
+            chunksPerFile
           }
         }
       }
