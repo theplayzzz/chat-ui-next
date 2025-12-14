@@ -107,6 +107,26 @@ export function hasCompatibilityAnalysis(state: HealthPlanState): boolean {
 }
 
 /**
+ * FASE 7: Verifica se a análise está desatualizada
+ * (searchResults mudou desde a última análise)
+ */
+export function isAnalysisStale(state: HealthPlanState): boolean {
+  const searchVersion = state.searchResultsVersion || 0
+  const analysisVersion = state.analysisVersion || 0
+  return analysisVersion < searchVersion
+}
+
+/**
+ * FASE 7: Verifica se a recomendação está desatualizada
+ * (análise mudou desde a última recomendação)
+ */
+export function isRecommendationStale(state: HealthPlanState): boolean {
+  const analysisVersion = state.analysisVersion || 0
+  const recommendationVersion = state.recommendationVersion || 0
+  return recommendationVersion < analysisVersion
+}
+
+/**
  * Verifica se a conversa atingiu o limite de iterações
  */
 export function hasReachedLoopLimit(state: HealthPlanState): boolean {
@@ -231,15 +251,38 @@ export function routeToCapabilityWithReason(
         originalIntent: intent
       }
     }
+    // FASE 7: Verificar se análise está desatualizada
+    if (hasCompatibilityAnalysis(state) && !isAnalysisStale(state)) {
+      return {
+        capability: "analyzeCompatibility",
+        reason:
+          "Análise já existe e está atualizada, re-executando por solicitação",
+        redirected: false
+      }
+    }
     return {
       capability: "analyzeCompatibility",
-      reason: "Resultados de busca disponíveis, analisando",
+      reason: isAnalysisStale(state)
+        ? "Análise desatualizada (searchResults mudou), re-analisando"
+        : "Resultados de busca disponíveis, analisando",
       redirected: false
     }
   }
 
   // === Caso: Pedir recomendação ===
   if (intent === "pedir_recomendacao") {
+    // FASE 7: Verificar cadeia de invalidação
+    // Se análise está desatualizada, precisa re-analisar primeiro
+    if (hasCompatibilityAnalysis(state) && isAnalysisStale(state)) {
+      return {
+        capability: "analyzeCompatibility",
+        reason:
+          "Análise desatualizada (searchResults mudou), re-analisando antes de recomendar",
+        redirected: true,
+        originalIntent: intent
+      }
+    }
+
     if (!hasCompatibilityAnalysis(state)) {
       // Sem análise - precisa analisar primeiro
       if (!hasSearchResults(state)) {
@@ -267,9 +310,15 @@ export function routeToCapabilityWithReason(
         originalIntent: intent
       }
     }
+
+    // FASE 7: Verificar se recomendação está desatualizada
+    const reason = isRecommendationStale(state)
+      ? "Recomendação desatualizada (análise mudou), regenerando"
+      : "Análise disponível, gerando recomendação"
+
     return {
       capability: "generateRecommendation",
-      reason: "Análise disponível, gerando recomendação",
+      reason,
       redirected: false
     }
   }

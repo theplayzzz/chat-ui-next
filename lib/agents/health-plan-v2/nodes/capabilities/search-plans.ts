@@ -119,12 +119,12 @@ export async function searchPlans(
           }
         }
 
-    // Gerar resposta baseada nas análises por collection (FASE 6E)
-    const response = generateSearchResponseFromCollections(
-      result.collectionAnalyses,
-      clientInfo,
-      executionTimeMs
-    )
+    // FASE 7: Retornar apenas dados brutos, sem resposta final
+    // A resposta humanizada será gerada por generateRecommendation via LLM
+    const response =
+      searchResults.length > 0
+        ? `Encontrei ${searchResults.length} plano${searchResults.length > 1 ? "s" : ""} compatíveis. Analisando...`
+        : "Não encontrei planos compatíveis com seu perfil. Vamos ajustar os critérios?"
 
     console.log(
       `[searchPlans] Busca concluída: ${searchResults.length} planos identificados em ${executionTimeMs}ms`
@@ -133,8 +133,8 @@ export async function searchPlans(
     return {
       searchResults,
       searchMetadata,
-      collectionAnalyses: result.collectionAnalyses, // NOVO: análises por collection
-      ragAnalysisContext: result.analysisText, // Texto formatado para o agente
+      collectionAnalyses: result.collectionAnalyses,
+      ragAnalysisContext: result.analysisText, // Texto formatado para analyzeCompatibility
       searchResultsVersion: (state.searchResultsVersion || 0) + 1,
       currentResponse: response,
       messages: [new AIMessage(response)]
@@ -229,106 +229,9 @@ function extractConversationMessages(messages: any[]): string[] {
     })
 }
 
-/**
- * Gera resposta humanizada baseada nas análises por collection (FASE 6E)
- *
- * Usa os planos REAIS identificados, não arquivos individuais
- */
-function generateSearchResponseFromCollections(
-  collectionAnalyses: CollectionAnalysisResult[],
-  clientInfo: Record<string, any>,
-  executionTimeMs: number
-): string {
-  // Extrair todos os planos identificados
-  const allPlans: Array<{
-    plan: IdentifiedPlan
-    collection: CollectionAnalysisResult
-  }> = []
-  for (const collection of collectionAnalyses) {
-    for (const plan of collection.identifiedPlans) {
-      if (plan.clientRelevance !== "irrelevant") {
-        allPlans.push({ plan, collection })
-      }
-    }
-  }
-
-  // Ordenar por relevância
-  const sortedPlans = allPlans.sort((a, b) => {
-    const order: Record<string, number> = {
-      high: 0,
-      medium: 1,
-      low: 2,
-      irrelevant: 3
-    }
-    return order[a.plan.clientRelevance] - order[b.plan.clientRelevance]
-  })
-
-  const highRelevance = sortedPlans.filter(
-    p => p.plan.clientRelevance === "high"
-  )
-  const mediumRelevance = sortedPlans.filter(
-    p => p.plan.clientRelevance === "medium"
-  )
-
-  // Construir resumo do perfil
-  const details = []
-  if (clientInfo.age) details.push(`${clientInfo.age} anos`)
-  if (clientInfo.city || clientInfo.state)
-    details.push(clientInfo.city || clientInfo.state)
-  if (clientInfo.budget) details.push(`orçamento de R$${clientInfo.budget}`)
-
-  const profileSummary = details.length > 0 ? ` (${details.join(", ")})` : ""
-
-  // Lista de planos identificados (nome real, não arquivo)
-  const plansList = sortedPlans
-    .slice(0, 5)
-    .map(p => {
-      const relevanceEmoji =
-        p.plan.clientRelevance === "high"
-          ? "🟢"
-          : p.plan.clientRelevance === "medium"
-            ? "🟡"
-            : "🟠"
-      return `${relevanceEmoji} **${p.plan.planName}** (${p.collection.collectionName})`
-    })
-    .join("\n")
-
-  const plansListFormatted = plansList
-    ? `\n\n**Planos identificados:**\n${plansList}`
-    : ""
-
-  if (sortedPlans.length === 0) {
-    return (
-      `Não encontrei planos que correspondam exatamente ao seu perfil${profileSummary}. ` +
-      "Podemos ajustar alguns critérios para encontrar mais opções?"
-    )
-  }
-
-  if (highRelevance.length > 0) {
-    const topPlan = highRelevance[0]
-    const priceInfo = topPlan.plan.basePrice
-      ? ` (R$${topPlan.plan.basePrice.value}/${topPlan.plan.basePrice.period})`
-      : ""
-
-    return (
-      `Ótimo! Encontrei ${sortedPlans.length} plano${sortedPlans.length > 1 ? "s" : ""} para seu perfil${profileSummary}.${plansListFormatted}\n\n` +
-      `O plano **${topPlan.plan.planName}**${priceInfo} da ${topPlan.collection.collectionName} tem alta compatibilidade com suas necessidades. ` +
-      "Quer que eu detalhe as regras e características deste plano?"
-    )
-  }
-
-  if (sortedPlans.length <= 3) {
-    return (
-      `Encontrei ${sortedPlans.length} plano${sortedPlans.length > 1 ? "s" : ""} para seu perfil${profileSummary}.${plansListFormatted}\n\n` +
-      "Posso detalhar as regras e características de cada um para você decidir qual é o melhor?"
-    )
-  }
-
-  return (
-    `Encontrei ${sortedPlans.length} planos compatíveis com seu perfil${profileSummary}.${plansListFormatted}\n\n` +
-    "Posso analisar os mais relevantes e fazer uma recomendação personalizada para você?"
-  )
-}
+// FASE 7: Função generateSearchResponseFromCollections REMOVIDA
+// A geração de resposta humanizada agora é feita por generateRecommendation via LLM
+// Ver: lib/agents/health-plan-v2/nodes/capabilities/generate-recommendation.ts
 
 // =============================================================================
 // Construção de Query

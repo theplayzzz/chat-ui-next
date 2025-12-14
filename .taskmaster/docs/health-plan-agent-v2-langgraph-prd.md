@@ -952,15 +952,36 @@ O `messagesStateReducer` do LangGraph faz append de mensagens por ID. Problema: 
 - [x] Saída como texto formatado para o LLM usar
 - [x] Testar com diferentes perfis: individual, familiar, idoso
 
-### Fase 7: Capacidade - Análise + Recomendação (2 dias)
-**🎯 QA pode testar: Análise e recomendação completa**
+### Fase 7: Capacidade - Recomendação LLM Humanizada (2 dias)
+**🎯 QA pode testar: Respostas humanizadas via LLM (não templates)**
 
-- [ ] Implementar `analyzeCompatibility` capability (com cache)
-- [ ] Implementar `generateRecommendation` capability
-- [ ] Lógica de invalidação de cache
-- [ ] Recomendação iterativa (pode melhorar com mais dados)
+> ⚠️ **ESTADO ATUAL (Fase 6 concluída):**
+> - `searchPlans` está implementado com RAG completo (retrieve + grade por arquivo + grade por collection)
+> - Resposta final é gerada via **TEMPLATE** (`generateSearchResponseFromCollections` em `search-plans.ts:223`)
+> - `ragAnalysisContext` contém análises detalhadas das LLMs de grading
+> - `analyzeCompatibility` está **parcialmente coberto** pelo grading por collection (identifica planos e avalia relevância)
 
-**Checkpoint QA**: Fluxo completo: dados → busca → análise → recomendação humanizada. Alterar dado → recomendação se atualiza.
+**O QUE FALTA:**
+- [ ] Criar `generateRecommendation` capability com resposta **LLM humanizada** (não template)
+- [ ] Refatorar `searchPlans` para retornar apenas dados brutos (sem resposta)
+- [ ] LLM recebe `ragAnalysisContext` + `clientInfo` e gera resposta personalizada
+- [ ] Tabela comparativa markdown com top planos
+- [ ] Salvar recomendação para audit
+
+**DECISÃO ARQUITETURAL:**
+| Opção | Descrição | Prós/Contras |
+|-------|-----------|--------------|
+| A | `searchPlans` gera resposta LLM | Menos modular, concentra responsabilidades |
+| **B (Recomendado)** | `searchPlans` → dados, `generateRecommendation` → resposta LLM | Mais modular, segue PRD original |
+
+**Arquivos a criar/modificar:**
+- `lib/agents/health-plan-v2/nodes/capabilities/generate-recommendation.ts` - **CRIAR**
+- `lib/agents/health-plan-v2/nodes/capabilities/search-plans.ts` - Remover geração de resposta
+- `lib/agents/health-plan-v2/workflows/workflow.ts` - Adicionar nó após searchPlans
+
+**Modelo:** GPT-5-mini com `reasoning_effort: "low"`, `max_completion_tokens: 4096`
+
+**Checkpoint QA**: Fluxo completo: dados → busca → recomendação **humanizada** (não template). Resposta deve ser conversacional e contextual. Alterar dado → recomendação se atualiza.
 
 ### Fase 8: Capacidade - Preços ERP (1 dia)
 **🎯 QA pode testar: Preços reais aparecem (se ERP configurado)**
@@ -973,14 +994,31 @@ O `messagesStateReducer` do LangGraph faz append de mensagens por ID. Problema: 
 **Checkpoint QA**: Se ERP ativo, preços reais aparecem. Se não, mensagem informando estimativa.
 
 ### Fase 9: Capacidades - Conversa Geral + Finalização (1 dia)
-**🎯 QA pode testar: Perguntas genéricas e finalização**
+**🎯 QA pode testar: Respostas LLM para dúvidas e finalização**
 
-- [ ] Implementar `respondToUser` capability (perguntas fora do escopo)
-- [ ] Implementar `endConversation` capability
-- [ ] Finalização gera audit/summary
-- [ ] Usuário controla quando encerra
+> ⚠️ **ESTADO ATUAL:**
+> - Intent `conversar` é detectado pelo classificador de intenções
+> - Respostas são geradas via **mensagem genérica** no orchestrator (não LLM dedicado)
+> - `endConversation` **NÃO está implementado**
 
-**Checkpoint QA**: Perguntar "o que é coparticipação?" → resposta clara. Dizer "obrigado, pode encerrar" → finalização com resumo.
+**O QUE FALTA:**
+- [ ] Criar `respondToUser` capability com resposta **LLM contextual**
+- [ ] Criar `endConversation` capability com resumo e audit
+- [ ] `respondToUser` deve usar `ragAnalysisContext` quando disponível (para perguntas sobre planos já buscados)
+- [ ] Explicar termos técnicos (coparticipação, carência, etc.) de forma educativa
+- [ ] Finalização gera resumo da conversa e salva audit log
+
+**Arquivos a criar:**
+- `lib/agents/health-plan-v2/nodes/capabilities/respond-to-user.ts` - **CRIAR**
+- `lib/agents/health-plan-v2/nodes/capabilities/end-conversation.ts` - **CRIAR**
+
+**Arquivos a modificar:**
+- `lib/agents/health-plan-v2/workflows/workflow.ts` - Adicionar nós
+- `lib/agents/health-plan-v2/nodes/router.ts` - Rotear para novas capacidades
+
+**Modelo:** GPT-5-mini com `reasoning_effort: "low"`, `max_completion_tokens: 2048`
+
+**Checkpoint QA**: Perguntar "o que é coparticipação?" → resposta **humanizada e educativa** (não template). Perguntar sobre plano específico → usa `ragAnalysisContext` se disponível. Dizer "obrigado, pode encerrar" → finalização com resumo personalizado.
 
 ### Fase 10: Simulação de Cenários (1-2 dias)
 **🎯 QA pode testar: Cenários "e se" funcionam**
