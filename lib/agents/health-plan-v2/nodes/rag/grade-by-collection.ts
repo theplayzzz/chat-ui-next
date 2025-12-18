@@ -62,25 +62,29 @@ const DEFAULT_OPTIONS: Required<GradeByCollectionOptions> = {
 const COLLECTION_ANALYSIS_PROMPT = `Você é um especialista em planos de saúde no Brasil.
 
 ## TAREFA
-Analise esta COLLECTION de documentos e identifique os PLANOS DE SAÚDE REAIS contidos nela.
+Analise esta COLLECTION e identifique os PLANOS DE SAÚDE REAIS baseando-se nas análises anteriores.
 
 REGRAS CRÍTICAS:
-- NÃO INVENTE informações que não estão nos documentos
-- Se uma informação não existe, OMITA o campo (não preencha com dados fictícios)
-- Baseie TODA análise em FATOS encontrados nos documentos ou análises anteriores
-- Extraia REGRAS e CARACTERÍSTICAS reais que impactam o cliente
+- Use EXCLUSIVAMENTE as análises anteriores como fonte de informação
+- NÃO INVENTE dados que não estão nas análises
+- Se uma informação não existe nas análises, OMITA o campo
+- Baseie TODA análise em FATOS encontrados nas análises anteriores
+- Extraia REGRAS e CARACTERÍSTICAS que impactam o cliente
 - Campos obrigatórios: planName, sourceFileNames, clientRelevance, relevanceJustification
-- Campos opcionais: OMITA se não houver dados reais
+- Campos opcionais: OMITA se não houver dados reais nas análises
 
 ## COLLECTION
 Nome: {collectionName}
 Descrição: {collectionDescription}
 Tipo: {collectionType}
 
-## ARQUIVOS DA COLLECTION
-{filesContent}
+## ANÁLISES ANTERIORES (feitas por gradeByFile usando GPT-5-mini)
 
-## ANÁLISES ANTERIORES (feitas por outras LLMs)
+As análises abaixo foram geradas por outro LLM especializado que examinou cada arquivo individualmente.
+Cada análise já avaliou relevância, compatibilidade e extraiu informações importantes dos documentos.
+
+Use SOMENTE estas análises para identificar planos reais. NÃO invente informações adicionais.
+
 {previousAnalyses}
 
 ## PERFIL DO CLIENTE
@@ -91,17 +95,18 @@ Tipo: {collectionType}
 
 ---
 
-## REGRAS DE IDENTIFICAÇÃO DE PLANOS
-1. Arquivo PREÇOS + arquivo REGRAS podem ser MESMO plano (nomes similares)
-2. Operadoras diferentes = planos diferentes
-3. Se um arquivo contém múltiplos planos (ex: tabela com Silver, Gold, Platinum) = múltiplos planos
-4. Use o NOME REAL do plano encontrado nos documentos
+## INSTRUÇÕES
 
-## REGRAS DE ANÁLISE
-1. NUNCA invente preços, carências ou coberturas
-2. Se análise anterior mencionou algo, pode usar como referência
-3. Priorize regras que IMPACTAM o perfil do cliente
-4. Indique explicitamente informações que estão FALTANDO
+Identifique quantos PLANOS REAIS existem nesta collection:
+- Arquivos diferentes podem descrever o MESMO plano (ex: "Precos.pdf" + "Regras.pdf")
+- Operadoras diferentes = planos diferentes
+- Se um arquivo menciona múltiplos planos (ex: Silver, Gold, Platinum) = múltiplos planos
+- Use o NOME REAL do plano encontrado nas análises
+
+Extraia REGRAS e CARACTERÍSTICAS que impactam o perfil do cliente:
+- Priorize carências, coparticipação, cobertura geográfica
+- Indique explicitamente informações FALTANTES nas análises
+- NUNCA invente preços ou regras não mencionadas
 
 ## OUTPUT ESPERADO (JSON)
 
@@ -278,26 +283,21 @@ function aggregateByCollection(
 
     const collection = collectionMap.get(collectionId)!
 
-    // Calcular tokens aproximados dos chunks
-    const chunks = fileResult.chunks.map(c => c.content)
-    const totalTokens = chunks.reduce(
-      (sum, c) => sum + Math.ceil(c.length / 4),
-      0
-    )
+    // Calcular tokens baseado no texto da análise (conteúdo REAL do prompt)
+    const analysisText = grading?.analysisText || ""
+    const analysisTokens = Math.ceil(analysisText.length / 4)
 
     // Adicionar arquivo agregado
     const aggregatedFile: AggregatedFile = {
       fileId: fileResult.fileId,
       fileName: fileResult.fileName,
       fileDescription: fileResult.fileDescription,
-      chunks,
-      totalTokens,
       relevance: grading?.relevance || "medium",
-      previousAnalysisText: grading?.analysisText || ""
+      previousAnalysisText: analysisText
     }
 
     collection.files.push(aggregatedFile)
-    collection.totalTokens += totalTokens
+    collection.totalTokens += analysisTokens
   }
 
   return Array.from(collectionMap.values())
@@ -317,12 +317,20 @@ async function analyzeCollection(
   options: Required<GradeByCollectionOptions>
 ): Promise<CollectionAnalysisResult> {
   console.log(
-    `[gradeByCollection] Analisando: ${collection.collectionName} (${collection.files.length} arquivos, ~${collection.totalTokens} tokens)`
+    `[gradeByCollection] Analisando: ${collection.collectionName} (${collection.files.length} arquivos, ~${collection.totalTokens} tokens de análises)`
+  )
+
+  // Log detalhado de tokens por arquivo
+  console.log(
+    `[gradeByCollection] Detalhes: ${collection.files
+      .map(
+        f => `${f.fileName}=${Math.ceil(f.previousAnalysisText.length / 4)}t`
+      )
+      .join(", ")}`
   )
 
   try {
-    // Preparar conteúdos
-    const filesContent = formatFilesContent(collection.files)
+    // Preparar conteúdos (SOMENTE análises anteriores)
     const previousAnalyses = formatPreviousAnalyses(collection.files)
     const clientInfoText = formatClientInfo(clientInfo)
     const conversationContext = formatConversationContext(conversationMessages)
@@ -337,7 +345,6 @@ async function analyzeCollection(
         collection.collectionDescription || "Não especificada"
       )
       .replace("{collectionType}", collection.collectionType)
-      .replace("{filesContent}", filesContent)
       .replace("{previousAnalyses}", previousAnalyses)
       .replace("{clientInfo}", clientInfoText)
       .replace("{conversationContext}", conversationContext)
@@ -404,29 +411,6 @@ async function analyzeCollection(
 // =============================================================================
 // Formatting Functions
 // =============================================================================
-
-/**
- * Formata conteúdo dos arquivos para o prompt
- */
-function formatFilesContent(files: AggregatedFile[]): string {
-  const sections: string[] = []
-
-  for (const file of files) {
-    sections.push(`### Arquivo: ${file.fileName}`)
-    if (file.fileDescription) {
-      sections.push(`Descrição: ${file.fileDescription}`)
-    }
-    sections.push(`Relevância prévia: ${file.relevance}`)
-    sections.push("")
-    sections.push("Conteúdo:")
-    sections.push(file.chunks.join("\n\n[...]\n\n"))
-    sections.push("")
-    sections.push("---")
-    sections.push("")
-  }
-
-  return sections.join("\n")
-}
 
 /**
  * Formata análises anteriores do gradeByFile

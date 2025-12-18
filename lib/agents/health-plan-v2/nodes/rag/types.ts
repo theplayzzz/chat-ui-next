@@ -144,19 +144,18 @@ export interface GradeByCollectionResult {
 // =============================================================================
 
 /**
- * Arquivo agregado com chunks e análise anterior
+ * Arquivo agregado com análise anterior
+ *
+ * Chunks removidos em favor de usar apenas previousAnalysisText para economizar tokens.
+ * O gradeByFile já analisou os chunks e extraiu todas informações relevantes.
  */
 export interface AggregatedFile {
   fileId: string
   fileName: string
   fileDescription: string
-  /** Chunks do arquivo (conteúdo) */
-  chunks: string[]
-  /** Total de tokens */
-  totalTokens: number
   /** Relevância da análise anterior (gradeByFile) */
   relevance: "high" | "medium" | "low" | "irrelevant"
-  /** Texto da análise anterior (gradeByFile) */
+  /** Texto da análise anterior (gradeByFile) - ÚNICA fonte de conteúdo */
   previousAnalysisText: string
 }
 
@@ -168,9 +167,9 @@ export interface CollectionAggregatedData {
   collectionName: string
   collectionDescription: string
   collectionType: string
-  /** Arquivos da collection com chunks e análises anteriores */
+  /** Arquivos da collection com análises anteriores */
   files: AggregatedFile[]
-  /** Total de tokens de todos os arquivos */
+  /** Total de tokens de previousAnalysisText (reflete conteúdo REAL do prompt) */
   totalTokens: number
 }
 
