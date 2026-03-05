@@ -26,6 +26,7 @@ import type {
   IdentifiedPlan
 } from "../../nodes/rag/types"
 import type { HealthPlanDocument } from "../../types"
+import { humanizeResponse } from "./humanize-response"
 
 /**
  * Busca planos de saúde usando sub-grafo RAG por arquivo
@@ -49,15 +50,21 @@ export async function searchPlans(
   )
 
   if (!hasMinimumData) {
-    const response =
+    const rawResponse =
       "Preciso de algumas informações para buscar os melhores planos para você. " +
       "Pode me dizer sua idade, cidade e orçamento aproximado?"
 
     console.log("[searchPlans] Dados insuficientes para busca")
 
+    const humanized = await humanizeResponse({
+      rawResponse,
+      state,
+      messageType: "follow_up_question"
+    })
+
     return {
-      currentResponse: response,
-      messages: [new AIMessage(response)]
+      currentResponse: humanized.response,
+      messages: [new AIMessage(humanized.response)]
     }
   }
 
@@ -121,7 +128,7 @@ export async function searchPlans(
 
     // FASE 7: Retornar apenas dados brutos, sem resposta final
     // A resposta humanizada será gerada por generateRecommendation via LLM
-    const response =
+    const rawResponse =
       searchResults.length > 0
         ? `Encontrei ${searchResults.length} plano${searchResults.length > 1 ? "s" : ""} compatíveis. Analisando...`
         : "Não encontrei planos compatíveis com seu perfil. Vamos ajustar os critérios?"
@@ -130,25 +137,37 @@ export async function searchPlans(
       `[searchPlans] Busca concluída: ${searchResults.length} planos identificados em ${executionTimeMs}ms`
     )
 
+    const humanized = await humanizeResponse({
+      rawResponse,
+      state,
+      messageType: "search_status"
+    })
+
     return {
       searchResults,
       searchMetadata,
       collectionAnalyses: result.collectionAnalyses,
       ragAnalysisContext: result.analysisText, // Texto formatado para analyzeCompatibility
       searchResultsVersion: (state.searchResultsVersion || 0) + 1,
-      currentResponse: response,
-      messages: [new AIMessage(response)]
+      currentResponse: humanized.response,
+      messages: [new AIMessage(humanized.response)]
     }
   } catch (error) {
     console.error("[searchPlans] Erro na busca:", error)
 
-    const errorResponse =
+    const rawError =
       "Desculpe, houve um problema ao buscar os planos. Vou tentar de outra forma. " +
       "Pode me contar mais sobre suas necessidades específicas?"
 
+    const humanized = await humanizeResponse({
+      rawResponse: rawError,
+      state,
+      messageType: "error"
+    })
+
     return {
-      currentResponse: errorResponse,
-      messages: [new AIMessage(errorResponse)],
+      currentResponse: humanized.response,
+      messages: [new AIMessage(humanized.response)],
       errors: [
         {
           capability: "searchPlans",

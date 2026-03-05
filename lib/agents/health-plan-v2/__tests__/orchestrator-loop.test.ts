@@ -14,17 +14,89 @@
 
 import { HumanMessage, AIMessage } from "@langchain/core/messages"
 
+// Mock audit module (used by end-conversation)
+jest.mock("../audit/save-conversation-audit", () => ({
+  saveConversationAuditV2: jest.fn().mockResolvedValue({
+    success: true,
+    auditId: "test-audit"
+  })
+}))
+
 // Mock do GPT para testes determinísticos
 jest.mock("@langchain/openai", () => ({
-  ChatOpenAI: jest.fn().mockImplementation(() => ({
-    withStructuredOutput: jest.fn().mockReturnThis(),
-    invoke: jest.fn().mockResolvedValue({
-      intent: "fornecer_dados",
-      confidence: 0.9,
-      extractedData: {},
-      reasoning: "Mock response"
-    })
-  }))
+  ChatOpenAI: jest.fn().mockImplementation(() => {
+    const mockInstance = {
+      withStructuredOutput: jest.fn().mockImplementation(() => ({
+        invoke: jest.fn().mockImplementation(async (messages: any[]) => {
+          // Detect which schema is being used based on system prompt content
+          const systemContent = messages?.[0]?.content || ""
+          if (
+            systemContent.includes("consultora") ||
+            systemContent.includes("Reescreva")
+          ) {
+            // humanize_response schema
+            return {
+              response: "Resposta humanizada mock",
+              detectedTerms: [],
+              tone: "neutral"
+            }
+          }
+          if (
+            systemContent.includes("planos de saúde") &&
+            systemContent.includes("Glossário")
+          ) {
+            // respond_to_user schema
+            return {
+              response: "Resposta educativa mock",
+              topicCategory: "other",
+              termsExplained: []
+            }
+          }
+          if (systemContent.includes("despedida")) {
+            // end_conversation schema
+            return {
+              farewell: "Até logo mock!",
+              conversationSummary: "Conversa mock",
+              hasRecommendation: false
+            }
+          }
+          if (systemContent.includes("compatibilidade")) {
+            // analyze_compatibility schema
+            return {
+              analyses: [],
+              topRecommendation: "Mock recommendation",
+              reasoning: "Mock reasoning"
+            }
+          }
+          if (systemContent.includes("recomendação")) {
+            // generate_recommendation schema
+            return {
+              markdown: "# Mock",
+              topPlanId: "mock-plan",
+              alternativeIds: [],
+              highlights: [],
+              warnings: [],
+              nextSteps: []
+            }
+          }
+          // Default: intent classifier schema
+          return {
+            intent: "fornecer_dados",
+            confidence: 0.9,
+            extractedData: {},
+            reasoning: "Mock response"
+          }
+        })
+      })),
+      invoke: jest.fn().mockResolvedValue({
+        intent: "fornecer_dados",
+        confidence: 0.9,
+        extractedData: {},
+        reasoning: "Mock response"
+      })
+    }
+    return mockInstance
+  })
 }))
 
 describe("Orchestrator Node", () => {
@@ -397,8 +469,14 @@ describe("Capabilities - AIMessage Persistence (Bug Fix 22.9)", () => {
       "../nodes/capabilities/end-conversation"
     )
 
+    // Needs 3+ messages to bypass accidental finalization protection
+    const messages = Array.from({ length: 5 }, (_, i) => ({
+      content: `Message ${i}`,
+      _getType: () => (i % 2 === 0 ? "human" : "ai")
+    }))
+
     const state = {
-      messages: [],
+      messages,
       isConversationActive: true
     }
 

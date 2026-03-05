@@ -13,6 +13,7 @@
 import { AIMessage } from "@langchain/core/messages"
 import type { HealthPlanState } from "../../state/state-annotation"
 import type { StateError } from "../../types"
+import { humanizeResponse } from "./humanize-response"
 
 // Importar funções existentes do v1
 import {
@@ -466,29 +467,45 @@ export async function updateClientInfo(
   }
 
   // 2. Gerar resposta apropriada
-  let response: string
+  let rawResponse: string
+  let messageType: "confirmation" | "follow_up_question" | "greeting"
+
+  const hasAnyRequired =
+    clientInfo.age !== undefined ||
+    clientInfo.city ||
+    clientInfo.state ||
+    clientInfo.budget !== undefined
 
   if (isComplete || completeness >= COMPLETENESS_THRESHOLD_FOR_CONFIRMATION) {
-    // Dados suficientes - mostrar confirmação visual
-    response = generateConfirmationMessage(
+    rawResponse = generateConfirmationMessage(
       clientInfo,
       completeness,
       validationErrors
     )
+    messageType = "confirmation"
     console.log("[updateClientInfo] Generating confirmation message")
   } else {
-    // Dados insuficientes - gerar pergunta de follow-up
-    response = generateFollowUpQuestion(clientInfo)
+    rawResponse = generateFollowUpQuestion(clientInfo)
+    messageType = !hasAnyRequired ? "greeting" : "follow_up_question"
     console.log("[updateClientInfo] Generating follow-up question")
   }
 
-  // 3. Preparar retorno
+  // 3. Humanizar resposta via LLM
+  const humanized = await humanizeResponse({
+    rawResponse,
+    state,
+    messageType
+  })
+
+  const response = humanized.response
+
+  // 4. Preparar retorno
   const stateUpdate: Partial<HealthPlanState> = {
     currentResponse: response,
     messages: [new AIMessage(response)]
   }
 
-  // 4. Adicionar warnings ao estado (se houver)
+  // 5. Adicionar warnings ao estado (se houver)
   if (validationErrors.length > 0) {
     stateUpdate.errors = validationErrors
   }

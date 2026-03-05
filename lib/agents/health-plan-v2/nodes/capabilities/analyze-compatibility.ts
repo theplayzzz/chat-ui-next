@@ -18,6 +18,7 @@ import { ChatOpenAI } from "@langchain/openai"
 import { z } from "zod"
 import type { HealthPlanState } from "../../state/state-annotation"
 import type { CompatibilityAnalysis, RankedAnalysis } from "../../types"
+import { humanizeResponse } from "./humanize-response"
 
 // =============================================================================
 // SCHEMAS
@@ -116,15 +117,21 @@ export async function analyzeCompatibility(
   const hasRagContext = Boolean(state.ragAnalysisContext?.trim())
 
   if (!hasSearchResults && !hasRagContext) {
-    const response =
+    const rawResponse =
       "Primeiro preciso buscar planos para analisar. " +
       "Pode me fornecer mais informações sobre seu perfil?"
 
     console.log("[analyzeCompatibility] Sem dados para analisar")
 
+    const humanized = await humanizeResponse({
+      rawResponse,
+      state,
+      messageType: "search_status"
+    })
+
     return {
-      currentResponse: response,
-      messages: [new AIMessage(response)]
+      currentResponse: humanized.response,
+      messages: [new AIMessage(humanized.response)]
     }
   }
 
@@ -139,13 +146,19 @@ export async function analyzeCompatibility(
 
     // Verificar se temos contexto suficiente
     if (!plansContext || plansContext.length < 50) {
-      const response =
+      const rawResponse =
         "As informações sobre os planos estão incompletas. " +
         "Vou tentar buscar mais detalhes."
 
+      const humanized = await humanizeResponse({
+        rawResponse,
+        state,
+        messageType: "search_status"
+      })
+
       return {
-        currentResponse: response,
-        messages: [new AIMessage(response)]
+        currentResponse: humanized.response,
+        messages: [new AIMessage(humanized.response)]
       }
     }
 
@@ -212,28 +225,40 @@ Retorne um JSON válido com o ranking e análise detalhada.`
 
     // Gerar resposta resumida
     const topPlans = rankedAnalysis.analyses.slice(0, 3)
-    const response = generateAnalysisResponse(topPlans, rankedAnalysis)
+    const rawResponse = generateAnalysisResponse(topPlans, rankedAnalysis)
 
     console.log(
       `[analyzeCompatibility] Análise concluída: ${rankedAnalysis.analyses.length} planos analisados em ${executionTimeMs}ms`
     )
 
+    const humanized = await humanizeResponse({
+      rawResponse,
+      state,
+      messageType: "analysis_result"
+    })
+
     return {
       compatibilityAnalysis: rankedAnalysis,
       analysisVersion: (state.analysisVersion || 0) + 1,
-      currentResponse: response,
-      messages: [new AIMessage(response)]
+      currentResponse: humanized.response,
+      messages: [new AIMessage(humanized.response)]
     }
   } catch (error) {
     console.error("[analyzeCompatibility] Erro na análise:", error)
 
-    const errorResponse =
+    const rawError =
       "Houve um problema ao analisar os planos. " +
       "Vou tentar de outra forma. O que mais gostaria de saber sobre os planos?"
 
+    const humanized = await humanizeResponse({
+      rawResponse: rawError,
+      state,
+      messageType: "error"
+    })
+
     return {
-      currentResponse: errorResponse,
-      messages: [new AIMessage(errorResponse)],
+      currentResponse: humanized.response,
+      messages: [new AIMessage(humanized.response)],
       errors: [
         {
           capability: "analyzeCompatibility",

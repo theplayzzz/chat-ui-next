@@ -10,10 +10,9 @@ import { getFoldersByWorkspaceId } from "@/db/folders"
 import { getModelWorkspacesByWorkspaceId } from "@/db/models"
 import { getPresetWorkspacesByWorkspaceId } from "@/db/presets"
 import { getPromptWorkspacesByWorkspaceId } from "@/db/prompts"
-import { getAssistantImageFromStorage } from "@/db/storage/assistant-images"
+import { getBulkAssistantImageUrls } from "@/db/storage/assistant-images"
 import { getToolWorkspacesByWorkspaceId } from "@/db/tools"
 import { getWorkspaceById } from "@/db/workspaces"
-import { convertBlobToBase64 } from "@/lib/blob-to-b64"
 import { supabase } from "@/lib/supabase/browser-client"
 import { LLMID } from "@/types"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
@@ -91,70 +90,62 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
   const fetchWorkspaceData = async (workspaceId: string) => {
     setLoading(true)
 
-    const workspace = await getWorkspaceById(workspaceId)
+    // Parallelize all independent workspace data fetches
+    const [
+      workspace,
+      assistantData,
+      chats,
+      collectionData,
+      folders,
+      fileData,
+      presetData,
+      promptData,
+      toolData,
+      modelData
+    ] = await Promise.all([
+      getWorkspaceById(workspaceId),
+      getAssistantWorkspacesByWorkspaceId(workspaceId),
+      getChatsByWorkspaceId(workspaceId),
+      getCollectionWorkspacesByWorkspaceId(workspaceId),
+      getFoldersByWorkspaceId(workspaceId),
+      getFileWorkspacesByWorkspaceId(workspaceId),
+      getPresetWorkspacesByWorkspaceId(workspaceId),
+      getPromptWorkspacesByWorkspaceId(workspaceId),
+      getToolWorkspacesByWorkspaceId(workspaceId),
+      getModelWorkspacesByWorkspaceId(workspaceId)
+    ])
+
+    // Set all workspace data
     setSelectedWorkspace(workspace)
-
-    const assistantData = await getAssistantWorkspacesByWorkspaceId(workspaceId)
     setAssistants(assistantData.assistants)
-
-    for (const assistant of assistantData.assistants) {
-      let url = ""
-
-      if (assistant.image_path) {
-        url = (await getAssistantImageFromStorage(assistant.image_path)) || ""
-      }
-
-      if (url) {
-        const response = await fetch(url)
-        const blob = await response.blob()
-        const base64 = await convertBlobToBase64(blob)
-
-        setAssistantImages(prev => [
-          ...prev,
-          {
-            assistantId: assistant.id,
-            path: assistant.image_path,
-            base64,
-            url
-          }
-        ])
-      } else {
-        setAssistantImages(prev => [
-          ...prev,
-          {
-            assistantId: assistant.id,
-            path: assistant.image_path,
-            base64: "",
-            url
-          }
-        ])
-      }
-    }
-
-    const chats = await getChatsByWorkspaceId(workspaceId)
     setChats(chats)
-
-    const collectionData =
-      await getCollectionWorkspacesByWorkspaceId(workspaceId)
     setCollections(collectionData.collections)
-
-    const folders = await getFoldersByWorkspaceId(workspaceId)
     setFolders(folders)
-
-    const fileData = await getFileWorkspacesByWorkspaceId(workspaceId)
     setFiles(fileData.files)
-
-    const presetData = await getPresetWorkspacesByWorkspaceId(workspaceId)
     setPresets(presetData.presets)
-
-    const promptData = await getPromptWorkspacesByWorkspaceId(workspaceId)
     setPrompts(promptData.prompts)
-
-    const toolData = await getToolWorkspacesByWorkspaceId(workspaceId)
     setTools(toolData.tools)
-
-    const modelData = await getModelWorkspacesByWorkspaceId(workspaceId)
     setModels(modelData.models)
+
+    // Fetch assistant images in bulk (no base64 conversion)
+    const assistantImagePaths = assistantData.assistants
+      .filter(a => a.image_path)
+      .map(a => a.image_path)
+
+    if (assistantImagePaths.length > 0) {
+      const imageUrls = await getBulkAssistantImageUrls(assistantImagePaths)
+
+      const assistantImagesData = assistantData.assistants.map(a => ({
+        assistantId: a.id,
+        path: a.image_path,
+        url: a.image_path ? imageUrls[a.image_path] || "" : ""
+      }))
+
+      setAssistantImages(assistantImagesData)
+    } else {
+      // No assistants have images
+      setAssistantImages([])
+    }
 
     setChatSettings({
       model: (searchParams.get("model") ||

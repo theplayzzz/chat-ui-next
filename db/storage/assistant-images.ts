@@ -43,7 +43,7 @@ export const getAssistantImageFromStorage = async (filePath: string) => {
   try {
     const { data, error } = await supabase.storage
       .from("assistant_images")
-      .createSignedUrl(filePath, 60 * 60 * 24) // 24hrs
+      .createSignedUrl(filePath, 60 * 60 * 24 * 7) // 7 days (increased from 24hrs)
 
     if (error) {
       throw new Error("Error downloading assistant image")
@@ -52,5 +52,46 @@ export const getAssistantImageFromStorage = async (filePath: string) => {
     return data.signedUrl
   } catch (error) {
     console.error(error)
+  }
+}
+
+/**
+ * Get multiple assistant image signed URLs in a single batch request
+ * @param filePaths - Array of file paths to get signed URLs for
+ * @returns Record mapping file paths to their signed URLs
+ */
+export const getBulkAssistantImageUrls = async (
+  filePaths: string[]
+): Promise<Record<string, string>> => {
+  // Return empty object for empty array
+  if (filePaths.length === 0) return {}
+
+  try {
+    const { data, error } = await supabase.storage
+      .from("assistant_images")
+      .createSignedUrls(filePaths, 60 * 60 * 24 * 7) // 7 days cache
+
+    if (error) {
+      console.error(
+        "[getBulkAssistantImageUrls] Error creating bulk signed URLs:",
+        error
+      )
+      return {}
+    }
+
+    // Transform array response to path->url map
+    // data is array: [{ path, signedUrl, error }, ...]
+    const urlMap: Record<string, string> = {}
+
+    filePaths.forEach((path, idx) => {
+      if (data[idx]?.signedUrl) {
+        urlMap[path] = data[idx].signedUrl
+      }
+    })
+
+    return urlMap
+  } catch (error) {
+    console.error("[getBulkAssistantImageUrls] Unexpected error:", error)
+    return {}
   }
 }

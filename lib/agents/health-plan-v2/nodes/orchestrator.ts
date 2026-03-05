@@ -22,6 +22,7 @@ import {
   isDataCollectionIntent
 } from "../intent"
 import { processClientInfoUpdate } from "../state/cache-invalidation"
+import { humanizeResponse } from "./capabilities/humanize-response"
 
 // ============================================================================
 // ORCHESTRATOR NODE
@@ -50,10 +51,16 @@ export async function orchestratorNode(
   const userContent = extractMessageContent(lastMessage)
 
   if (!userContent) {
+    const humanized = await humanizeResponse({
+      rawResponse: "Não consegui entender sua mensagem. Pode repetir?",
+      state,
+      messageType: "error"
+    })
+
     return {
       lastIntent: "conversar" as UserIntent,
       lastIntentConfidence: 0,
-      currentResponse: "Não consegui entender sua mensagem. Pode repetir?"
+      currentResponse: humanized.response
     }
   }
 
@@ -131,11 +138,17 @@ export async function orchestratorNode(
       details: { userMessage: userContent }
     }
 
+    const humanized = await humanizeResponse({
+      rawResponse:
+        "Desculpe, tive um problema ao processar sua mensagem. Pode tentar novamente?",
+      state,
+      messageType: "error"
+    })
+
     return {
       lastIntent: "conversar" as UserIntent,
       lastIntentConfidence: 0.3,
-      currentResponse:
-        "Desculpe, tive um problema ao processar sua mensagem. Pode tentar novamente?",
+      currentResponse: humanized.response,
       errors: [errorEntry]
     }
   }

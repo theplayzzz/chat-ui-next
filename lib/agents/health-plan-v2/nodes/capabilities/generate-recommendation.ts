@@ -18,6 +18,7 @@ import { ChatOpenAI } from "@langchain/openai"
 import { z } from "zod"
 import type { HealthPlanState } from "../../state/state-annotation"
 import type { GenerateRecommendationResult, RankedAnalysis } from "../../types"
+import { humanizeResponse } from "./humanize-response"
 
 // =============================================================================
 // SCHEMAS
@@ -104,7 +105,7 @@ export async function generateRecommendation(
     Array.isArray(state.searchResults) && state.searchResults.length > 0
 
   if (!hasAnalysis) {
-    const response = hasSearchResults
+    const rawResponse = hasSearchResults
       ? "Vou analisar os planos encontrados antes de gerar uma recomendação completa."
       : "Para gerar uma recomendação, primeiro preciso buscar e analisar os planos disponíveis para seu perfil."
 
@@ -112,9 +113,15 @@ export async function generateRecommendation(
       "[generateRecommendation] Sem análise de compatibilidade disponível"
     )
 
+    const humanized = await humanizeResponse({
+      rawResponse,
+      state,
+      messageType: "search_status"
+    })
+
     return {
-      currentResponse: response,
-      messages: [new AIMessage(response)]
+      currentResponse: humanized.response,
+      messages: [new AIMessage(humanized.response)]
     }
   }
 
@@ -129,13 +136,19 @@ export async function generateRecommendation(
 
     // Verificar se temos análises para recomendar
     if (analysis.analyses.length === 0) {
-      const response =
+      const rawResponse =
         "Não tenho planos analisados para gerar uma recomendação. " +
         "Vamos tentar buscar mais opções?"
 
+      const humanized = await humanizeResponse({
+        rawResponse,
+        state,
+        messageType: "error"
+      })
+
       return {
-        currentResponse: response,
-        messages: [new AIMessage(response)]
+        currentResponse: humanized.response,
+        messages: [new AIMessage(humanized.response)]
       }
     }
 
@@ -208,15 +221,21 @@ Retorne um JSON válido com o markdown completo e metadados.`
   } catch (error) {
     console.error("[generateRecommendation] Erro ao gerar recomendação:", error)
 
-    // Fallback: gerar recomendação simples sem LLM
-    const fallbackResponse = generateFallbackRecommendation(
+    // Fallback: gerar recomendação simples sem LLM, depois humanizar
+    const rawFallback = generateFallbackRecommendation(
       state.compatibilityAnalysis,
       state.clientInfo || {}
     )
 
+    const humanized = await humanizeResponse({
+      rawResponse: rawFallback,
+      state,
+      messageType: "recommendation"
+    })
+
     return {
-      currentResponse: fallbackResponse,
-      messages: [new AIMessage(fallbackResponse)],
+      currentResponse: humanized.response,
+      messages: [new AIMessage(humanized.response)],
       errors: [
         {
           capability: "generateRecommendation",

@@ -10,6 +10,8 @@ module.exports = withBundleAnalyzer(
   withPWA({
     reactStrictMode: true,
     images: {
+      loader: "custom",
+      loaderFile: "./lib/supabase-image-loader.ts",
       remotePatterns: [
         {
           protocol: "http",
@@ -21,9 +23,16 @@ module.exports = withBundleAnalyzer(
         },
         {
           protocol: "https",
+          hostname: "**.supabase.co"
+        },
+        {
+          protocol: "https",
           hostname: "**"
         }
-      ]
+      ],
+      formats: ["image/webp", "image/avif"],
+      deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+      imageSizes: [16, 32, 48, 64, 96, 128, 256, 384]
     },
     experimental: {
       serverComponentsExternalPackages: ["sharp", "onnxruntime-node"]

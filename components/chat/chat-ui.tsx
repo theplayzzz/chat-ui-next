@@ -6,8 +6,7 @@ import { getChatFilesByChatId } from "@/db/chat-files"
 import { getChatById } from "@/db/chats"
 import { getMessageFileItemsByMessageId } from "@/db/message-file-items"
 import { getMessagesByChatId } from "@/db/messages"
-import { getMessageImageFromStorage } from "@/db/storage/message-images"
-import { convertBlobToBase64 } from "@/lib/blob-to-b64"
+import { getBulkMessageImageUrls } from "@/db/storage/message-images"
 import useHotkey from "@/lib/hooks/use-hotkey"
 import { LLMID, MessageImage } from "@/types"
 import { useParams } from "next/navigation"
@@ -79,38 +78,27 @@ export const ChatUI: FC<ChatUIProps> = ({}) => {
   const fetchMessages = async () => {
     const fetchedMessages = await getMessagesByChatId(params.chatid as string)
 
-    const imagePromises: Promise<MessageImage>[] = fetchedMessages.flatMap(
-      message =>
-        message.image_paths
-          ? message.image_paths.map(async imagePath => {
-              const url = await getMessageImageFromStorage(imagePath)
-
-              if (url) {
-                const response = await fetch(url)
-                const blob = await response.blob()
-                const base64 = await convertBlobToBase64(blob)
-
-                return {
-                  messageId: message.id,
-                  path: imagePath,
-                  base64,
-                  url,
-                  file: null
-                }
-              }
-
-              return {
-                messageId: message.id,
-                path: imagePath,
-                base64: "",
-                url,
-                file: null
-              }
-            })
-          : []
+    // Collect all image paths from all messages
+    const allImagePaths = fetchedMessages.flatMap(
+      message => message.image_paths || []
     )
 
-    const images: MessageImage[] = await Promise.all(imagePromises.flat())
+    // Fetch all image URLs in a single bulk request (no base64 conversion)
+    const imageUrls =
+      allImagePaths.length > 0
+        ? await getBulkMessageImageUrls(allImagePaths)
+        : {}
+
+    // Map messages to their images using the bulk URLs
+    const images: MessageImage[] = fetchedMessages.flatMap(message =>
+      (message.image_paths || []).map(path => ({
+        messageId: message.id,
+        path,
+        url: imageUrls[path] || "",
+        file: null
+      }))
+    )
+
     setChatImages(images)
 
     const messageFileItemPromises = fetchedMessages.map(

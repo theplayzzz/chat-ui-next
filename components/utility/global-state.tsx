@@ -4,9 +4,8 @@
 
 import { ChatbotUIContext } from "@/context/context"
 import { getProfileByUserId } from "@/db/profile"
-import { getWorkspaceImageFromStorage } from "@/db/storage/workspace-images"
+import { getBulkWorkspaceImageUrls } from "@/db/storage/workspace-images"
 import { getWorkspacesByUserId } from "@/db/workspaces"
-import { convertBlobToBase64 } from "@/lib/blob-to-b64"
 import {
   fetchHostedModels,
   fetchOllamaModels,
@@ -160,39 +159,37 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
     if (session) {
       const user = session.user
 
-      const profile = await getProfileByUserId(user.id)
+      // Parallelize independent fetches
+      const [profile, workspaces] = await Promise.all([
+        getProfileByUserId(user.id),
+        getWorkspacesByUserId(user.id)
+      ])
+
       setProfile(profile)
 
       if (!profile.has_onboarded) {
         return router.push("/setup")
       }
 
-      const workspaces = await getWorkspacesByUserId(user.id)
       setWorkspaces(workspaces)
 
-      for (const workspace of workspaces) {
-        let workspaceImageUrl = ""
+      // Fetch workspace images in bulk (no base64 conversion needed)
+      const workspaceImagePaths = workspaces
+        .filter(w => w.image_path)
+        .map(w => w.image_path)
 
-        if (workspace.image_path) {
-          workspaceImageUrl =
-            (await getWorkspaceImageFromStorage(workspace.image_path)) || ""
-        }
+      if (workspaceImagePaths.length > 0) {
+        const imageUrls = await getBulkWorkspaceImageUrls(workspaceImagePaths)
 
-        if (workspaceImageUrl) {
-          const response = await fetch(workspaceImageUrl)
-          const blob = await response.blob()
-          const base64 = await convertBlobToBase64(blob)
+        const workspaceImagesData = workspaces
+          .filter(w => w.image_path && imageUrls[w.image_path])
+          .map(w => ({
+            workspaceId: w.id,
+            path: w.image_path,
+            url: imageUrls[w.image_path]
+          }))
 
-          setWorkspaceImages(prev => [
-            ...prev,
-            {
-              workspaceId: workspace.id,
-              path: workspace.image_path,
-              base64: base64,
-              url: workspaceImageUrl
-            }
-          ])
-        }
+        setWorkspaceImages(workspaceImagesData)
       }
 
       return profile
