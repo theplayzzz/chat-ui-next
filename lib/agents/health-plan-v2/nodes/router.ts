@@ -325,11 +325,30 @@ export function routeToCapabilityWithReason(
 
   // === Caso: Consultar preço ===
   if (intent === "consultar_preco") {
-    // Preços são opcionais e podem funcionar mesmo sem busca completa
+    // Se já tem análise/recomendação, responder contextualizando preços das análises
+    // Se não tem, redirecionar para busca/coleta
+    if (hasCompatibilityAnalysis(state) || hasSearchResults(state)) {
+      return {
+        capability: "respondToUser",
+        reason:
+          "Consulta de preços respondida via respondToUser com contexto de planos já analisados",
+        redirected: true,
+        originalIntent: intent
+      }
+    }
+    if (!hasRequiredClientData(state.clientInfo)) {
+      return {
+        capability: "updateClientInfo",
+        reason: "Precisa de dados do cliente antes de consultar preços",
+        redirected: true,
+        originalIntent: intent
+      }
+    }
     return {
-      capability: "fetchPrices",
-      reason: "Consulta de preços solicitada",
-      redirected: false
+      capability: "searchPlans",
+      reason: "Precisa buscar planos antes de informar preços",
+      redirected: true,
+      originalIntent: intent
     }
   }
 
