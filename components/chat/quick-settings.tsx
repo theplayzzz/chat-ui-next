@@ -174,9 +174,12 @@ export const QuickSettings: FC<QuickSettingsProps> = ({}) => {
 
   const selectedAssistantImage = selectedPreset
     ? ""
-    : assistantImages.find(
-        image => image.path === selectedAssistant?.image_path
-      )?.base64 || ""
+    : (() => {
+        const img = assistantImages.find(
+          image => image.path === selectedAssistant?.image_path
+        )
+        return img?.base64 || img?.url || ""
+      })()
 
   const modelDetails = LLM_LIST.find(
     model => model.modelId === selectedPreset?.model
@@ -291,11 +294,14 @@ export const QuickSettings: FC<QuickSettingsProps> = ({}) => {
                   }
                   image={
                     contentType === "assistants"
-                      ? assistantImages.find(
-                          image =>
-                            image.path ===
-                            (item as Tables<"assistants">).image_path
-                        )?.base64 || ""
+                      ? (() => {
+                          const img = assistantImages.find(
+                            image =>
+                              image.path ===
+                              (item as Tables<"assistants">).image_path
+                          )
+                          return img?.base64 || img?.url || ""
+                        })()
                       : ""
                   }
                 />

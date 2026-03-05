@@ -140,13 +140,17 @@ export const Message: FC<MessageProps> = ({
     ...availableOpenRouterModels
   ].find(llm => llm.modelId === message.model) as LLM
 
-  const messageAssistantImage = assistantImages.find(
+  const messageAssistantImg = assistantImages.find(
     image => image.assistantId === message.assistant_id
-  )?.base64
+  )
+  const messageAssistantImage =
+    messageAssistantImg?.base64 || messageAssistantImg?.url
 
-  const selectedAssistantImage = assistantImages.find(
+  const selectedAssistantImg = assistantImages.find(
     image => image.path === selectedAssistant?.image_path
-  )?.base64
+  )
+  const selectedAssistantImage =
+    selectedAssistantImg?.base64 || selectedAssistantImg?.url
 
   const modelDetails = LLM_LIST.find(model => model.modelId === message.model)
 
@@ -384,7 +388,11 @@ export const Message: FC<MessageProps> = ({
               <Image
                 key={index}
                 className="cursor-pointer rounded hover:opacity-50"
-                src={path.startsWith("data") ? path : item?.base64}
+                src={
+                  path.startsWith("data")
+                    ? path
+                    : item?.base64 || item?.url || ""
+                }
                 alt="message image"
                 width={300}
                 height={300}
@@ -392,7 +400,9 @@ export const Message: FC<MessageProps> = ({
                   setSelectedImage({
                     messageId: message.id,
                     path,
-                    base64: path.startsWith("data") ? path : item?.base64 || "",
+                    base64: path.startsWith("data")
+                      ? path
+                      : item?.base64 || item?.url || "",
                     url: path.startsWith("data") ? "" : item?.url || "",
                     file: null
                   })

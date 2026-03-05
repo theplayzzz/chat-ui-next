@@ -139,7 +139,7 @@ export async function buildFinalMessages(
             const chatImage = chatImages.find(image => image.path === path)
 
             if (chatImage) {
-              formedUrl = chatImage.base64
+              formedUrl = chatImage.base64 || chatImage.url
             }
           }
 

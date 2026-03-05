@@ -67,10 +67,10 @@ export const WorkspaceSettings: FC<WorkspaceSettingsProps> = ({}) => {
   })
 
   useEffect(() => {
-    const workspaceImage =
-      workspaceImages.find(
-        image => image.path === selectedWorkspace?.image_path
-      )?.base64 || ""
+    const wsImg = workspaceImages.find(
+      image => image.path === selectedWorkspace?.image_path
+    )
+    const workspaceImage = wsImg?.base64 || wsImg?.url || ""
 
     setImageLink(workspaceImage)
   }, [workspaceImages])

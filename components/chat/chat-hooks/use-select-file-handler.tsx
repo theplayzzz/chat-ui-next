@@ -148,7 +148,7 @@ export const useSelectFileHandler = () => {
               {
                 messageId: "temp",
                 path: "",
-                base64: reader.result, // base64 image
+                base64: (reader.result as string) || "",
                 url: imageUrl,
                 file
               }

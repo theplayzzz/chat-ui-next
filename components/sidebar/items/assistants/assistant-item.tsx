@@ -35,9 +35,10 @@ export const AssistantItem: FC<AssistantItemProps> = ({ assistant }) => {
   const [imageLink, setImageLink] = useState("")
 
   useEffect(() => {
-    const assistantImage =
-      assistantImages.find(image => image.path === assistant.image_path)
-        ?.base64 || ""
+    const aImg = assistantImages.find(
+      image => image.path === assistant.image_path
+    )
+    const assistantImage = aImg?.base64 || aImg?.url || ""
     setImageLink(assistantImage)
   }, [assistant, assistantImages])
 

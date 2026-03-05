@@ -49,9 +49,10 @@ export const ChatItem: FC<ChatItemProps> = ({ chat }) => {
     ...availableOpenRouterModels
   ].find(llm => llm.modelId === chat.model) as LLM
 
-  const assistantImage = assistantImages.find(
+  const assistantImg = assistantImages.find(
     image => image.assistantId === chat.assistant_id
-  )?.base64
+  )
+  const assistantImage = assistantImg?.base64 || assistantImg?.url
 
   return (
     <div
