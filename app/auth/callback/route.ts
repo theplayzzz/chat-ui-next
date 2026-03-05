@@ -10,12 +10,37 @@ export async function GET(request: Request) {
   if (code) {
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
-    await supabase.auth.exchangeCodeForSession(code)
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (!error && data.session) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("has_onboarded")
+        .eq("user_id", data.session.user.id)
+        .single()
+
+      if (profile && !profile.has_onboarded) {
+        return NextResponse.redirect(new URL("/setup", requestUrl.origin))
+      }
+
+      const { data: homeWorkspace } = await supabase
+        .from("workspaces")
+        .select("id")
+        .eq("user_id", data.session.user.id)
+        .eq("is_home", true)
+        .single()
+
+      if (homeWorkspace) {
+        return NextResponse.redirect(
+          new URL(`/${homeWorkspace.id}/chat`, requestUrl.origin)
+        )
+      }
+    }
   }
 
   if (next) {
-    return NextResponse.redirect(requestUrl.origin + next)
-  } else {
-    return NextResponse.redirect(requestUrl.origin)
+    return NextResponse.redirect(new URL(next, requestUrl.origin))
   }
+
+  return NextResponse.redirect(new URL("/", requestUrl.origin))
 }
