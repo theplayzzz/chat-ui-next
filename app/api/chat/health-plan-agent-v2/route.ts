@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
   try {
     // 1. Autenticação
     console.log("[health-plan-v2] Step 1: Authenticating user...")
-    let profile
+    let profile: Awaited<ReturnType<typeof getServerProfile>>
     try {
       profile = await getServerProfile()
       console.log("[health-plan-v2] ✅ User authenticated:", profile.user_id)

@@ -92,7 +92,7 @@ export function buildDebugPayload(params: WorkflowLogParams): DebugPayload {
   return {
     intent: result.lastIntent || null,
     confidence: result.lastIntentConfidence || 0,
-    clientInfo: result.clientInfo || {},
+    clientInfo: (result.clientInfo || {}) as Record<string, unknown>,
     clientInfoVersion: result.clientInfoVersion || 0,
     routedCapability: routeDecision?.capability,
     routeReason: routeDecision?.reason,
