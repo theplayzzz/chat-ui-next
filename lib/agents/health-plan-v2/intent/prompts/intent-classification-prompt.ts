@@ -71,6 +71,17 @@ Analisar a mensagem do usuário e:
 7. Se pede recomendação/sugestão → **pedir_recomendacao**
 8. Se agradece e se despede → **finalizar**
 
+### REGRA CRÍTICA: Confirmações e respostas curtas
+
+9. Se a mensagem é uma CONFIRMAÇÃO curta ("sim", "ok", "pode", "tá bom", "confirmo", "isso", "isso mesmo", "por favor", "pode sim", "quero", "vamos", "bora", "manda", "faz isso") → ANALISE O CONTEXTO da conversa:
+   - Se o assistente acabou de CONFIRMAR dados e OFERECEU buscar planos → **buscar_planos**
+   - Se o assistente acabou de PERGUNTAR se quer análise → **analisar**
+   - Se o assistente acabou de PERGUNTAR se quer recomendação → **pedir_recomendacao**
+   - Se o assistente acabou de PERGUNTAR algo sobre dados → **fornecer_dados**
+   - Se não há contexto claro → **conversar**
+
+IMPORTANTE: "sim" NUNCA deve ser classificado como "conversar" quando o assistente fez uma pergunta de sim/não. Verifique SEMPRE o contexto da conversa para entender a que o "sim" se refere.
+
 ## Extração de Dados
 
 Quando a intenção é fornecer_dados, alterar_dados ou simular_cenario, EXTRAIA:
@@ -470,6 +481,52 @@ export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
     }
   },
 
+  // ===== Confirmações contextuais =====
+  {
+    userMessage: "sim",
+    expectedOutput: {
+      intent: "buscar_planos",
+      confidence: 0.92,
+      reasoning:
+        "Confirmação curta após assistente perguntar se deseja buscar planos. Contexto indica que dados já foram coletados e a busca foi oferecida."
+    }
+  },
+  {
+    userMessage: "pode sim",
+    expectedOutput: {
+      intent: "buscar_planos",
+      confidence: 0.93,
+      reasoning:
+        "Confirmação afirmativa ao pedido do assistente para realizar busca de planos"
+    }
+  },
+  {
+    userMessage: "quero",
+    expectedOutput: {
+      intent: "buscar_planos",
+      confidence: 0.9,
+      reasoning:
+        "Confirmação curta indicando que o usuário quer prosseguir com a ação oferecida pelo assistente"
+    }
+  },
+  {
+    userMessage: "ok, pode buscar",
+    expectedOutput: {
+      intent: "buscar_planos",
+      confidence: 0.95,
+      reasoning:
+        "Confirmação explícita com menção a busca - claramente quer que os planos sejam buscados"
+    }
+  },
+  {
+    userMessage: "tá bom",
+    expectedOutput: {
+      intent: "buscar_planos",
+      confidence: 0.88,
+      reasoning: "Confirmação informal após assistente oferecer busca de planos"
+    }
+  },
+
   // ===== Casos ambíguos =====
   {
     userMessage: "Quero um plano bom",
@@ -509,7 +566,35 @@ export function buildClassificationPrompt(
   userMessage: string,
   conversationContext?: string
 ): string {
-  const examplesText = FEW_SHOT_EXAMPLES.slice(0, 10) // Limita para não exceder contexto
+  // Select diverse examples: first 8 (covering main intents) + confirmation examples + 2 ambiguous
+  const mainExamples = FEW_SHOT_EXAMPLES.slice(0, 8)
+  const confirmationExamples = FEW_SHOT_EXAMPLES.filter(
+    ex =>
+      ex.expectedOutput.intent === "buscar_planos" &&
+      ["sim", "pode sim", "quero", "ok, pode buscar", "tá bom"].includes(
+        ex.userMessage
+      )
+  )
+  const ambiguousExamples = FEW_SHOT_EXAMPLES.filter(
+    ex =>
+      ex.expectedOutput.alternativeIntents &&
+      ex.expectedOutput.alternativeIntents.length > 0
+  ).slice(0, 2)
+
+  const selectedExamples = [
+    ...mainExamples,
+    ...confirmationExamples,
+    ...ambiguousExamples
+  ]
+  // Deduplicate by userMessage
+  const seen = new Set<string>()
+  const uniqueExamples = selectedExamples.filter(ex => {
+    if (seen.has(ex.userMessage)) return false
+    seen.add(ex.userMessage)
+    return true
+  })
+
+  const examplesText = uniqueExamples
     .map(
       ex =>
         `Usuário: "${ex.userMessage}"\nResposta: ${JSON.stringify(ex.expectedOutput, null, 2)}`
