@@ -14,6 +14,111 @@ import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
 
+/**
+ * Extrai metadados básicos do plano a partir do conteúdo e nome do arquivo.
+ * Retorna null se não conseguir identificar como plano de saúde.
+ */
+function extractPlanMetadata(
+  fileName: string,
+  fileDescription: string,
+  chunkContent: string
+): Record<string, unknown> | null {
+  const combinedText =
+    `${fileName} ${fileDescription} ${chunkContent}`.toLowerCase()
+
+  // Detectar se é documento de plano de saúde
+  const healthPlanKeywords = [
+    "plano de saúde",
+    "plano de saude",
+    "operadora",
+    "ans",
+    "coparticipação",
+    "coparticipacao",
+    "carência",
+    "carencia",
+    "rede credenciada",
+    "cobertura",
+    "unimed",
+    "amil",
+    "bradesco saúde",
+    "bradesco saude",
+    "sulamerica",
+    "hapvida",
+    "notre dame",
+    "notredame"
+  ]
+
+  const isHealthPlan = healthPlanKeywords.some(kw => combinedText.includes(kw))
+  if (!isHealthPlan) return null
+
+  // Extrair tipo de documento
+  let documentType = "general"
+  if (
+    combinedText.includes("tabela de preço") ||
+    combinedText.includes("tabela de preco")
+  ) {
+    documentType = "price_table"
+  } else if (
+    combinedText.includes("rede credenciada") ||
+    combinedText.includes("prestador")
+  ) {
+    documentType = "provider_network"
+  } else if (
+    combinedText.includes("manual") ||
+    combinedText.includes("guia do beneficiário")
+  ) {
+    documentType = "benefit_guide"
+  } else if (
+    combinedText.includes("contrato") ||
+    combinedText.includes("regulamento")
+  ) {
+    documentType = "contract"
+  }
+
+  // Extrair operadora
+  const operatorPatterns = [
+    "unimed",
+    "amil",
+    "bradesco",
+    "sulamerica",
+    "hapvida",
+    "notre dame",
+    "notredame",
+    "porto seguro",
+    "seguros unimed",
+    "golden cross",
+    "mediservice",
+    "care plus",
+    "prevent senior"
+  ]
+  const operator =
+    operatorPatterns.find(op => combinedText.includes(op)) || null
+
+  // Extrair tags básicas
+  const tags: string[] = []
+  if (combinedText.includes("empresarial") || combinedText.includes("pme"))
+    tags.push("empresarial")
+  if (combinedText.includes("individual") || combinedText.includes("familiar"))
+    tags.push("individual")
+  if (
+    combinedText.includes("coparticipação") ||
+    combinedText.includes("coparticipacao")
+  )
+    tags.push("coparticipacao")
+  if (combinedText.includes("enfermaria")) tags.push("enfermaria")
+  if (combinedText.includes("apartamento")) tags.push("apartamento")
+  if (combinedText.includes("nacional")) tags.push("nacional")
+  if (combinedText.includes("regional")) tags.push("regional")
+
+  return {
+    documentType,
+    operator,
+    tags,
+    extractedAt: new Date().toISOString(),
+    version: "1.0"
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const supabaseAdmin = createClient<Database>(
@@ -144,6 +249,18 @@ export async function POST(req: Request) {
       embeddings = await Promise.all(embeddingPromises)
     }
 
+    // Extrair plan_metadata do primeiro chunk (representativo do arquivo)
+    const sampleContent = chunks
+      .slice(0, 3)
+      .map(c => c.content)
+      .join(" ")
+      .substring(0, 2000)
+    const planMetadata = extractPlanMetadata(
+      fileMetadata.name,
+      fileMetadata.description,
+      sampleContent
+    )
+
     const file_items = chunks.map((chunk, index) => ({
       file_id,
       user_id: profile.user_id,
@@ -156,7 +273,8 @@ export async function POST(req: Request) {
       local_embedding:
         embeddingsProvider === "local"
           ? ((embeddings[index] || null) as any)
-          : null
+          : null,
+      ...(planMetadata && { plan_metadata: planMetadata as any })
     }))
 
     await supabaseAdmin.from("file_items").upsert(file_items)

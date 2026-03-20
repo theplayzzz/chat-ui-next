@@ -182,7 +182,14 @@ export const HealthPlanStateAnnotation = Annotation.Root({
 
   // === METADATA ===
   errors: Annotation<StateError[]>({
-    reducer: (x, y) => x.concat(y),
+    reducer: (x, y) => {
+      const combined = x.concat(y)
+      // Limita a 50 erros mais recentes para evitar acúmulo de memória
+      if (combined.length > 50) {
+        return combined.slice(-50)
+      }
+      return combined
+    },
     default: () => []
   })
 })

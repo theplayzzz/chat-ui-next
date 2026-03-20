@@ -38,15 +38,25 @@ export const INVALIDATION_RULES: Record<string, string[]> = {
 /**
  * Gera chave única para identificar dependente
  *
- * Usa name se disponível, senão usa relationship + age
+ * Usa name se disponível, senão usa relationship + age.
+ * Também gera chave alternativa por relationship+age para matching cruzado.
  */
 export function getDependentKey(
   dep: NonNullable<PartialClientInfo["dependents"]>[number]
 ): string {
   if (dep.name) {
-    return `name:${dep.name.toLowerCase()}`
+    return `name:${dep.name.toLowerCase().trim()}`
   }
   // Fallback: relationship + age (pode ter múltiplos filhos de idades diferentes)
+  return `${dep.relationship}:${dep.age ?? "unknown"}`
+}
+
+/**
+ * Gera chave alternativa por relationship+age para matching cruzado
+ */
+function getRelAgeKey(
+  dep: NonNullable<PartialClientInfo["dependents"]>[number]
+): string {
   return `${dep.relationship}:${dep.age ?? "unknown"}`
 }
 
@@ -67,59 +77,77 @@ export function mergeDependents(
   existing: NonNullable<PartialClientInfo["dependents"]>,
   incoming: NonNullable<PartialClientInfo["dependents"]>
 ): NonNullable<PartialClientInfo["dependents"]> {
-  // Criar mapa dos existentes
+  // Criar mapa dos existentes com chave primária e índice por relationship+age
   const existingMap = new Map<
     string,
     NonNullable<PartialClientInfo["dependents"]>[number]
   >()
-  // Mapa secundário por relationship+age para fallback
+  // Mapa secundário por relationship+age para fallback matching
   const existingByRelAge = new Map<string, string>()
 
   for (const dep of existing) {
     const key = getDependentKey(dep)
     existingMap.set(key, dep)
-    const relAgeKey = `${dep.relationship}:${dep.age ?? "unknown"}`
+    const relAgeKey = getRelAgeKey(dep)
     if (!existingByRelAge.has(relAgeKey)) {
       existingByRelAge.set(relAgeKey, key)
     }
   }
 
-  // Processar incoming
+  // Processar incoming com matching cruzado melhorado
   for (const newDep of incoming) {
     let key = getDependentKey(newDep)
     let matchedKey: string | undefined = undefined
 
+    // 1. Match direto pela chave primária (nome ou relationship+age)
     if (existingMap.has(key)) {
       matchedKey = key
-    } else if (newDep.name) {
-      // Se incoming tem nome mas não encontrou match, tentar por relationship+age
-      const relAgeKey = `${newDep.relationship}:${newDep.age ?? "unknown"}`
+    }
+
+    // 2. Se incoming tem nome e não encontrou match direto, tentar por relationship+age
+    if (!matchedKey && newDep.name) {
+      const relAgeKey = getRelAgeKey(newDep)
       if (existingByRelAge.has(relAgeKey)) {
         matchedKey = existingByRelAge.get(relAgeKey)!
         const oldDep = existingMap.get(matchedKey)!
         existingMap.delete(matchedKey)
-        key = getDependentKey(newDep)
+        key = getDependentKey(newDep) // Usa nome como chave primária
         existingMap.set(key, oldDep)
+      }
+    }
+
+    // 3. Se incoming NÃO tem nome, tentar match por relationship+age contra existentes com nome
+    if (!matchedKey && !newDep.name) {
+      const relAgeKey = getRelAgeKey(newDep)
+      if (existingByRelAge.has(relAgeKey)) {
+        // Encontrou existente com mesma relationship+age (possivelmente com nome)
+        matchedKey = existingByRelAge.get(relAgeKey)!
+        key = matchedKey // Mantém a chave do existente
       }
     }
 
     if (matchedKey || existingMap.has(key)) {
       // Atualizar existente
       const existingDep = existingMap.get(key)!
+      const mergedConditions = [
+        ...(existingDep.healthConditions || []),
+        ...(newDep.healthConditions || [])
+      ].map(c => c.toLowerCase().trim())
+
       existingMap.set(key, {
         ...existingDep,
         ...(newDep.name && { name: newDep.name }),
         ...(newDep.age !== undefined && { age: newDep.age }),
         relationship: newDep.relationship || existingDep.relationship,
-        healthConditions: Array.from(
-          new Set([
-            ...(existingDep.healthConditions || []),
-            ...(newDep.healthConditions || [])
-          ])
-        )
+        healthConditions: Array.from(new Set(mergedConditions))
       })
     } else {
-      // Novo dependente
+      // Novo dependente - normalizar healthConditions
+      if (newDep.healthConditions) {
+        newDep.healthConditions = newDep.healthConditions.map(c =>
+          c.toLowerCase().trim()
+        )
+      }
       existingMap.set(key, newDep)
     }
   }
@@ -167,19 +195,24 @@ export function smartMergeClientInfo(
     }
   }
 
-  // Arrays simples - merge sem duplicatas
+  // Arrays simples - merge sem duplicatas (normalizado para lowercase)
   if (updates.preferences) {
     merged.preferences = Array.from(
-      new Set([...(existing.preferences || []), ...updates.preferences])
+      new Set(
+        [...(existing.preferences || []), ...updates.preferences].map(p =>
+          p.toLowerCase().trim()
+        )
+      )
     )
   }
 
   if (updates.healthConditions) {
     merged.healthConditions = Array.from(
-      new Set([
-        ...(existing.healthConditions || []),
-        ...updates.healthConditions
-      ])
+      new Set(
+        [...(existing.healthConditions || []), ...updates.healthConditions].map(
+          c => c.toLowerCase().trim()
+        )
+      )
     )
   }
 

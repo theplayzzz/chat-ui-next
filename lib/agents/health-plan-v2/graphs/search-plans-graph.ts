@@ -14,6 +14,7 @@
 import { StateGraph, Annotation, END, START } from "@langchain/langgraph"
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/supabase/types"
+import { traceable } from "langsmith/traceable"
 
 // Import dos nós RAG
 import {
@@ -485,39 +486,47 @@ export interface SearchPlansGraphResult {
 }
 
 /**
- * Invoca o grafo de busca de planos por arquivo
+ * Invoca o grafo de busca de planos por arquivo (com tracing LangSmith)
  */
-export async function invokeSearchPlansGraph(params: {
-  assistantId: string
-  userQuery: string
-  clientInfo?: PartialClientInfo
-  conversationMessages?: string[]
-  ragModel?: string
-  chunksPerFile?: number
-}): Promise<SearchPlansGraphResult> {
-  const startTime = Date.now()
+export const invokeSearchPlansGraph = traceable(
+  async (params: {
+    assistantId: string
+    userQuery: string
+    clientInfo?: PartialClientInfo
+    conversationMessages?: string[]
+    ragModel?: string
+    chunksPerFile?: number
+  }): Promise<SearchPlansGraphResult> => {
+    const startTime = Date.now()
 
-  const result = await compiledSearchPlansGraph.invoke({
-    assistantId: params.assistantId,
-    userQuery: params.userQuery,
-    clientInfo: params.clientInfo || {},
-    conversationMessages: params.conversationMessages || [],
-    ragModel: params.ragModel || "gpt-5-mini",
-    chunksPerFile: params.chunksPerFile || 5
-  })
+    const result = await compiledSearchPlansGraph.invoke({
+      assistantId: params.assistantId,
+      userQuery: params.userQuery,
+      clientInfo: params.clientInfo || {},
+      conversationMessages: params.conversationMessages || [],
+      ragModel: params.ragModel || "gpt-5-mini",
+      chunksPerFile: params.chunksPerFile || 5
+    })
 
-  // Atualizar tempo de execução
-  if (result.searchMetadata) {
-    result.searchMetadata.executionTimeMs = Date.now() - startTime
+    // Atualizar tempo de execução
+    if (result.searchMetadata) {
+      result.searchMetadata.executionTimeMs = Date.now() - startTime
+    }
+
+    return {
+      fileGradingResults: result.fileGradingResults,
+      collectionAnalyses: result.collectionAnalyses || [],
+      analysisText: result.analysisText,
+      metadata: result.searchMetadata
+    }
+  },
+  {
+    name: "search-plans-graph",
+    run_type: "chain",
+    tags: ["health-plan-v2", "rag", "search-plans-graph"],
+    metadata: { component: "sub-graph", version: "2.0.0" }
   }
-
-  return {
-    fileGradingResults: result.fileGradingResults,
-    collectionAnalyses: result.collectionAnalyses || [],
-    analysisText: result.analysisText,
-    metadata: result.searchMetadata
-  }
-}
+)
 
 // =============================================================================
 // Legacy Types (para compatibilidade)

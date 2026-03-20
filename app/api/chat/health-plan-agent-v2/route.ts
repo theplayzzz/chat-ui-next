@@ -24,10 +24,46 @@ import {
   type HealthPlanWorkflowApp
 } from "@/lib/agents/health-plan-v2/workflow/workflow"
 import { getCheckpointer } from "@/lib/agents/health-plan-v2/checkpointer/postgres-checkpointer"
+import {
+  traceable,
+  validateAndLogConfig
+} from "@/lib/monitoring/langsmith-setup"
 
 // Configuração Vercel: runtime Node.js com 5 minutos de timeout
 export const runtime = "nodejs"
 export const maxDuration = 300 // 5 minutos (máximo Vercel Pro)
+
+// Validar LangSmith no startup (logga erros/warnings uma vez)
+let langsmithValidated = false
+function ensureLangSmithValidated() {
+  if (!langsmithValidated) {
+    validateAndLogConfig()
+    langsmithValidated = true
+  }
+}
+
+/**
+ * Invoca o workflow com tracing do LangSmith
+ */
+const invokeWorkflowTraced = traceable(
+  async (
+    app: HealthPlanWorkflowApp,
+    initialState: ReturnType<typeof createInitialState>,
+    chatId: string
+  ) => {
+    return await app.invoke(initialState, {
+      configurable: {
+        thread_id: chatId
+      }
+    })
+  },
+  {
+    name: "health-plan-agent-v2-workflow",
+    run_type: "chain",
+    tags: ["health-plan-v2", "workflow"],
+    metadata: { component: "api-route", version: "2.0.0" }
+  }
+)
 
 /**
  * Request body interface
@@ -50,8 +86,11 @@ interface HealthPlanAgentV2Request {
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
 
+  // Validar LangSmith na primeira request
+  ensureLangSmithValidated()
+
   console.log("[health-plan-v2] ========================================")
-  console.log("[health-plan-v2] 🚀 Health Plan Agent v2 API called")
+  console.log("[health-plan-v2] Health Plan Agent v2 API called")
   console.log("[health-plan-v2] ========================================")
 
   try {
@@ -220,12 +259,12 @@ export async function POST(request: NextRequest) {
         const encoder = new TextEncoder()
 
         try {
-          // Invocar o workflow
-          const result = await app.invoke(initialState, {
-            configurable: {
-              thread_id: effectiveChatId
-            }
-          })
+          // Invocar o workflow com tracing LangSmith
+          const result = await invokeWorkflowTraced(
+            app,
+            initialState,
+            effectiveChatId
+          )
 
           // Capturar dados para headers
           lastIntent = result.lastIntent || null
