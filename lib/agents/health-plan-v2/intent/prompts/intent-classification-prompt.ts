@@ -75,21 +75,38 @@ Analisar a mensagem do usuário e:
 
 Quando a intenção é fornecer_dados, alterar_dados ou simular_cenario, EXTRAIA:
 
-- **age**: número inteiro (0-120)
+- **age**: número inteiro (0-120) - idade do titular/contato
 - **city**: nome da cidade (ex: "São Paulo", "Belo Horizonte", "Rio de Janeiro")
 - **state**: sigla do estado brasileiro - APENAS valores válidos:
   AC, AL, AP, AM, BA, CE, DF, ES, GO, MA, MT, MS, MG, PA, PB, PR, PE, PI, RJ, RN, RS, RO, RR, SC, SP, SE, TO
   IMPORTANTE: Se o usuário mencionar uma sigla que parece estado (2 letras maiúsculas) mas não é válida, AINDA extraia como "state" para que o sistema possa gerar um aviso.
 - **budget**: valor numérico do orçamento (ex: "R$500" → 500)
-- **dependents**: array com {age, relationship}
+- **dependents**: array com {name, age, relationship, healthConditions}
   - age é OBRIGATÓRIO sempre que possível - pergunte se não informado
   - relationship: "spouse" (cônjuge/esposa/marido), "child" (filho/filha), "parent" (pai/mãe), "other"
 - **preferences**: array de preferências ["sem coparticipação", "rede ampla", etc.]
 - **healthConditions**: condições de saúde mencionadas
 
-IMPORTANTE sobre dependentes:
-- Sempre que o usuário mencionar dependentes (esposa, filhos, etc.), extraia TODOS com idade quando informada
-- Se o usuário diz "minha esposa e 2 filhos" sem idades, extraia os 3 dependentes sem idade - o sistema perguntará depois
+### Cenário Empresarial / PME (MÚLTIPLOS FUNCIONÁRIOS)
+Quando o usuário falar sobre empresa, funcionários ou cotação empresarial:
+- **companyName**: nome da empresa
+- **employeeCount**: número total de funcionários/vidas
+- **contractType**: "empresarial" ou "pme" (2-29 vidas) ou "individual" ou "familiar"
+- **beneficiaries**: array com {name, age, role, healthConditions, dependents}
+  - Cada funcionário é um beneficiário separado
+  - Cada beneficiário pode ter seus próprios dependentes (cônjuge, filhos)
+  - healthConditions são as condições específicas daquele funcionário ou seus dependentes
+
+Exemplos de cenário empresarial:
+- "Tenho uma empresa com 10 funcionários" → contractType: "empresarial", employeeCount: 10
+- "Funcionário 1: 25 anos, solteiro. Funcionário 2: 40 anos, casado, esposa de 38 e filho de 5 com autismo"
+  → beneficiaries: [{age: 25}, {age: 40, dependents: [{age: 38, relationship: "spouse"}, {age: 5, relationship: "child", healthConditions: ["autismo"]}]}]
+
+IMPORTANTE sobre dependentes vs beneficiários:
+- **dependents**: família do TITULAR (plano individual/familiar)
+- **beneficiaries**: FUNCIONÁRIOS de uma empresa (plano empresarial/PME) - cada um pode ter seus próprios dependents
+- Se o usuário falar em "funcionários" ou "colaboradores", use beneficiaries
+- Se o usuário falar em "esposa", "filho", use dependents
 
 ## Formato de Resposta (JSON)
 
@@ -183,6 +200,56 @@ export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
       },
       reasoning:
         "Usuário forneceu localização (BH) e preferências (sem coparticipação, boa rede)"
+    }
+  },
+
+  // ===== fornecer_dados (empresarial) =====
+  {
+    userMessage:
+      "Preciso de plano para minha empresa, são 5 funcionários. Um tem 25 anos, outro 30, outro 35, outro 40 e outro 50.",
+    expectedOutput: {
+      intent: "fornecer_dados",
+      confidence: 0.95,
+      extractedData: {
+        contractType: "empresarial",
+        employeeCount: 5,
+        beneficiaries: [
+          { age: 25 },
+          { age: 30 },
+          { age: 35 },
+          { age: 40 },
+          { age: 50 }
+        ]
+      },
+      reasoning:
+        "Cotação empresarial com 5 funcionários, idades informadas para cada um"
+    }
+  },
+  {
+    userMessage:
+      "O João tem 40 anos, esposa de 38 e um filho de 5 anos que tem autismo. A Maria tem 28 anos, solteira.",
+    expectedOutput: {
+      intent: "fornecer_dados",
+      confidence: 0.93,
+      extractedData: {
+        beneficiaries: [
+          {
+            name: "João",
+            age: 40,
+            dependents: [
+              { age: 38, relationship: "spouse" },
+              {
+                age: 5,
+                relationship: "child",
+                healthConditions: ["autismo"]
+              }
+            ]
+          },
+          { name: "Maria", age: 28 }
+        ]
+      },
+      reasoning:
+        "Dois funcionários com detalhes: João com família e filho autista, Maria solteira"
     }
   },
 

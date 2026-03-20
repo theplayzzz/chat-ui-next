@@ -36,8 +36,18 @@ import {
  * Schema Zod para validar output do GPT-5-mini
  */
 const DependentSchema = z.object({
+  name: z.string().optional(),
   age: z.number().optional(),
-  relationship: z.enum(["spouse", "child", "parent", "other"]).optional()
+  relationship: z.enum(["spouse", "child", "parent", "other"]).optional(),
+  healthConditions: z.array(z.string()).optional()
+})
+
+const BeneficiarySchema = z.object({
+  name: z.string().optional(),
+  age: z.number().optional(),
+  role: z.string().optional(),
+  healthConditions: z.array(z.string()).optional(),
+  dependents: z.array(DependentSchema).optional()
 })
 
 const ScenarioChangeSchema = z.object({
@@ -47,6 +57,8 @@ const ScenarioChangeSchema = z.object({
       "remove_dependent",
       "change_budget",
       "change_location",
+      "add_beneficiary",
+      "remove_beneficiary",
       "other"
     ])
     .optional(),
@@ -65,6 +77,12 @@ const ExtractedDataSchema = z.object({
   healthConditions: z.array(z.string()).optional(),
   currentPlan: z.string().optional(),
   employer: z.string().optional(),
+  companyName: z.string().optional(),
+  employeeCount: z.number().optional(),
+  contractType: z
+    .enum(["individual", "familiar", "empresarial", "pme", "adesao"])
+    .optional(),
+  beneficiaries: z.array(BeneficiarySchema).optional(),
   scenarioChange: ScenarioChangeSchema.optional(),
   planName: z.string().optional(),
   questionTopic: z.string().optional()

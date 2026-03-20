@@ -5,7 +5,12 @@
  * para o classificador GPT-4o.
  */
 
-import type { UserIntent, PartialClientInfo, Dependent } from "../types"
+import type {
+  UserIntent,
+  PartialClientInfo,
+  Dependent,
+  Beneficiary
+} from "../types"
 import type { BaseMessage } from "@langchain/core/messages"
 import type { HealthPlanState } from "../state/state-annotation"
 
@@ -107,6 +112,12 @@ export interface ExtractedClientData {
   healthConditions?: string[]
   currentPlan?: string
   employer?: string
+
+  // Empresarial / PME
+  companyName?: string
+  employeeCount?: number
+  contractType?: "individual" | "familiar" | "empresarial" | "pme" | "adesao"
+  beneficiaries?: Beneficiary[]
 
   // Para simulações
   scenarioChange?: ScenarioChange

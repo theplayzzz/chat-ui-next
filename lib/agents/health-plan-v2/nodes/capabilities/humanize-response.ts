@@ -164,6 +164,13 @@ function buildStateContext(state: HealthPlanState): string {
   if (clientInfo.dependents && clientInfo.dependents.length > 0)
     parts.push(`Dependentes: ${clientInfo.dependents.length}`)
 
+  // Empresarial
+  const ci = clientInfo as Record<string, any>
+  if (ci.companyName) parts.push(`Empresa: ${ci.companyName}`)
+  if (ci.contractType) parts.push(`Tipo: ${ci.contractType}`)
+  if (ci.beneficiaries && ci.beneficiaries.length > 0)
+    parts.push(`Funcionários: ${ci.beneficiaries.length}`)
+
   if (parts.length === 0) return ""
 
   return `\n## Contexto do Cliente\n${parts.join("\n")}`

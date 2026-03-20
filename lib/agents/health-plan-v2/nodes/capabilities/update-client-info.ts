@@ -244,6 +244,41 @@ function generateConfirmationMessage(
     )
   }
 
+  // Empresarial - beneficiários
+  const ci = clientInfo as Record<string, any>
+  if (ci.companyName) {
+    lines.push(`- **Empresa:** ${ci.companyName}`)
+  }
+  if (ci.contractType) {
+    lines.push(`- **Tipo:** ${ci.contractType}`)
+  }
+  if (ci.beneficiaries && ci.beneficiaries.length > 0) {
+    lines.push(`- **Funcionários/Beneficiários:** ${ci.beneficiaries.length}`)
+    for (let i = 0; i < ci.beneficiaries.length; i++) {
+      const ben = ci.beneficiaries[i]
+      const benName = ben.name || `Funcionário ${i + 1}`
+      const benAge =
+        ben.age !== undefined ? `${ben.age} anos` : "idade não informada"
+      let benLine = `  ${i + 1}. **${benName}** - ${benAge}`
+      if (ben.healthConditions && ben.healthConditions.length > 0) {
+        benLine += ` (${ben.healthConditions.join(", ")})`
+      }
+      lines.push(benLine)
+      if (ben.dependents && ben.dependents.length > 0) {
+        for (const dep of ben.dependents) {
+          const rel = RELATIONSHIP_LABELS[dep.relationship] || dep.relationship
+          const depAge =
+            dep.age !== undefined ? `${dep.age} anos` : "idade não informada"
+          let depLine = `     → ${rel}, ${depAge}`
+          if (dep.healthConditions && dep.healthConditions.length > 0) {
+            depLine += ` (${dep.healthConditions.join(", ")})`
+          }
+          lines.push(depLine)
+        }
+      }
+    }
+  }
+
   // Preferências
   if (clientInfo.preferences) {
     const prefs: string[] = []

@@ -7,7 +7,7 @@
  * Seção: Fase 6D.1
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest"
+// Migrated from vitest to jest
 import {
   relevanceEvaluator,
   groundednessEvaluator,

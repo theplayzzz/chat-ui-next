@@ -224,7 +224,106 @@ export function smartMergeClientInfo(
     )
   }
 
+  // Campos empresariais - sobrescreve se presente
+  for (const key of ["companyName", "employeeCount", "contractType"] as const) {
+    if (updates[key] !== undefined) {
+      ;(merged as Record<string, unknown>)[key] = updates[key]
+    }
+  }
+
+  // Beneficiários - merge inteligente por nome ou índice
+  if (updates.beneficiaries) {
+    merged.beneficiaries = mergeBeneficiaries(
+      existing.beneficiaries || [],
+      updates.beneficiaries
+    )
+  }
+
   return merged
+}
+
+/**
+ * Merge inteligente de beneficiários (funcionários)
+ *
+ * Regras:
+ * 1. Match por nome (case-insensitive) → atualiza dados
+ * 2. Novo beneficiário → adiciona à lista
+ * 3. Dependentes de cada beneficiário são mergeados com mergeDependents
+ */
+export function mergeBeneficiaries(
+  existing: NonNullable<PartialClientInfo["beneficiaries"]>,
+  incoming: NonNullable<PartialClientInfo["beneficiaries"]>
+): NonNullable<PartialClientInfo["beneficiaries"]> {
+  const existingMap = new Map<
+    string,
+    NonNullable<PartialClientInfo["beneficiaries"]>[number]
+  >()
+
+  // Indexar existentes por nome (se disponível) ou por índice
+  for (let i = 0; i < existing.length; i++) {
+    const ben = existing[i]
+    const key = ben.name ? `name:${ben.name.toLowerCase().trim()}` : `idx:${i}`
+    existingMap.set(key, ben)
+  }
+
+  // Processar incoming
+  for (let i = 0; i < incoming.length; i++) {
+    const newBen = incoming[i]
+    const key = newBen.name
+      ? `name:${newBen.name.toLowerCase().trim()}`
+      : `idx:${existing.length + i}` // Novo índice para sem nome
+
+    // Tentar match por nome
+    let matchedKey: string | undefined
+    if (newBen.name) {
+      const nameKey = `name:${newBen.name.toLowerCase().trim()}`
+      if (existingMap.has(nameKey)) {
+        matchedKey = nameKey
+      }
+    }
+
+    if (matchedKey) {
+      // Atualizar existente
+      const existingBen = existingMap.get(matchedKey)!
+      const mergedConditions = [
+        ...(existingBen.healthConditions || []),
+        ...(newBen.healthConditions || [])
+      ].map(c => c.toLowerCase().trim())
+
+      existingMap.set(matchedKey, {
+        ...existingBen,
+        ...(newBen.name && { name: newBen.name }),
+        ...(newBen.age !== undefined && { age: newBen.age }),
+        ...(newBen.role && { role: newBen.role }),
+        healthConditions:
+          mergedConditions.length > 0
+            ? Array.from(new Set(mergedConditions))
+            : existingBen.healthConditions,
+        // Merge dependentes do beneficiário
+        dependents: newBen.dependents
+          ? mergeDependents(existingBen.dependents || [], newBen.dependents)
+          : existingBen.dependents
+      })
+    } else {
+      // Novo beneficiário - normalizar healthConditions
+      if (newBen.healthConditions) {
+        newBen.healthConditions = newBen.healthConditions.map(c =>
+          c.toLowerCase().trim()
+        )
+      }
+      existingMap.set(key, newBen)
+    }
+  }
+
+  const result = Array.from(existingMap.values())
+
+  console.log("[cache-invalidation] Beneficiaries merged:", {
+    existingCount: existing.length,
+    incomingCount: incoming.length,
+    resultCount: result.length
+  })
+
+  return result
 }
 
 /**

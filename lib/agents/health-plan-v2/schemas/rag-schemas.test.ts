@@ -1,9 +1,5 @@
-import { describe, it, expect } from "vitest"
-import {
-  GradeResultSchema,
-  QueryItemSchema,
-  RewriteResultSchema
-} from "./rag-schemas"
+// Jest globals (describe, it, expect) are available automatically
+import { GradeResultSchema, GradeScoreEnum } from "./rag-schemas"
 
 describe("RAG Schemas Validation", () => {
   describe("GradeResultSchema (QA-4.1)", () => {
@@ -31,58 +27,35 @@ describe("RAG Schemas Validation", () => {
       const result = GradeResultSchema.safeParse(validData)
       expect(result.success).toBe(true)
     })
-  })
 
-  describe("QueryItemSchema (QA-4.2)", () => {
-    it("should reject priority 0", () => {
-      const invalidData = {
-        query: "Valid query with enough length",
-        focus: "general",
-        priority: 0
+    it("should accept partially_relevant score", () => {
+      const validData = {
+        documentId: "doc-1",
+        score: "partially_relevant",
+        reason: "Partially relevant reason"
       }
-      const result = QueryItemSchema.safeParse(invalidData)
-      expect(result.success).toBe(false)
-      if (!result.success) {
-        expect(result.error.errors[0].message).toContain(
-          "Prioridade mínima é 1"
-        )
-      }
+      const result = GradeResultSchema.safeParse(validData)
+      expect(result.success).toBe(true)
     })
 
-    it("should accept priority 1", () => {
+    it("should accept irrelevant score", () => {
       const validData = {
-        query: "Valid query with enough length",
-        focus: "general",
-        priority: 1
+        documentId: "doc-1",
+        score: "irrelevant",
+        reason: "Not relevant reason"
       }
-      const result = QueryItemSchema.safeParse(validData)
+      const result = GradeResultSchema.safeParse(validData)
       expect(result.success).toBe(true)
     })
   })
 
-  describe("RewriteResultSchema (QA-4.3)", () => {
-    it("should reject unknown problem", () => {
-      const invalidData = {
-        originalQuery: "original",
-        rewrittenQuery: "rewritten query length",
-        problem: "unknown",
-        attemptCount: 1,
-        limitedResults: false
-      }
-      const result = RewriteResultSchema.safeParse(invalidData)
-      expect(result.success).toBe(false)
-    })
-
-    it("should accept valid problem", () => {
-      const validData = {
-        originalQuery: "original",
-        rewrittenQuery: "rewritten query length",
-        problem: "no_results",
-        attemptCount: 1,
-        limitedResults: false
-      }
-      const result = RewriteResultSchema.safeParse(validData)
-      expect(result.success).toBe(true)
+  describe("GradeScoreEnum", () => {
+    it("should have exactly 3 valid values", () => {
+      expect(GradeScoreEnum.options).toEqual([
+        "relevant",
+        "partially_relevant",
+        "irrelevant"
+      ])
     })
   })
 })

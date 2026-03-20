@@ -320,8 +320,46 @@ function buildSearchQuery(
     queryParts.push(`preço até R$${budget}`)
   }
 
-  // Dependentes
-  if (clientInfo.dependents && clientInfo.dependents.length > 0) {
+  // Beneficiários empresariais
+  if (clientInfo.beneficiaries && clientInfo.beneficiaries.length > 0) {
+    const benCount = clientInfo.beneficiaries.length
+    queryParts.push(`empresarial PME ${benCount} vidas funcionários`)
+
+    // Coletar todas as idades dos beneficiários e seus dependentes
+    const allAges: number[] = []
+    let hasChildDep = false
+    let hasElderlyBen = false
+    let allConditions: string[] = []
+
+    for (const ben of clientInfo.beneficiaries) {
+      if (ben.age) allAges.push(ben.age)
+      if (ben.age && ben.age >= 60) hasElderlyBen = true
+      if (ben.healthConditions) allConditions.push(...ben.healthConditions)
+      if (ben.dependents) {
+        for (const dep of ben.dependents) {
+          if (dep.age) allAges.push(dep.age)
+          if (dep.age && dep.age < 18) hasChildDep = true
+          if (dep.healthConditions) allConditions.push(...dep.healthConditions)
+        }
+      }
+    }
+
+    if (allAges.length > 0) {
+      const minAge = Math.min(...allAges)
+      const maxAge = Math.max(...allAges)
+      queryParts.push(`faixa etária ${minAge} a ${maxAge} anos`)
+    }
+    if (hasChildDep) queryParts.push("cobertura infantil pediatria dependentes")
+    if (hasElderlyBen) queryParts.push("cobertura idoso geriátrico")
+    if (allConditions.length > 0) {
+      queryParts.push("cobertura doenças pré-existentes")
+      queryParts.push(
+        Array.from(new Set(allConditions.map(c => c.toLowerCase()))).join(" ")
+      )
+    }
+  }
+  // Dependentes (plano individual/familiar)
+  else if (clientInfo.dependents && clientInfo.dependents.length > 0) {
     queryParts.push("plano familiar dependentes")
 
     const hasChildren = clientInfo.dependents.some(
@@ -339,6 +377,11 @@ function buildSearchQuery(
     if (hasSpouse) queryParts.push("casal cônjuge")
   } else {
     queryParts.push("individual")
+  }
+
+  // Tipo de contratação
+  if (clientInfo.contractType) {
+    queryParts.push(clientInfo.contractType)
   }
 
   // Condições de saúde

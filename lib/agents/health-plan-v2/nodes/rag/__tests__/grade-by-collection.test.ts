@@ -6,12 +6,12 @@
  * Baseline: Captura comportamento atual antes de remover chunks
  */
 
-import { describe, it, expect, beforeEach, jest } from "@jest/globals"
+// Using global jest.mock for proper hoisting (not @jest/globals)
 import { gradeByCollection } from "../grade-by-collection"
 import type { RetrieveByFileResult, ClientInfo } from "../retrieve-simple"
 import type { FileGradingResult } from "../grade-documents"
 
-// Mock do ChatOpenAI (LangChain)
+// Mock do ChatOpenAI (LangChain) - must use global jest for hoisting
 jest.mock("@langchain/openai", () => ({
   ChatOpenAI: jest.fn().mockImplementation(() => ({
     invoke: jest.fn(() =>
@@ -92,6 +92,8 @@ describe("gradeByCollection", () => {
   let mockClientInfo: ClientInfo
 
   beforeEach(() => {
+    // Setar env vars para evitar erro de API key no construtor do ChatOpenAI
+    process.env.OPENAI_API_KEY = "test-key"
     // Mock file results com chunks (simula output de retrieveByFile)
     mockFileResults = [
       {

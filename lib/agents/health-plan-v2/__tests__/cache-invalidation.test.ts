@@ -70,21 +70,24 @@ describe("hasSignificantChange", () => {
     expect(hasSignificantChange(oldInfo, newInfo)).toBe(true)
   })
 
-  it("should return false when only name changes", () => {
+  it("should return true when name changes (conservative invalidation)", () => {
+    // Invalidação conservadora: qualquer mudança em clientInfo invalida caches
+    // para evitar inconsistências em campos aparentemente não-críticos
     const oldInfo: PartialClientInfo = { name: "João", age: 30 }
     const newInfo: PartialClientInfo = { name: "João Silva", age: 30 }
 
-    expect(hasSignificantChange(oldInfo, newInfo)).toBe(false)
+    expect(hasSignificantChange(oldInfo, newInfo)).toBe(true)
   })
 
-  it("should return false when only preferences change", () => {
+  it("should return true when preferences change (conservative invalidation)", () => {
+    // Invalidação conservadora: preferências podem afetar busca e recomendações
     const oldInfo: PartialClientInfo = { preferences: ["hospital"], age: 30 }
     const newInfo: PartialClientInfo = {
       preferences: ["hospital", "dentista"],
       age: 30
     }
 
-    expect(hasSignificantChange(oldInfo, newInfo)).toBe(false)
+    expect(hasSignificantChange(oldInfo, newInfo)).toBe(true)
   })
 
   it("should return false when nothing changes", () => {
@@ -117,13 +120,14 @@ describe("onClientInfoChange", () => {
     expect(result.mergedInfo.name).toBe("João")
   })
 
-  it("should detect non-significant change", () => {
+  it("should detect name change as significant (conservative invalidation)", () => {
+    // Invalidação conservadora: qualquer mudança invalida caches
     const oldInfo: PartialClientInfo = { age: 30, name: "João" }
     const newData: Partial<PartialClientInfo> = { name: "João Silva" }
 
     const result = onClientInfoChange(oldInfo, newData)
 
-    expect(result.shouldInvalidate).toBe(false)
+    expect(result.shouldInvalidate).toBe(true)
     expect(result.changedFields).toContain("name")
     expect(result.mergedInfo.name).toBe("João Silva")
   })

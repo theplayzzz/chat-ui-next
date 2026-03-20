@@ -28,6 +28,13 @@ export interface IntentClassificationResult {
 
 /**
  * Informações parciais do cliente (mutáveis)
+ *
+ * Suporta dois cenários:
+ * 1. Individual/Familiar: titular (age, dependents) + família
+ * 2. Empresarial/PME: empresa (companyName, beneficiaries[]) com N funcionários
+ *
+ * Quando beneficiaries[] está presente, o agente considera TODOS os funcionários
+ * na busca e análise de planos.
  */
 export interface PartialClientInfo {
   name?: string
@@ -40,16 +47,45 @@ export interface PartialClientInfo {
   healthConditions?: string[]
   currentPlan?: string
   employer?: string
+
+  // === EMPRESARIAL / PME ===
+  /** Nome da empresa (quando cotação empresarial) */
+  companyName?: string
+  /** Quantidade total de funcionários/vidas */
+  employeeCount?: number
+  /** Tipo de contratação */
+  contractType?: "individual" | "familiar" | "empresarial" | "pme" | "adesao"
+  /** Lista de funcionários/beneficiários (cada um pode ter seus dependentes) */
+  beneficiaries?: Beneficiary[]
 }
 
 /**
- * Dependente do cliente
+ * Dependente do cliente (família do titular)
  */
 export interface Dependent {
   name?: string
   age: number
   relationship: "spouse" | "child" | "parent" | "other"
   healthConditions?: string[]
+}
+
+/**
+ * Beneficiário/Funcionário (para planos empresariais/PME)
+ *
+ * Cada beneficiário é um funcionário da empresa que terá cobertura,
+ * podendo incluir seus próprios dependentes.
+ */
+export interface Beneficiary {
+  /** Nome do funcionário */
+  name?: string
+  /** Idade do funcionário */
+  age?: number
+  /** Cargo ou identificação */
+  role?: string
+  /** Condições de saúde do funcionário */
+  healthConditions?: string[]
+  /** Dependentes deste funcionário (cônjuge, filhos) */
+  dependents?: Dependent[]
 }
 
 /**

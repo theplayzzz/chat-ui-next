@@ -300,6 +300,39 @@ function buildClientContext(clientInfo: Record<string, any>): string {
     )
   }
 
+  // Empresarial / PME - beneficiários
+  if (clientInfo.companyName) {
+    parts.push(`- Empresa: ${clientInfo.companyName}`)
+  }
+  if (clientInfo.contractType) {
+    parts.push(`- Tipo de contratação: ${clientInfo.contractType}`)
+  }
+  if (clientInfo.beneficiaries && clientInfo.beneficiaries.length > 0) {
+    parts.push(
+      `- Total de beneficiários: ${clientInfo.beneficiaries.length} funcionários`
+    )
+    for (let i = 0; i < clientInfo.beneficiaries.length; i++) {
+      const ben = clientInfo.beneficiaries[i]
+      const benName = ben.name || `Funcionário ${i + 1}`
+      const benAge =
+        ben.age !== undefined ? `${ben.age} anos` : "idade não informada"
+      let benLine = `  ${i + 1}. ${benName} (${benAge})`
+      if (ben.healthConditions && ben.healthConditions.length > 0) {
+        benLine += ` - Condições: ${ben.healthConditions.join(", ")}`
+      }
+      if (ben.dependents && ben.dependents.length > 0) {
+        const depsSummary = ben.dependents
+          .map(
+            (d: any) =>
+              `${d.relationship || "dep"} ${d.age !== undefined ? d.age + "a" : ""}${d.healthConditions?.length ? " (" + d.healthConditions.join(", ") + ")" : ""}`
+          )
+          .join(", ")
+        benLine += ` + deps: [${depsSummary}]`
+      }
+      parts.push(benLine)
+    }
+  }
+
   return parts.length > 0
     ? parts.join("\n")
     : "Perfil não especificado detalhadamente"

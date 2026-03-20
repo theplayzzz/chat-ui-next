@@ -7,7 +7,7 @@
  * Seção: Fase 6C - Testes
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+// Migrated from vitest to jest
 import {
   createSearchPlansGraph,
   compileSearchPlansGraph,
@@ -17,12 +17,12 @@ import {
 } from "../search-plans-graph"
 
 // Mock das dependências externas
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          single: vi.fn(() =>
+jest.mock("@supabase/supabase-js", () => ({
+  createClient: jest.fn(() => ({
+    from: jest.fn(() => ({
+      select: jest.fn(() => ({
+        eq: jest.fn(() => ({
+          single: jest.fn(() =>
             Promise.resolve({
               data: {
                 id: "assistant-123",
@@ -45,7 +45,7 @@ vi.mock("@supabase/supabase-js", () => ({
         }))
       }))
     })),
-    rpc: vi.fn(() =>
+    rpc: jest.fn(() =>
       Promise.resolve({
         data: [
           {
@@ -70,10 +70,10 @@ vi.mock("@supabase/supabase-js", () => ({
 }))
 
 // Mock do OpenAI
-vi.mock("openai", () => ({
-  default: vi.fn().mockImplementation(() => ({
+jest.mock("openai", () => ({
+  default: jest.fn().mockImplementation(() => ({
     embeddings: {
-      create: vi.fn(() =>
+      create: jest.fn(() =>
         Promise.resolve({
           data: [{ embedding: new Array(1536).fill(0.1) }]
         })
@@ -83,9 +83,9 @@ vi.mock("openai", () => ({
 }))
 
 // Mock do ChatOpenAI (LangChain)
-vi.mock("@langchain/openai", () => ({
-  ChatOpenAI: vi.fn().mockImplementation(() => ({
-    invoke: vi.fn(() =>
+jest.mock("@langchain/openai", () => ({
+  ChatOpenAI: jest.fn().mockImplementation(() => ({
+    invoke: jest.fn(() =>
       Promise.resolve({
         content: JSON.stringify({
           queries: [
@@ -113,7 +113,7 @@ vi.mock("@langchain/openai", () => ({
 
 describe("SearchPlansGraph", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    jest.clearAllMocks()
     // Set env vars
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co"
     process.env.SUPABASE_SERVICE_ROLE_KEY = "test-key"
@@ -121,7 +121,7 @@ describe("SearchPlansGraph", () => {
   })
 
   afterEach(() => {
-    vi.resetAllMocks()
+    jest.resetAllMocks()
   })
 
   describe("createSearchPlansGraph", () => {
