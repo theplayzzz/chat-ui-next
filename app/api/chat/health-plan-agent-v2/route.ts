@@ -84,6 +84,68 @@ interface HealthPlanAgentV2Request {
 }
 
 /**
+ * Reconstrói clientInfo a partir do histórico de mensagens do assistente.
+ * Usado como fallback quando o checkpointer está inativo.
+ * Busca dados estruturados (idade, cidade, dependentes, etc.) nas respostas
+ * de confirmação do assistente que contêm os dados coletados.
+ */
+function reconstructClientInfoFromHistory(
+  messages: Array<{ role: string; content: string }>
+): Record<string, unknown> | null {
+  // Procurar nas mensagens do assistente por confirmações de dados
+  const assistantMessages = messages
+    .filter(m => m.role === "assistant")
+    .map(m => m.content)
+
+  const clientInfo: Record<string, unknown> = {}
+
+  for (const content of assistantMessages) {
+    // Extrair idade: "Idade: 29 anos"
+    const ageMatch = content.match(/Idade:\s*(\d+)\s*anos/i)
+    if (ageMatch) clientInfo.age = parseInt(ageMatch[1])
+
+    // Extrair cidade/estado: "Localização: Nova Iguaçu, RJ"
+    const locMatch = content.match(
+      /Localiza[çc][aã]o:\s*([^,\n]+),\s*([A-Z]{2})/i
+    )
+    if (locMatch) {
+      clientInfo.city = locMatch[1].trim()
+      clientInfo.state = locMatch[2].trim()
+    }
+
+    // Extrair orçamento: "Orçamento: R$ 900/mês"
+    const budgetMatch = content.match(/Or[çc]amento:\s*R\$\s*([\d.,]+)/i)
+    if (budgetMatch)
+      clientInfo.budget = parseFloat(
+        budgetMatch[1].replace(".", "").replace(",", ".")
+      )
+
+    // Extrair dependentes: "cônjuge, 25 anos" e "filho(a), 3 anos"
+    const depMatches = [
+      ...content.matchAll(/(?:cônjuge|esposa|marido|spouse),?\s*(\d+)\s*anos/gi)
+    ]
+    const childMatches = [
+      ...content.matchAll(
+        /(?:filho|filha|filho\(a\)|child),?\s*(\d+)\s*anos?/gi
+      )
+    ]
+
+    if (depMatches.length > 0 || childMatches.length > 0) {
+      const dependents: Array<{ age: number; relationship: string }> = []
+      for (const m of depMatches) {
+        dependents.push({ age: parseInt(m[1]), relationship: "spouse" })
+      }
+      for (const m of childMatches) {
+        dependents.push({ age: parseInt(m[1]), relationship: "child" })
+      }
+      if (dependents.length > 0) clientInfo.dependents = dependents
+    }
+  }
+
+  return Object.keys(clientInfo).length > 0 ? clientInfo : null
+}
+
+/**
  * POST /api/chat/health-plan-agent-v2
  *
  * Endpoint principal para o agente conversacional v2
@@ -258,6 +320,20 @@ export async function POST(request: NextRequest) {
       chatId: effectiveChatId,
       messages: messagesToSend
     })
+
+    // FALLBACK: Quando checkpointer está inativo, reconstruir clientInfo
+    // do histórico de mensagens para não perder contexto entre requests
+    if (!checkpointerEnabled && messages.length > 1) {
+      const reconstructed = reconstructClientInfoFromHistory(messages)
+      if (reconstructed && Object.keys(reconstructed).length > 0) {
+        ;(initialState as Record<string, unknown>).clientInfo = reconstructed
+        ;(initialState as Record<string, unknown>).clientInfoVersion = 1
+        console.log(
+          "[health-plan-v2] 🔄 Reconstructed clientInfo from history (no checkpointer):",
+          Object.keys(reconstructed)
+        )
+      }
+    }
 
     // 8. Criar stream de resposta
     console.log("[health-plan-v2] Step 8: Creating response stream...")
