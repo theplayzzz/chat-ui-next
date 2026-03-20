@@ -213,20 +213,31 @@ export async function POST(request: NextRequest) {
       )
     } catch (checkpointerError) {
       // Modo degradado: funciona sem persistência
-      console.warn(
-        "[health-plan-v2] ⚠️ Checkpointer unavailable, running without persistence:",
-        checkpointerError instanceof Error
-          ? checkpointerError.message
-          : checkpointerError
+      const envInfo = {
+        DATABASE_URL_POOLER: process.env.DATABASE_URL_POOLER
+          ? "SET"
+          : "MISSING",
+        DATABASE_URL: process.env.DATABASE_URL ? "SET" : "MISSING",
+        NODE_ENV: process.env.NODE_ENV
+      }
+      console.error(
+        "[health-plan-v2] ❌ CHECKPOINTER FAILED - State will NOT persist between messages!",
+        {
+          error:
+            checkpointerError instanceof Error
+              ? checkpointerError.message
+              : checkpointerError,
+          envVars: envInfo,
+          impact:
+            "Agent will lose context (clientInfo, searchResults) between requests"
+        }
       )
       app = compileWorkflow()
     }
 
     // 7. Criar estado inicial
-    // BUG FIX (PRD Fase 4, Task 22.8): Quando checkpointer está ativo,
-    // passar APENAS a última mensagem para evitar duplicação.
-    // O messagesStateReducer faz append, então se passarmos todas as mensagens
-    // e o checkpointer restaurar o histórico, haverá duplicação.
+    // Quando checkpointer está ativo: APENAS última mensagem (checkpointer restaura histórico)
+    // Quando checkpointer falha: TODAS as mensagens (sem persistência de estado)
     const messagesToSend = checkpointerEnabled
       ? langchainMessages.slice(-1) // Apenas última mensagem (nova)
       : langchainMessages // Todas as mensagens (sem checkpointer)
@@ -251,8 +262,10 @@ export async function POST(request: NextRequest) {
     // 8. Criar stream de resposta
     console.log("[health-plan-v2] Step 8: Creating response stream...")
 
-    // Flag para enviar debug apenas em dev/staging
-    const isDev = process.env.NODE_ENV !== "production"
+    // Flag para enviar debug - controlada por env var (ativa por padrão em dev, opt-in em produção)
+    const isDev =
+      process.env.NODE_ENV !== "production" ||
+      process.env.ENABLE_AGENT_DEBUG === "true"
 
     // Variáveis para capturar resultado do workflow para headers
     let lastIntent: string | null = null
