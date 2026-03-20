@@ -28,6 +28,11 @@ import {
   traceable,
   validateAndLogConfig
 } from "@/lib/monitoring/langsmith-setup"
+import {
+  buildDebugPayload,
+  saveWorkflowLog
+} from "@/lib/agents/health-plan-v2/audit/save-workflow-log"
+import { routeToCapabilityWithReason } from "@/lib/agents/health-plan-v2/nodes/router"
 
 // Configuração Vercel: runtime Node.js com 5 minutos de timeout
 export const runtime = "nodejs"
@@ -271,28 +276,54 @@ export async function POST(request: NextRequest) {
           lastIntentConfidence = result.lastIntentConfidence || 0
           clientInfoVersion = result.clientInfoVersion || 0
 
+          // Capturar decisão de roteamento para debug
+          const routeDecision = result.lastIntent
+            ? routeToCapabilityWithReason(result)
+            : undefined
+
+          const workflowExecutionTime = Date.now() - startTime
+
           // Extrair resposta do resultado
           const response =
             result.currentResponse ||
             "Olá! Sou o assistente de planos de saúde v2. Em breve estarei totalmente funcional."
 
-          // Enviar debug metadata no início do stream (apenas em dev)
+          // Build debug payload (used for both stream and DB)
+          const logParams = {
+            workspaceId,
+            userId: profile.user_id,
+            chatId: effectiveChatId,
+            assistantId,
+            result,
+            executionTimeMs: workflowExecutionTime,
+            checkpointerEnabled,
+            routeDecision: routeDecision
+              ? {
+                  capability: routeDecision.capability,
+                  reason: routeDecision.reason,
+                  redirected: routeDecision.redirected
+                }
+              : undefined
+          }
+
+          const debugPayload = buildDebugPayload(logParams)
+
+          // Enviar debug metadata no início do stream
           if (isDev) {
-            const debugInfo = {
-              __debug: {
-                intent: result.lastIntent,
-                confidence: result.lastIntentConfidence,
-                clientInfo: result.clientInfo,
-                clientInfoVersion: result.clientInfoVersion,
-                timestamp: new Date().toISOString()
-              }
-            }
             controller.enqueue(
               encoder.encode(
-                `__DEBUG__${JSON.stringify(debugInfo)}__DEBUG__\n\n`
+                `__DEBUG__${JSON.stringify({ __debug: debugPayload })}__DEBUG__\n\n`
               )
             )
           }
+
+          // Save workflow log asynchronously (fire-and-forget)
+          saveWorkflowLog(logParams).catch(err => {
+            console.error(
+              "[health-plan-v2] Workflow log save failed (non-blocking):",
+              err
+            )
+          })
 
           // Simular streaming enviando a resposta em chunks
           const words = response.split(" ")

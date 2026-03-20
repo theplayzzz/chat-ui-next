@@ -19,23 +19,21 @@ export const getFileById = async (fileId: string) => {
 }
 
 export const getFileWorkspacesByWorkspaceId = async (workspaceId: string) => {
-  const { data: workspace, error } = await supabase
-    .from("workspaces")
-    .select(
-      `
-      id,
-      name,
-      files (*)
-    `
-    )
-    .eq("id", workspaceId)
-    .single()
+  // Fetch ALL files across all users (shared resources)
+  const { data: files, error } = await supabase
+    .from("files")
+    .select("*")
+    .order("created_at", { ascending: false })
 
-  if (!workspace) {
+  if (error) {
     throw new Error(error.message)
   }
 
-  return workspace
+  return {
+    id: workspaceId,
+    name: "",
+    files: files || []
+  }
 }
 
 export const getFileWorkspacesByFileId = async (fileId: string) => {

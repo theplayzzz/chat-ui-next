@@ -18,23 +18,21 @@ export const getCollectionById = async (collectionId: string) => {
 export const getCollectionWorkspacesByWorkspaceId = async (
   workspaceId: string
 ) => {
-  const { data: workspace, error } = await supabase
-    .from("workspaces")
-    .select(
-      `
-      id,
-      name,
-      collections (*)
-    `
-    )
-    .eq("id", workspaceId)
-    .single()
+  // Fetch ALL collections across all users (shared resources)
+  const { data: collections, error } = await supabase
+    .from("collections")
+    .select("*")
+    .order("created_at", { ascending: false })
 
-  if (!workspace) {
+  if (error) {
     throw new Error(error.message)
   }
 
-  return workspace
+  return {
+    id: workspaceId,
+    name: "",
+    collections: collections || []
+  }
 }
 
 export const getCollectionWorkspacesByCollectionId = async (

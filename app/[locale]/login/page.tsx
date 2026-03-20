@@ -3,7 +3,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { SubmitButton } from "@/components/ui/submit-button"
 import { createClient } from "@/lib/supabase/server"
-import { Database } from "@/supabase/types"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { createServerClient } from "@supabase/ssr"
 import { Metadata } from "next"
@@ -20,7 +19,7 @@ export default async function Login({
   searchParams: { message?: string }
 }) {
   const cookieStore = cookies()
-  const supabase = createServerClient<Database>(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -42,7 +41,7 @@ export default async function Login({
       .single()
 
     if (!homeWorkspace) {
-      throw new Error(error.message)
+      throw new Error(error?.message || "Home workspace not found")
     }
 
     return redirect(`/${homeWorkspace.id}/chat`)
@@ -55,25 +54,13 @@ export default async function Login({
     const cookieStore = cookies()
     const supabase = createClient(cookieStore)
 
-    // 1. Verificar aprovação via RPC
-    const { data: isApproved, error: rpcError } = await supabase.rpc(
-      "check_email_approved",
-      { check_email: email }
-    )
-
-    if (rpcError || !isApproved) {
-      return redirect(
-        `/login?message=${encodeURIComponent("Email não autorizado. Entre em contato com o administrador.")}`
-      )
-    }
-
-    // 2. Admin client (service role)
+    // 1. Admin client (service role)
     const supabaseAdmin = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // 3. Criar usuário se não existe (idempotente)
+    // 2. Criar usuário se não existe (idempotente) - qualquer email é permitido
     const { error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       email_confirm: true
@@ -89,7 +76,7 @@ export default async function Login({
       )
     }
 
-    // 4. Gerar token + verificar server-side → sessão nos cookies
+    // 3. Gerar token + verificar server-side → sessão nos cookies
     const { data: linkData, error: linkError } =
       await supabaseAdmin.auth.admin.generateLink({
         type: "magiclink",
@@ -115,17 +102,7 @@ export default async function Login({
       )
     }
 
-    // 5. Redirecionar (setup ou chat)
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("has_onboarded")
-      .eq("user_id", linkData.user.id)
-      .single()
-
-    if (!profile?.has_onboarded) {
-      return redirect("/setup")
-    }
-
+    // 4. Redirecionar direto para o chat (onboarding é automático)
     const { data: homeWorkspace } = await supabase
       .from("workspaces")
       .select("id")
@@ -134,7 +111,10 @@ export default async function Login({
       .single()
 
     if (!homeWorkspace) {
-      return redirect("/setup")
+      // Aguardar trigger criar workspace (raro, mas possível em race condition)
+      return redirect(
+        `/login?message=${encodeURIComponent("Conta criada. Tente entrar novamente.")}`
+      )
     }
 
     return redirect(`/${homeWorkspace.id}/chat`)

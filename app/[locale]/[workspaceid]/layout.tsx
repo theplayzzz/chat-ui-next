@@ -45,6 +45,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     selectedWorkspace,
     setSelectedWorkspace,
     setSelectedChat,
+    setSelectedAssistant,
     setChatMessages,
     setUserInput,
     setIsGenerating,
@@ -127,6 +128,19 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     setTools(toolData.tools)
     setModels(modelData.models)
 
+    // Auto-select Health Plan V2 as default assistant
+    const healthPlanV2 = assistantData.assistants.find(a => {
+      const name = a.name.toLowerCase()
+      return (
+        name.includes("health plan v2") ||
+        name.includes("health-plan-v2") ||
+        name.includes("health plan 2")
+      )
+    })
+    if (healthPlanV2) {
+      setSelectedAssistant(healthPlanV2)
+    }
+
     // Fetch assistant images in bulk (no base64 conversion)
     const assistantImagePaths = assistantData.assistants
       .filter(a => a.image_path)
@@ -147,21 +161,36 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       setAssistantImages([])
     }
 
-    setChatSettings({
-      model: (searchParams.get("model") ||
-        workspace?.default_model ||
-        "gpt-4-1106-preview") as LLMID,
-      prompt:
-        workspace?.default_prompt ||
-        "You are a friendly, helpful AI assistant.",
-      temperature: workspace?.default_temperature || 0.5,
-      contextLength: workspace?.default_context_length || 4096,
-      includeProfileContext: workspace?.include_profile_context || true,
-      includeWorkspaceInstructions:
-        workspace?.include_workspace_instructions || true,
-      embeddingsProvider:
-        (workspace?.embeddings_provider as "openai" | "local") || "openai"
-    })
+    // Use Health Plan V2 settings if auto-selected, otherwise workspace defaults
+    if (healthPlanV2) {
+      setChatSettings({
+        model: healthPlanV2.model as LLMID,
+        prompt: healthPlanV2.prompt,
+        temperature: healthPlanV2.temperature,
+        contextLength: healthPlanV2.context_length,
+        includeProfileContext: healthPlanV2.include_profile_context,
+        includeWorkspaceInstructions:
+          healthPlanV2.include_workspace_instructions,
+        embeddingsProvider:
+          (healthPlanV2.embeddings_provider as "openai" | "local") || "openai"
+      })
+    } else {
+      setChatSettings({
+        model: (searchParams.get("model") ||
+          workspace?.default_model ||
+          "gpt-4-1106-preview") as LLMID,
+        prompt:
+          workspace?.default_prompt ||
+          "You are a friendly, helpful AI assistant.",
+        temperature: workspace?.default_temperature || 0.5,
+        contextLength: workspace?.default_context_length || 4096,
+        includeProfileContext: workspace?.include_profile_context || true,
+        includeWorkspaceInstructions:
+          workspace?.include_workspace_instructions || true,
+        embeddingsProvider:
+          (workspace?.embeddings_provider as "openai" | "local") || "openai"
+      })
+    }
 
     setLoading(false)
   }

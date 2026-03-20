@@ -16,23 +16,21 @@ export const getToolById = async (toolId: string) => {
 }
 
 export const getToolWorkspacesByWorkspaceId = async (workspaceId: string) => {
-  const { data: workspace, error } = await supabase
-    .from("workspaces")
-    .select(
-      `
-      id,
-      name,
-      tools (*)
-    `
-    )
-    .eq("id", workspaceId)
-    .single()
+  // Fetch ALL tools across all users (shared resources)
+  const { data: tools, error } = await supabase
+    .from("tools")
+    .select("*")
+    .order("created_at", { ascending: false })
 
-  if (!workspace) {
+  if (error) {
     throw new Error(error.message)
   }
 
-  return workspace
+  return {
+    id: workspaceId,
+    name: "",
+    tools: tools || []
+  }
 }
 
 export const getToolWorkspacesByToolId = async (toolId: string) => {
