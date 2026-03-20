@@ -44,7 +44,7 @@ const CompatibilityAnalysisSchema = z.object({
     .describe("Nível de compatibilidade geral"),
   recommendation: z
     .string()
-    .optional()
+    .nullable()
     .describe("Recomendação específica para este plano")
 })
 

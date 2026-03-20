@@ -114,7 +114,7 @@ export interface CompatibilityAnalysis {
   pros: string[]
   cons: string[]
   compatibility: "alta" | "media" | "baixa"
-  recommendation?: string
+  recommendation?: string | null
 }
 
 /**
