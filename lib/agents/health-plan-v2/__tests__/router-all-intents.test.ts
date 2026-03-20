@@ -78,7 +78,7 @@ describe("Router constants", () => {
       pedir_recomendacao: "generateRecommendation",
       conversar: "respondToUser",
       alterar_dados: "updateClientInfo",
-      simular_cenario: "simulateScenario",
+      simular_cenario: "respondToUser",
       finalizar: "endConversation"
     })
   })
@@ -213,12 +213,12 @@ describe("routeToCapabilityWithReason - direct intents", () => {
     expect(result.redirected).toBe(false)
   })
 
-  it("should route simular_cenario to simulateScenario", () => {
+  it("should route simular_cenario to respondToUser (Phase 10 disabled)", () => {
     const result = routeToCapabilityWithReason(
       createMockState({ lastIntent: "simular_cenario" })
     )
-    expect(result.capability).toBe("simulateScenario")
-    expect(result.redirected).toBe(false)
+    expect(result.capability).toBe("respondToUser")
+    expect(result.redirected).toBe(true) // Phase 10 disabled, redirects
   })
 })
 

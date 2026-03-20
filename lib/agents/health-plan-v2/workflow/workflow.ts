@@ -64,20 +64,8 @@ export function createHealthPlanWorkflow() {
     return capability
   }
 
-  // Nó stub para simulação (será implementado na Fase 10)
-  const simulateScenarioNode = async (state: HealthPlanState) => {
-    const { AIMessage } = await import("@langchain/core/messages")
-    const response =
-      "A simulação de cenário permite testar diferentes perfis (ex: 'E se eu adicionar minha esposa?'). " +
-      "Esta funcionalidade será implementada na Fase 10."
-
-    console.log("[simulateScenario] Scenario simulation (stub)")
-
-    return {
-      currentResponse: response,
-      messages: [new AIMessage(response)]
-    }
-  }
+  // Fase 10 (simulação de cenários) desativada - será implementada futuramente
+  // Intent "simular_cenario" é redirecionada para respondToUser no router
 
   // Routing condicional após searchPlans: se encontrou planos, continuar para análise
   const afterSearchPlans = (state: HealthPlanState): string => {
@@ -118,7 +106,6 @@ export function createHealthPlanWorkflow() {
     .addNode("generateRecommendation", generateRecommendation)
     .addNode("respondToUser", respondToUser)
     .addNode("endConversation", endConversation)
-    .addNode("simulateScenario", simulateScenarioNode)
     // === DEFINE FLUXO ===
     // START → orchestrator
     .addEdge("__start__", "orchestrator")
@@ -134,7 +121,6 @@ export function createHealthPlanWorkflow() {
     .addEdge("fetchPrices", "__end__")
     .addEdge("generateRecommendation", "__end__")
     .addEdge("respondToUser", "__end__")
-    .addEdge("simulateScenario", "__end__")
     .addEdge("endConversation", "__end__")
 
   return workflow

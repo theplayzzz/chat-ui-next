@@ -2,7 +2,7 @@
  * Testes de Edge Cases e Stubs - Fase 11
  *
  * Valida:
- * - Comportamento dos stubs (fetchPrices, simulateScenario)
+ * - Comportamento dos stubs (fetchPrices, respondToUser)
  * - Estrutura do workflow (nós, constantes)
  * - Funções helper do workflow
  * - Tipos e constantes do intent classifier
@@ -103,7 +103,7 @@ describe("Workflow structure", () => {
     // StateGraph was called
     expect(StateGraph).toHaveBeenCalled()
 
-    // Check that addNode was called for each capability + orchestrator + simulateScenario
+    // Check that addNode was called for each capability + orchestrator + respondToUser
     const mockInstance = StateGraph.mock.results[0]?.value
     if (mockInstance) {
       const nodeNames = mockInstance.addNode.mock.calls.map(
@@ -117,8 +117,8 @@ describe("Workflow structure", () => {
       expect(nodeNames).toContain("generateRecommendation")
       expect(nodeNames).toContain("respondToUser")
       expect(nodeNames).toContain("endConversation")
-      expect(nodeNames).toContain("simulateScenario")
-      expect(nodeNames).toHaveLength(9)
+      expect(nodeNames).toContain("respondToUser")
+      expect(nodeNames).toHaveLength(8) // simulateScenario removed (Phase 10 disabled)
     }
   })
 })
@@ -291,7 +291,7 @@ describe("Router constants", () => {
     expect(capabilities).toContain("fetchPrices")
     expect(capabilities).toContain("generateRecommendation")
     expect(capabilities).toContain("respondToUser")
-    expect(capabilities).toContain("simulateScenario")
+    expect(capabilities).toContain("respondToUser")
     expect(capabilities).toContain("endConversation")
   })
 })

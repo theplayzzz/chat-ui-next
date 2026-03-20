@@ -2,7 +2,7 @@
  * Testes para Fase 10 - Simulação de Cenários
  *
  * Valida:
- * - simulateScenario stub behavior (via workflow)
+ * - respondToUser stub behavior (via workflow)
  * - Router para simular_cenario
  * - applyDependentRemoval()
  * - processClientInfoUpdate() com scenarioChange
@@ -64,30 +64,30 @@ function createMockState(
 // =============================================================================
 
 describe("Router - simular_cenario intent", () => {
-  it("should map simular_cenario to simulateScenario in INTENT_TO_CAPABILITY", () => {
-    expect(INTENT_TO_CAPABILITY["simular_cenario"]).toBe("simulateScenario")
+  it("should map simular_cenario to respondToUser in INTENT_TO_CAPABILITY", () => {
+    expect(INTENT_TO_CAPABILITY["simular_cenario"]).toBe("respondToUser")
   })
 
-  it("should route to simulateScenario without redirect", () => {
+  it("should route to respondToUser without redirect", () => {
     const state = createMockState({ lastIntent: "simular_cenario" })
     const result = routeToCapabilityWithReason(state)
 
-    expect(result.capability).toBe("simulateScenario")
-    expect(result.redirected).toBe(false)
+    expect(result.capability).toBe("respondToUser")
+    expect(result.redirected).toBe(true) // Phase 10 disabled, redirects to respondToUser
     expect(result.reason).toContain("Simulação")
   })
 
-  it("should route to simulateScenario even without client data", () => {
+  it("should route to respondToUser even without client data", () => {
     const state = createMockState({
       lastIntent: "simular_cenario",
       clientInfo: {}
     })
     const result = routeToCapabilityWithReason(state)
 
-    expect(result.capability).toBe("simulateScenario")
+    expect(result.capability).toBe("respondToUser")
   })
 
-  it("should route to simulateScenario with existing search results", () => {
+  it("should route to respondToUser with existing search results", () => {
     const state = createMockState({
       lastIntent: "simular_cenario",
       clientInfo: { age: 30, city: "SP" },
@@ -96,8 +96,8 @@ describe("Router - simular_cenario intent", () => {
     })
     const result = routeToCapabilityWithReason(state)
 
-    expect(result.capability).toBe("simulateScenario")
-    expect(result.redirected).toBe(false)
+    expect(result.capability).toBe("respondToUser")
+    expect(result.redirected).toBe(true) // Phase 10 disabled, redirects to respondToUser
   })
 })
 

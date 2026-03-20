@@ -28,7 +28,7 @@ export const INTENT_TO_CAPABILITY: Record<UserIntent, string> = {
   pedir_recomendacao: "generateRecommendation",
   conversar: "respondToUser",
   alterar_dados: "updateClientInfo",
-  simular_cenario: "simulateScenario",
+  simular_cenario: "respondToUser", // Fase 10 desativada
   finalizar: "endConversation"
 }
 
@@ -51,7 +51,6 @@ export type CapabilityName =
   | "fetchPrices"
   | "generateRecommendation"
   | "respondToUser"
-  | "simulateScenario"
   | "endConversation"
   | "__end__" // Nó especial para finalizar o grafo
 
@@ -352,12 +351,14 @@ export function routeToCapabilityWithReason(
     }
   }
 
-  // === Caso: Simular cenário ===
+  // === Caso: Simular cenário (Fase 10 - desativado, redireciona para respondToUser) ===
   if (intent === "simular_cenario") {
     return {
-      capability: "simulateScenario",
-      reason: "Simulação de cenário solicitada",
-      redirected: false
+      capability: "respondToUser",
+      reason:
+        "Simulação de cenário ainda não implementada, respondendo com orientação",
+      redirected: true,
+      originalIntent: intent
     }
   }
 

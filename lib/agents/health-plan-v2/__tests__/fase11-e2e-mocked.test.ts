@@ -147,7 +147,7 @@ describe("E2E-8: Finalização com auditoria", () => {
 // =============================================================================
 
 describe("E2E-9: Simulação de cenário", () => {
-  it("should route simular_cenario to simulateScenario stub", () => {
+  it("should route simular_cenario to respondToUser (Phase 10 disabled)", () => {
     const state = createMockState({
       lastIntent: "simular_cenario",
       clientInfo: {
@@ -158,8 +158,8 @@ describe("E2E-9: Simulação de cenário", () => {
     })
     const route = routeToCapabilityWithReason(state)
 
-    expect(route.capability).toBe("simulateScenario")
-    expect(route.redirected).toBe(false)
+    expect(route.capability).toBe("respondToUser")
+    expect(route.redirected).toBe(true)
   })
 })
 
