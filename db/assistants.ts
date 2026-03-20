@@ -18,20 +18,25 @@ export const getAssistantById = async (assistantId: string) => {
 export const getAssistantWorkspacesByWorkspaceId = async (
   workspaceId: string
 ) => {
-  // Fetch ALL assistants across all users (shared resources)
-  const { data: assistants, error } = await supabase
-    .from("assistants")
-    .select("*")
+  // Fetch assistants linked to this workspace via assistant_workspaces
+  const { data: workspaceAssistants, error } = await supabase
+    .from("assistant_workspaces")
+    .select("assistants(*)")
+    .eq("workspace_id", workspaceId)
     .order("created_at", { ascending: false })
 
   if (error) {
     throw new Error(error.message)
   }
 
+  const assistants = (workspaceAssistants || [])
+    .map((aw: any) => aw.assistants)
+    .filter(Boolean)
+
   return {
     id: workspaceId,
     name: "",
-    assistants: assistants || []
+    assistants
   }
 }
 
