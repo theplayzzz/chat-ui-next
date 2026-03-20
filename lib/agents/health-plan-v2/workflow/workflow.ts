@@ -79,6 +79,34 @@ export function createHealthPlanWorkflow() {
     }
   }
 
+  // Routing condicional após searchPlans: se encontrou planos, continuar para análise
+  const afterSearchPlans = (state: HealthPlanState): string => {
+    if (
+      state.searchResults &&
+      state.searchResults.length > 0 &&
+      !state.compatibilityAnalysis
+    ) {
+      console.log(
+        "[workflow] searchPlans → analyzeCompatibility (auto-chain: found plans)"
+      )
+      return "analyzeCompatibility"
+    }
+    console.log("[workflow] searchPlans → END")
+    return "__end__"
+  }
+
+  // Routing condicional após analyzeCompatibility: continuar para recomendação
+  const afterAnalyzeCompatibility = (state: HealthPlanState): string => {
+    if (state.compatibilityAnalysis && !state.recommendation) {
+      console.log(
+        "[workflow] analyzeCompatibility → generateRecommendation (auto-chain)"
+      )
+      return "generateRecommendation"
+    }
+    console.log("[workflow] analyzeCompatibility → END")
+    return "__end__"
+  }
+
   // Cria o grafo usando method chaining para melhor inferência de tipos
   const workflow = new StateGraph(HealthPlanStateAnnotation)
     // === ADICIONA NÓS ===
@@ -96,11 +124,13 @@ export function createHealthPlanWorkflow() {
     .addEdge("__start__", "orchestrator")
     // orchestrator → router (edge condicional)
     .addConditionalEdges("orchestrator", routingFunction)
-    // Cada capacidade → END (processamento desta mensagem termina)
-    // O loop continua na próxima request HTTP
+    // === PIPELINE AUTOMÁTICO ===
+    // searchPlans → analyzeCompatibility (se encontrou planos)
+    .addConditionalEdges("searchPlans", afterSearchPlans)
+    // analyzeCompatibility → generateRecommendation (se tem análise)
+    .addConditionalEdges("analyzeCompatibility", afterAnalyzeCompatibility)
+    // === DEMAIS CAPABILITIES → END ===
     .addEdge("updateClientInfo", "__end__")
-    .addEdge("searchPlans", "__end__")
-    .addEdge("analyzeCompatibility", "__end__")
     .addEdge("fetchPrices", "__end__")
     .addEdge("generateRecommendation", "__end__")
     .addEdge("respondToUser", "__end__")

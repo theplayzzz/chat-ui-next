@@ -32,23 +32,34 @@ let setupComplete = false
  * Obtém a connection string apropriada para o ambiente
  */
 function getConnectionString(): string {
-  // Em produção, usar pooler
-  if (process.env.NODE_ENV === "production") {
-    const poolerUrl = process.env.DATABASE_URL_POOLER
-    if (poolerUrl) {
-      console.log("[checkpointer] Using DATABASE_URL_POOLER (production)")
-      return poolerUrl
-    }
-    console.warn(
-      "[checkpointer] WARNING: DATABASE_URL_POOLER not set in production. " +
-        "This may cause connection pool exhaustion in serverless environments."
-    )
+  const poolerUrl = process.env.DATABASE_URL_POOLER
+  const directUrl = process.env.DATABASE_URL
+
+  console.log("[checkpointer] Environment check:", {
+    NODE_ENV: process.env.NODE_ENV,
+    DATABASE_URL_POOLER: poolerUrl
+      ? `SET (${poolerUrl.length} chars, ends: ...${poolerUrl.slice(-30)})`
+      : "MISSING",
+    DATABASE_URL: directUrl
+      ? `SET (${directUrl.length} chars, ends: ...${directUrl.slice(-30)})`
+      : "MISSING"
+  })
+
+  // Preferir pooler em produção (PgBouncer para serverless)
+  if (poolerUrl) {
+    console.log("[checkpointer] Using DATABASE_URL_POOLER")
+    return poolerUrl
   }
 
-  // Fallback para DATABASE_URL
-  const directUrl = process.env.DATABASE_URL
+  // Fallback para conexão direta
   if (directUrl) {
     console.log("[checkpointer] Using DATABASE_URL (direct connection)")
+    if (process.env.NODE_ENV === "production") {
+      console.warn(
+        "[checkpointer] WARNING: Using direct connection in production. " +
+          "Consider setting DATABASE_URL_POOLER with port 6543 for serverless."
+      )
+    }
     return directUrl
   }
 
