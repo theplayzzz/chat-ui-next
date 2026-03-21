@@ -86,6 +86,11 @@ function createMockState(
     pendingAction: null,
     loopIterations: 0,
     currentResponse: "",
+    queryClassification: null,
+    selectedCollections: [],
+    selectedFiles: [],
+    rerankedChunks: [],
+    ragLevel: "level1" as const,
     errors: [],
     ...overrides
   }

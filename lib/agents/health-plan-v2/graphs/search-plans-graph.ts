@@ -16,7 +16,7 @@ import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/supabase/types"
 import { traceable } from "langsmith/traceable"
 
-// Import dos nós RAG
+// Import dos nós RAG (Level 1)
 import {
   retrieveSimple,
   type RetrieveByFileResult,
@@ -33,8 +33,35 @@ import {
   type GradeByCollectionResult
 } from "../nodes/rag/grade-by-collection"
 
+// Import dos nós RAG (Level 3)
+import {
+  classifyQuery,
+  type QueryClassification
+} from "../intent/query-classifier"
+import {
+  selectCollections,
+  type SelectedCollection
+} from "@/lib/rag/search/collection-selector"
+import { selectFiles, type SelectedFile } from "@/lib/rag/search/file-selector"
+import {
+  retrieveAdaptive,
+  type AdaptiveChunk,
+  type AdaptiveRetrievalResult
+} from "../nodes/rag/retrieve-adaptive"
+import { rerankChunks, type RerankResult } from "../nodes/rag/rerank-chunks"
+
 // Types
 import type { PartialClientInfo } from "../../health-plan-v2/types"
+
+// =============================================================================
+// Feature Flag
+// =============================================================================
+
+/**
+ * Feature flag para habilitar pipeline Level 3
+ * Set USE_RAG_LEVEL3=true em env para ativar
+ */
+const USE_RAG_LEVEL3 = process.env.USE_RAG_LEVEL3 === "true"
 
 // =============================================================================
 // State Annotation
@@ -99,6 +126,33 @@ export const SearchPlansStateAnnotation = Annotation.Root({
   collectionAnalyses: Annotation<CollectionAnalysisResult[]>({
     reducer: (_, y) => y,
     default: () => []
+  }),
+
+  // === LEVEL 3 PIPELINE ===
+  /** Query classification result */
+  queryClassification: Annotation<QueryClassification | null>({
+    reducer: (_, y) => y,
+    default: () => null
+  }),
+  /** Selected collections from pre-filtering */
+  selectedCollections: Annotation<SelectedCollection[]>({
+    reducer: (_, y) => y,
+    default: () => []
+  }),
+  /** Selected files from pre-filtering */
+  selectedFiles: Annotation<SelectedFile[]>({
+    reducer: (_, y) => y,
+    default: () => []
+  }),
+  /** Reranked chunks after LLM reranking */
+  rerankedChunks: Annotation<AdaptiveChunk[]>({
+    reducer: (_, y) => y,
+    default: () => []
+  }),
+  /** RAG pipeline level used */
+  ragLevel: Annotation<"level1" | "level3">({
+    reducer: (_, y) => y,
+    default: () => "level1"
   }),
 
   // === OUTPUT ===
@@ -423,13 +477,191 @@ async function formatResultsNode(
 }
 
 // =============================================================================
+// Level 3 Pipeline Nodes
+// =============================================================================
+
+/**
+ * Nó: Classify Query (Level 3)
+ * Extracts tags, collection hints, and intent from the user query
+ */
+async function classifyQueryNode(
+  state: SearchPlansState
+): Promise<Partial<SearchPlansState>> {
+  console.log("[search-plans-graph] [L3] Classifying query...")
+  const classification = await classifyQuery(state.userQuery)
+  console.log(
+    `[search-plans-graph] [L3] Tags: ${classification.tags.join(", ")}, Intent: ${classification.intent}`
+  )
+  return { queryClassification: classification, ragLevel: "level3" }
+}
+
+/**
+ * Nó: Select Collections (Level 3)
+ * Filters collections by embedding similarity (zero LLM calls)
+ */
+async function selectCollectionsNode(
+  state: SearchPlansState
+): Promise<Partial<SearchPlansState>> {
+  console.log("[search-plans-graph] [L3] Selecting collections...")
+  const collections = await selectCollections(
+    state.userQuery,
+    state.assistantId
+  )
+  console.log(
+    `[search-plans-graph] [L3] Selected ${collections.length} collections`
+  )
+  return { selectedCollections: collections }
+}
+
+/**
+ * Nó: Select Files (Level 3)
+ * Selects top files via RPC with tag boost
+ */
+async function selectFilesNode(
+  state: SearchPlansState
+): Promise<Partial<SearchPlansState>> {
+  console.log("[search-plans-graph] [L3] Selecting files...")
+  const tags = state.queryClassification?.tags || []
+  const files = await selectFiles(state.userQuery, state.assistantId, {
+    filterTags: tags.length > 0 ? tags : undefined
+  })
+  console.log(`[search-plans-graph] [L3] Selected ${files.length} files`)
+
+  // Also set fileIds for downstream grading nodes
+  const fileIds = files.map(f => f.id)
+  return { selectedFiles: files, fileIds }
+}
+
+/**
+ * Nó: Retrieve Adaptive (Level 3)
+ * Weighted vector search on selected files -> top-20 chunks
+ */
+async function retrieveAdaptiveNode(
+  state: SearchPlansState
+): Promise<Partial<SearchPlansState>> {
+  console.log("[search-plans-graph] [L3] Retrieving adaptive chunks...")
+  const result = await retrieveAdaptive(state.userQuery, state.assistantId, {
+    maxChunks: 20
+  })
+  console.log(
+    `[search-plans-graph] [L3] Retrieved ${result.chunks.length} adaptive chunks`
+  )
+
+  // Convert adaptive chunks to fileResults for downstream grading compatibility
+  const fileMap = new Map<string, RetrieveByFileResult>()
+  for (const chunk of result.chunks) {
+    if (!fileMap.has(chunk.fileId)) {
+      fileMap.set(chunk.fileId, {
+        fileId: chunk.fileId,
+        fileName: chunk.fileName,
+        fileDescription: chunk.fileDescription || "",
+        collection: chunk.collectionId
+          ? {
+              id: chunk.collectionId,
+              name: chunk.collectionName || "",
+              description: ""
+            }
+          : null,
+        chunks: [],
+        totalChunks: 0
+      })
+    }
+    const fileResult = fileMap.get(chunk.fileId)!
+    fileResult.chunks.push({
+      id: chunk.chunkId,
+      content: chunk.content,
+      tokens: chunk.tokens,
+      similarity: chunk.baseSimilarity,
+      file: {
+        id: chunk.fileId,
+        name: chunk.fileName,
+        description: chunk.fileDescription || ""
+      },
+      collection: chunk.collectionId
+        ? {
+            id: chunk.collectionId,
+            name: chunk.collectionName || "",
+            description: ""
+          }
+        : null
+    })
+    fileResult.totalChunks = fileResult.chunks.length
+  }
+
+  return {
+    fileResults: Array.from(fileMap.values()),
+    rerankedChunks: result.chunks
+  }
+}
+
+/**
+ * Nó: Rerank Chunks (Level 3)
+ * Re-rank top-20 -> top-8 using GPT-5-mini
+ */
+async function rerankChunksNode(
+  state: SearchPlansState
+): Promise<Partial<SearchPlansState>> {
+  console.log("[search-plans-graph] [L3] Reranking chunks...")
+
+  const clientProfile = state.clientInfo
+    ? (state.clientInfo as Record<string, unknown>)
+    : undefined
+
+  const result = await rerankChunks(
+    state.rerankedChunks || [],
+    state.userQuery,
+    clientProfile,
+    8
+  )
+
+  console.log(
+    `[search-plans-graph] [L3] Reranked: ${result.originalCount} -> ${result.chunks.length} chunks`
+  )
+
+  return { rerankedChunks: result.chunks }
+}
+
+// =============================================================================
 // Graph Builder
 // =============================================================================
 
 /**
  * Cria o sub-grafo de busca de planos por arquivo
+ *
+ * Level 1 (default):
+ *   START -> initialize -> retrieveByFile -> gradeByFile -> gradeByCollection -> formatResults -> END
+ *
+ * Level 3 (USE_RAG_LEVEL3=true):
+ *   START -> classifyQuery -> selectCollections -> selectFiles -> retrieveAdaptive -> rerankChunks -> gradeByFile -> gradeByCollection -> formatResults -> END
  */
 export function createSearchPlansGraph() {
+  if (USE_RAG_LEVEL3) {
+    console.log("[search-plans-graph] Using RAG Level 3 pipeline")
+    const workflow = new StateGraph(SearchPlansStateAnnotation)
+      // Level 3 nodes
+      .addNode("classifyQuery", classifyQueryNode)
+      .addNode("selectCollections", selectCollectionsNode)
+      .addNode("selectFiles", selectFilesNode)
+      .addNode("retrieveAdaptive", retrieveAdaptiveNode)
+      .addNode("rerankChunks", rerankChunksNode)
+      .addNode("gradeByFile", gradeByFileNode)
+      .addNode("gradeByCollection", gradeByCollectionNode)
+      .addNode("formatResults", formatResultsNode)
+      // Level 3 flow
+      .addEdge(START, "classifyQuery")
+      .addEdge("classifyQuery", "selectCollections")
+      .addEdge("selectCollections", "selectFiles")
+      .addEdge("selectFiles", "retrieveAdaptive")
+      .addEdge("retrieveAdaptive", "rerankChunks")
+      .addEdge("rerankChunks", "gradeByFile")
+      .addEdge("gradeByFile", "gradeByCollection")
+      .addEdge("gradeByCollection", "formatResults")
+      .addEdge("formatResults", END)
+
+    return workflow
+  }
+
+  // Level 1 (default)
   const workflow = new StateGraph(SearchPlansStateAnnotation)
     // Adiciona nós
     .addNode("initialize", initializeNode)
@@ -438,7 +670,7 @@ export function createSearchPlansGraph() {
     .addNode("gradeByCollection", gradeByCollectionNode)
     .addNode("formatResults", formatResultsNode)
     // Define fluxo linear com Fase 6E
-    // START → initialize → retrieveByFile → gradeByFile → gradeByCollection → formatResults → END
+    // START -> initialize -> retrieveByFile -> gradeByFile -> gradeByCollection -> formatResults -> END
     .addEdge(START, "initialize")
     .addEdge("initialize", "retrieveByFile")
     .addEdge("retrieveByFile", "gradeByFile")

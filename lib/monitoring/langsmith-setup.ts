@@ -74,7 +74,12 @@ export const WORKFLOW_STEP_NAMES = {
   SEARCH_HEALTH_PLANS: "searchHealthPlans",
   ANALYZE_COMPATIBILITY: "analyzeCompatibility",
   FETCH_ERP_PRICES: "fetchERPPrices",
-  GENERATE_RECOMMENDATION: "generateRecommendation"
+  GENERATE_RECOMMENDATION: "generateRecommendation",
+  CLASSIFY_QUERY: "classifyQuery",
+  SELECT_COLLECTIONS: "selectCollections",
+  SELECT_FILES: "selectFiles",
+  RETRIEVE_ADAPTIVE: "retrieveAdaptive",
+  RERANK_CHUNKS: "rerankChunks"
 } as const
 
 /**
@@ -85,7 +90,12 @@ export const STEP_RUN_TYPES: Record<string, LangSmithRunType> = {
   [WORKFLOW_STEP_NAMES.SEARCH_HEALTH_PLANS]: "retriever",
   [WORKFLOW_STEP_NAMES.ANALYZE_COMPATIBILITY]: "chain",
   [WORKFLOW_STEP_NAMES.FETCH_ERP_PRICES]: "tool",
-  [WORKFLOW_STEP_NAMES.GENERATE_RECOMMENDATION]: "chain"
+  [WORKFLOW_STEP_NAMES.GENERATE_RECOMMENDATION]: "chain",
+  [WORKFLOW_STEP_NAMES.CLASSIFY_QUERY]: "tool",
+  [WORKFLOW_STEP_NAMES.SELECT_COLLECTIONS]: "retriever",
+  [WORKFLOW_STEP_NAMES.SELECT_FILES]: "retriever",
+  [WORKFLOW_STEP_NAMES.RETRIEVE_ADAPTIVE]: "retriever",
+  [WORKFLOW_STEP_NAMES.RERANK_CHUNKS]: "chain"
 }
 
 /**

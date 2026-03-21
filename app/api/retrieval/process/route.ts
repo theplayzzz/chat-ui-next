@@ -286,6 +286,88 @@ export async function POST(req: Request) {
       .update({ tokens: totalTokens })
       .eq("id", file_id)
 
+    // === RAG Level 3 Enrichment (if ingestion_metadata present) ===
+    const ingestionMeta = (fileMetadata as any).ingestion_metadata
+    if (ingestionMeta && embeddingsProvider === "openai") {
+      try {
+        const { inferChunkTagsBatch } = await import(
+          "@/lib/rag/ingest/tag-inferencer"
+        )
+        const { generateContextBatch } = await import(
+          "@/lib/rag/ingest/contextual-retrieval"
+        )
+        const { generateChunkEmbedding, generateFileEmbedding } = await import(
+          "@/lib/rag/ingest/embedding-generator"
+        )
+
+        // Get inserted chunks
+        const { data: insertedChunks } = await supabaseAdmin
+          .from("file_items")
+          .select("id, content")
+          .eq("file_id", file_id)
+          .order("created_at")
+
+        if (insertedChunks && insertedChunks.length > 0) {
+          // Batch infer tags
+          const tags = await inferChunkTagsBatch(
+            insertedChunks.map(c => c.content)
+          )
+
+          // Batch generate context
+          const contexts = await generateContextBatch(
+            insertedChunks.map(c => ({ content: c.content })),
+            fileMetadata.name,
+            fileMetadata.description || ""
+          )
+
+          // Update each chunk with Level 3 data
+          for (let i = 0; i < insertedChunks.length; i++) {
+            const chunkTag = tags[i] || "regras_gerais"
+            const context = contexts[i] || null
+
+            // Regenerate embedding with context
+            const enrichedEmbedding = context
+              ? await generateChunkEmbedding(insertedChunks[i].content, context)
+              : null
+
+            await supabaseAdmin
+              .from("file_items")
+              .update({
+                tags: [chunkTag],
+                document_context: context,
+                ...(enrichedEmbedding && {
+                  openai_embedding: enrichedEmbedding as any
+                })
+              })
+              .eq("id", insertedChunks[i].id)
+          }
+
+          // Generate file-level embedding
+          const fileTags = [...new Set(tags)]
+          const fileEmbedding = await generateFileEmbedding(
+            fileMetadata.name,
+            fileMetadata.description,
+            fileTags
+          )
+
+          await supabaseAdmin
+            .from("files")
+            .update({
+              file_tags: fileTags,
+              file_embedding: fileEmbedding,
+              ingestion_status: "done"
+            } as any)
+            .eq("id", file_id)
+        }
+      } catch (enrichError) {
+        console.error(
+          "[retrieval/process] Level 3 enrichment failed (Level 1 data preserved):",
+          enrichError
+        )
+        // Level 1 data is already saved, so we just log the error
+      }
+    }
+
     return new NextResponse("Embed Successful", {
       status: 200
     })

@@ -54,6 +54,20 @@ export interface DebugPayload {
   langsmithRunId?: string
   langsmithTraceUrl?: string
   nodeTrace?: NodeTraceEntry[]
+  ragLevel?: "level1" | "level3"
+  queryClassification?: {
+    tags: string[]
+    collectionHint: string | null
+    intent: string
+  }
+  preFilteringStats?: {
+    collectionsConsidered: number
+    collectionsSelected: number
+    filesConsidered: number
+    filesSelected: number
+    chunksRetrieved: number
+    chunksAfterRerank: number
+  }
   timestamp: string
 }
 
@@ -110,6 +124,19 @@ export function buildDebugPayload(params: WorkflowLogParams): DebugPayload {
     langsmithRunId,
     langsmithTraceUrl,
     nodeTrace: params.nodeTrace || [],
+    ragLevel: (result as any).ragLevel || undefined,
+    queryClassification: (result as any).queryClassification || undefined,
+    preFilteringStats: (result as any).selectedCollections
+      ? {
+          collectionsConsidered:
+            (result as any).selectedCollections?.length || 0,
+          collectionsSelected: (result as any).selectedCollections?.length || 0,
+          filesConsidered: (result as any).selectedFiles?.length || 0,
+          filesSelected: (result as any).selectedFiles?.length || 0,
+          chunksRetrieved: (result as any).rerankedChunks?.length || 0,
+          chunksAfterRerank: (result as any).rerankedChunks?.length || 0
+        }
+      : undefined,
     timestamp: new Date().toISOString()
   }
 }

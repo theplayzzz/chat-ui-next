@@ -180,6 +180,43 @@ export const HealthPlanStateAnnotation = Annotation.Root({
     default: () => ""
   }),
 
+  // === RAG LEVEL 3 (FASE 2) ===
+  /** Query classification from RAG Level 3 pipeline */
+  queryClassification: Annotation<{
+    tags: string[]
+    collectionHint: string | null
+    intent: string
+  } | null>({
+    reducer: (_, y) => y,
+    default: () => null
+  }),
+
+  /** Selected collections from Level 3 pre-filtering */
+  selectedCollections: Annotation<
+    { id: string; name: string; score: number }[]
+  >({
+    reducer: (_, y) => y,
+    default: () => []
+  }),
+
+  /** Selected files from Level 3 pre-filtering */
+  selectedFiles: Annotation<{ id: string; name: string; score: number }[]>({
+    reducer: (_, y) => y,
+    default: () => []
+  }),
+
+  /** Reranked chunks from Level 3 pipeline */
+  rerankedChunks: Annotation<any[]>({
+    reducer: (_, y) => y,
+    default: () => []
+  }),
+
+  /** RAG pipeline level used for search */
+  ragLevel: Annotation<"level1" | "level3">({
+    reducer: (_, y) => y,
+    default: () => "level1"
+  }),
+
   // === METADATA ===
   errors: Annotation<StateError[]>({
     reducer: (x, y) => {
