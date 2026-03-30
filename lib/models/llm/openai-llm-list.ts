@@ -54,10 +54,10 @@ const GPT5Nano: LLM = {
 
 // GPT-5.4 Mini (ADDED 03/30/26)
 const GPT54Mini: LLM = {
-  modelId: "gpt-5-mini",
+  modelId: "gpt-5.4-mini",
   modelName: "GPT-5.4 Mini",
   provider: "openai",
-  hostedId: "gpt-5-mini",
+  hostedId: "gpt-5.4-mini",
   platformLink: OPENAI_PLATORM_LINK,
   imageInput: true,
   pricing: {
@@ -70,10 +70,10 @@ const GPT54Mini: LLM = {
 
 // GPT-5.4 Nano (ADDED 03/30/26)
 const GPT54Nano: LLM = {
-  modelId: "gpt-5-mini",
+  modelId: "gpt-5.4-nano",
   modelName: "GPT-5.4 Nano",
   provider: "openai",
-  hostedId: "gpt-5-mini",
+  hostedId: "gpt-5.4-nano",
   platformLink: OPENAI_PLATORM_LINK,
   imageInput: true,
   pricing: {
