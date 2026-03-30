@@ -128,6 +128,14 @@ export const createFile = async (
     file_path: filePath
   })
 
+  // Enable Level 3 enrichment for all files
+  await supabase
+    .from("files")
+    .update({
+      ingestion_metadata: { enableLevel3: true, tags: [] }
+    } as any)
+    .eq("id", createdFile.id)
+
   const formData = new FormData()
   formData.append("file_id", createdFile.id)
   formData.append("embeddingsProvider", embeddingsProvider)
@@ -187,6 +195,14 @@ export const createDocXFile = async (
   await updateFile(createdFile.id, {
     file_path: filePath
   })
+
+  // Enable Level 3 enrichment for all files
+  await supabase
+    .from("files")
+    .update({
+      ingestion_metadata: { enableLevel3: true, tags: [] }
+    } as any)
+    .eq("id", createdFile.id)
 
   const response = await fetch("/api/retrieval/process/docx", {
     method: "POST",

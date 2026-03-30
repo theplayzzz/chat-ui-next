@@ -275,18 +275,16 @@ export function UploadWizard({
         .update({ file_path: filePath })
         .eq("id", createdFile.id)
 
-      // 5. Update ingestion_metadata with tags for Level 3 enrichment
-      if (confirmed.tags.length > 0) {
-        await supabase
-          .from("files")
-          .update({
-            ingestion_metadata: {
-              tags: confirmed.tags,
-              enableLevel3: true
-            }
-          } as any)
-          .eq("id", createdFile.id)
-      }
+      // 5. Always enable Level 3 enrichment (tags, context, plan_type)
+      await supabase
+        .from("files")
+        .update({
+          ingestion_metadata: {
+            tags: confirmed.tags.length > 0 ? confirmed.tags : [],
+            enableLevel3: true
+          }
+        } as any)
+        .eq("id", createdFile.id)
 
       // 6. Call /api/retrieval/process
       const formData = new FormData()
