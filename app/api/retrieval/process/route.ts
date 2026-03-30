@@ -7,12 +7,26 @@ import {
   processPdf,
   processTxt
 } from "@/lib/retrieval/processing"
+import { withRagLogging, logRagStage } from "@/lib/rag/logging"
+import { withRetry } from "@/lib/tools/health-plan/error-handler"
 import { checkApiKey, getServerProfile } from "@/lib/server/server-chat-helpers"
 import { Database } from "@/supabase/types"
 import { FileItemChunk } from "@/types"
 import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
 import OpenAI from "openai"
+
+/**
+ * Infers the plan type from tags and file name.
+ */
+function inferPlanType(tags: string[], fileName: string): string | null {
+  const combined = [...tags, fileName.toLowerCase()].join(" ")
+  if (combined.includes("empresarial") || combined.includes("pme"))
+    return "empresarial"
+  if (combined.includes("individual")) return "individual"
+  if (combined.includes("familiar")) return "familiar"
+  return null
+}
 
 /**
  * Extrai metadados básicos do plano a partir do conteúdo e nome do arquivo.
@@ -120,8 +134,12 @@ function extractPlanMetadata(
 }
 
 export async function POST(req: Request) {
+  let correlationId = ""
+  let file_id = ""
+  let supabaseAdmin: ReturnType<typeof createClient<Database>> | null = null
+
   try {
-    const supabaseAdmin = createClient<Database>(
+    supabaseAdmin = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
@@ -130,7 +148,9 @@ export async function POST(req: Request) {
 
     const formData = await req.formData()
 
-    const file_id = formData.get("file_id") as string
+    correlationId = crypto.randomUUID()
+
+    file_id = formData.get("file_id") as string
     const embeddingsProvider = formData.get("embeddingsProvider") as string
 
     const { data: fileMetadata, error: metadataError } = await supabaseAdmin
@@ -187,31 +207,38 @@ export async function POST(req: Request) {
 
     let chunks: FileItemChunk[] = []
 
-    switch (fileExtension) {
-      case "csv":
-        chunks = await processCSV(blob, chunkConfig)
-        break
-      case "json":
-        chunks = await processJSON(blob, chunkConfig)
-        break
-      case "md":
-        chunks = await processMarkdown(blob, chunkConfig)
-        break
-      case "pdf":
-        chunks = await processPdf(blob, chunkConfig)
-        break
-      case "txt":
-        chunks = await processTxt(blob, chunkConfig)
-        break
-      default:
-        return new NextResponse("Unsupported file type", {
-          status: 400
-        })
-    }
+    chunks = await withRagLogging(
+      correlationId,
+      "chunking",
+      async () => {
+        let result: FileItemChunk[] = []
+        switch (fileExtension) {
+          case "csv":
+            result = await processCSV(blob, chunkConfig)
+            break
+          case "json":
+            result = await processJSON(blob, chunkConfig)
+            break
+          case "md":
+            result = await processMarkdown(blob, chunkConfig)
+            break
+          case "pdf":
+            result = await processPdf(blob, chunkConfig)
+            break
+          case "txt":
+            result = await processTxt(blob, chunkConfig)
+            break
+          default:
+            throw new Error(`Unsupported file type: ${fileExtension}`)
+        }
+        return result
+      },
+      { fileId: file_id, userId: profile.user_id }
+    )
 
     let embeddings: any = []
 
-    let openai
+    let openai: OpenAI
     if (profile.use_azure_openai) {
       openai = new OpenAI({
         apiKey: profile.azure_openai_api_key || "",
@@ -226,28 +253,48 @@ export async function POST(req: Request) {
       })
     }
 
-    if (embeddingsProvider === "openai") {
-      const response = await openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: chunks.map(chunk => chunk.content)
-      })
+    embeddings = await withRagLogging(
+      correlationId,
+      "embedding",
+      async () => {
+        if (embeddingsProvider === "openai") {
+          const response = await withRetry(
+            () =>
+              openai.embeddings.create({
+                model: "text-embedding-3-small",
+                input: chunks.map(chunk => chunk.content)
+              }),
+            2, // maxRetries
+            0 // step number
+          )
 
-      embeddings = response.data.map((item: any) => {
-        return item.embedding
-      })
-    } else if (embeddingsProvider === "local") {
-      const embeddingPromises = chunks.map(async chunk => {
-        try {
-          return await generateLocalEmbedding(chunk.content)
-        } catch (error) {
-          console.error(`Error generating embedding for chunk: ${chunk}`, error)
+          return (response as any).data.map((item: any) => {
+            return item.embedding
+          })
+        } else if (embeddingsProvider === "local") {
+          const embeddingPromises = chunks.map(async chunk => {
+            try {
+              return await generateLocalEmbedding(chunk.content)
+            } catch (error) {
+              console.error(
+                `Error generating embedding for chunk: ${chunk}`,
+                error
+              )
 
-          return null
+              return null
+            }
+          })
+
+          return await Promise.all(embeddingPromises)
         }
-      })
-
-      embeddings = await Promise.all(embeddingPromises)
-    }
+        return []
+      },
+      {
+        fileId: file_id,
+        userId: profile.user_id,
+        chunksProcessed: chunks.length
+      }
+    )
 
     // Extrair plan_metadata do primeiro chunk (representativo do arquivo)
     const sampleContent = chunks
@@ -309,21 +356,44 @@ export async function POST(req: Request) {
 
         if (insertedChunks && insertedChunks.length > 0) {
           // Batch infer tags
-          const tags = await inferChunkTagsBatch(
-            insertedChunks.map(c => c.content)
+          const tags = await withRagLogging(
+            correlationId,
+            "tag_inference",
+            async () => {
+              return await inferChunkTagsBatch(
+                insertedChunks.map(c => c.content)
+              )
+            },
+            {
+              fileId: file_id,
+              userId: profile.user_id,
+              chunksProcessed: insertedChunks.length
+            }
           )
 
           // Batch generate context
-          const contexts = await generateContextBatch(
-            insertedChunks.map(c => ({ content: c.content })),
-            fileMetadata.name,
-            fileMetadata.description || ""
+          const contexts = await withRagLogging(
+            correlationId,
+            "context_generation",
+            async () => {
+              return await generateContextBatch(
+                insertedChunks.map(c => ({ content: c.content })),
+                fileMetadata.name,
+                fileMetadata.description || ""
+              )
+            },
+            {
+              fileId: file_id,
+              userId: profile.user_id,
+              chunksProcessed: insertedChunks.length
+            }
           )
 
           // Update each chunk with Level 3 data
           for (let i = 0; i < insertedChunks.length; i++) {
             const chunkTag = tags[i] || "regras_gerais"
             const context = contexts[i] || null
+            const planType = inferPlanType([chunkTag], fileMetadata.name)
 
             // Regenerate embedding with context
             const enrichedEmbedding = context
@@ -335,19 +405,27 @@ export async function POST(req: Request) {
               .update({
                 tags: [chunkTag],
                 document_context: context,
+                ...(planType && { plan_type: planType }),
                 ...(enrichedEmbedding && {
                   openai_embedding: enrichedEmbedding as any
                 })
-              })
+              } as any)
               .eq("id", insertedChunks[i].id)
           }
 
           // Generate file-level embedding
           const fileTags = [...new Set(tags)]
-          const fileEmbedding = await generateFileEmbedding(
-            fileMetadata.name,
-            fileMetadata.description,
-            fileTags
+          const fileEmbedding = await withRagLogging(
+            correlationId,
+            "file_embedding",
+            async () => {
+              return await generateFileEmbedding(
+                fileMetadata.name,
+                fileMetadata.description,
+                fileTags
+              )
+            },
+            { fileId: file_id, userId: profile.user_id }
           )
 
           await supabaseAdmin
@@ -361,18 +439,59 @@ export async function POST(req: Request) {
         }
       } catch (enrichError) {
         console.error(
-          "[retrieval/process] Level 3 enrichment failed (Level 1 data preserved):",
+          "[retrieval/process] Level 3 enrichment failed:",
           enrichError
         )
+        logRagStage({
+          correlationId,
+          fileId: file_id,
+          stage: "embedding_enriched",
+          status: "failed",
+          errorDetails: {
+            message:
+              enrichError instanceof Error
+                ? enrichError.message
+                : String(enrichError)
+          }
+        })
         // Level 1 data is already saved, so we just log the error
       }
     }
 
-    return new NextResponse("Embed Successful", {
-      status: 200
+    return NextResponse.json({
+      success: true,
+      chunksCreated: file_items.length,
+      totalTokens,
+      correlationId
     })
   } catch (error: any) {
     console.log(`Error in retrieval/process: ${error.stack}`)
+
+    // Log to rag_pipeline_logs
+    logRagStage({
+      correlationId,
+      fileId: file_id,
+      stage: "upload",
+      status: "failed",
+      errorDetails: { message: error?.message }
+    })
+
+    // Try to update ingestion_status
+    try {
+      if (supabaseAdmin && file_id) {
+        await supabaseAdmin
+          .from("files")
+          .update({
+            ingestion_status: "error",
+            ingestion_metadata: {
+              error: error?.message,
+              correlationId
+            }
+          } as any)
+          .eq("id", file_id)
+      }
+    } catch {} // ignore if this also fails
+
     const errorMessage = error?.message || "An unexpected error occurred"
     const errorCode = error.status || 500
     return new Response(JSON.stringify({ message: errorMessage }), {

@@ -73,7 +73,7 @@ export interface GradeByFileResult {
 }
 
 const DEFAULT_OPTIONS: Required<GradeByFileOptions> = {
-  model: "gpt-5-mini",
+  model: "gpt-5.1-mini",
   timeout: 30000,
   parallelBatchSize: 3
 }
@@ -228,14 +228,9 @@ async function gradeFile(
     temperature: isGPT5 ? 1 : 0.3,
     timeout: options.timeout,
     maxRetries: 2,
+    maxCompletionTokens: isGPT5 ? 4096 : undefined,
     tags: ["grade-by-file", "health-plan-v2"],
-    // Parâmetros específicos do modelo via modelKwargs (Chat Completions API)
-    modelKwargs: isGPT5
-      ? {
-          max_completion_tokens: 4096,
-          reasoning_effort: "low"
-        }
-      : {},
+    modelKwargs: isGPT5 ? { reasoning_effort: "low" } : {},
     // maxTokens para modelos não-GPT-5
     ...(isGPT5 ? {} : { maxTokens: 4096 })
   })

@@ -84,7 +84,7 @@ export interface GenerateRecommendationParams {
 /**
  * Modelo default para geração de recomendações
  */
-const DEFAULT_RECOMMENDATION_MODEL = "gpt-5-mini"
+const DEFAULT_RECOMMENDATION_MODEL = "gpt-5.1-mini"
 
 /**
  * Configuração do modelo GPT

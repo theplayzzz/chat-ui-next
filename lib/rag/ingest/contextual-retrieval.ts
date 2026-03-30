@@ -14,13 +14,13 @@ export async function generateContextForChunk(
   sectionType?: string | null
 ): Promise<string> {
   const llm = new ChatOpenAI({
-    modelName: "gpt-5-mini",
+    modelName: "gpt-5.1-nano",
     temperature: 1,
     timeout: 30000,
     maxRetries: 2,
+    maxCompletionTokens: 512,
     tags: ["contextual-retrieval", "health-plan-v2", "rag", "level3"],
     modelKwargs: {
-      max_completion_tokens: 512,
       reasoning_effort: "low"
     }
   })

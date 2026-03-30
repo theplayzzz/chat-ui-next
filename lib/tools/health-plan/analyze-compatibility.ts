@@ -302,7 +302,7 @@ export const ANALYSIS_VERSION = "1.0.0"
 /**
  * Modelo default para análise de compatibilidade
  */
-export const DEFAULT_ANALYSIS_MODEL = "gpt-5-mini"
+export const DEFAULT_ANALYSIS_MODEL = "gpt-5.1-mini"
 
 // =============================================================================
 // HELPER FUNCTIONS

@@ -1,3 +1,5 @@
+import { withRetry } from "@/lib/tools/health-plan/error-handler"
+
 const EMBEDDING_MODEL = "text-embedding-3-small"
 
 function getOpenAIClient() {
@@ -11,10 +13,15 @@ function getOpenAIClient() {
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
   const openai = getOpenAIClient()
-  const response = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
-    input: text.slice(0, 8000) // Limit to ~8k chars
-  })
+  const response: any = await withRetry(
+    () =>
+      openai.embeddings.create({
+        model: EMBEDDING_MODEL,
+        input: text.slice(0, 8000) // Limit to ~8k chars
+      }),
+    2,
+    0
+  )
   return response.data[0].embedding
 }
 
@@ -72,10 +79,15 @@ export async function generateEmbeddingsBatch(
 
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize).map(t => t.slice(0, 8000))
-    const response = await openai.embeddings.create({
-      model: EMBEDDING_MODEL,
-      input: batch
-    })
+    const response: any = await withRetry(
+      () =>
+        openai.embeddings.create({
+          model: EMBEDDING_MODEL,
+          input: batch
+        }),
+      2,
+      0
+    )
     results.push(
       ...response.data.map((d: { embedding: number[] }) => d.embedding)
     )

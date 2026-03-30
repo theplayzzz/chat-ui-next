@@ -4,6 +4,7 @@ export interface QueryClassification {
   tags: string[]
   collectionHint: string | null
   intent: string
+  planType: string | null // "empresarial" | "individual" | "familiar" | "pme" | null
 }
 
 /**
@@ -14,13 +15,13 @@ export async function classifyQuery(
   query: string
 ): Promise<QueryClassification> {
   const llm = new ChatOpenAI({
-    modelName: "gpt-5-mini",
+    modelName: "gpt-5.1-nano",
     temperature: 1, // GPT-5 apenas suporta temperature=1
     timeout: 10000,
     maxRetries: 2,
+    maxCompletionTokens: 256,
     tags: ["query-classifier", "health-plan-v2", "rag", "level3"],
     modelKwargs: {
-      max_completion_tokens: 256,
       reasoning_effort: "low"
     }
   })
@@ -29,10 +30,11 @@ export async function classifyQuery(
 1. tags: slugs de categorias relevantes (preco, cobertura, rede_credenciada, exclusao, carencia, coparticipacao, reembolso, documentacao, regras_gerais)
 2. collectionHint: nome da operadora mencionada (ou null)
 3. intent: tipo de busca (comparacao, busca_especifica, informacao_geral)
+4. planType: tipo de plano mencionado ("empresarial", "individual", "familiar", "pme", ou null se não mencionado)
 
 Query: "${query}"
 
-Responda em JSON: {"tags": [...], "collectionHint": "...", "intent": "..."}
+Responda em JSON: {"tags": [...], "collectionHint": "...", "intent": "...", "planType": "..."}
 Responda APENAS o JSON.`
 
   const response = await llm.invoke([{ role: "user", content: prompt }], {
@@ -47,10 +49,16 @@ Responda APENAS o JSON.`
       return {
         tags: Array.isArray(parsed.tags) ? parsed.tags : [],
         collectionHint: parsed.collectionHint || null,
-        intent: parsed.intent || "informacao_geral"
+        intent: parsed.intent || "informacao_geral",
+        planType: parsed.planType || null
       }
     }
   } catch {}
 
-  return { tags: [], collectionHint: null, intent: "informacao_geral" }
+  return {
+    tags: [],
+    collectionHint: null,
+    intent: "informacao_geral",
+    planType: null
+  }
 }

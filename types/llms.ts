@@ -13,6 +13,8 @@ export type OpenAILLMID =
   | "gpt-5" // GPT-5
   | "gpt-5-mini" // GPT-5 Mini
   | "gpt-5-nano" // GPT-5 Nano
+  | "gpt-5.1-mini" // GPT-5.1 Mini
+  | "gpt-5.1-nano" // GPT-5.1 Nano
   | "gpt-4o" // GPT-4o
   | "gpt-4-turbo-preview" // GPT-4 Turbo
   | "gpt-4-vision-preview" // GPT-4 Vision

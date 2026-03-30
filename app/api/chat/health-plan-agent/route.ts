@@ -83,7 +83,7 @@ const handleHealthPlanRequest = traceable(
       chatId: chatId || "new-chat",
       userId: profile.user_id,
       messageCount: messages.length,
-      model: model || "gpt-5-mini",
+      model: model || "gpt-5.1-mini",
       hasSessionId: !!sessionId,
       resetToStep: resetToStep || null
     })

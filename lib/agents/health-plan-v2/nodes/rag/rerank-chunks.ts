@@ -33,13 +33,13 @@ export async function rerankChunks(
   }
 
   const llm = new ChatOpenAI({
-    modelName: "gpt-5-mini",
+    modelName: "gpt-5.1-mini",
     temperature: 1, // GPT-5 apenas suporta temperature=1
     timeout: 30000,
     maxRetries: 2,
+    maxCompletionTokens: 1024,
     tags: ["rerank-chunks", "health-plan-v2", "rag", "level3"],
     modelKwargs: {
-      max_completion_tokens: 1024,
       reasoning_effort: "low"
     }
   })

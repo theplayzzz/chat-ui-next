@@ -52,6 +52,38 @@ const GPT5Nano: LLM = {
   }
 }
 
+// GPT-5.1 Mini (ADDED 03/30/26)
+const GPT51Mini: LLM = {
+  modelId: "gpt-5.1-mini",
+  modelName: "GPT-5.1 Mini",
+  provider: "openai",
+  hostedId: "gpt-5.1-mini",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 0.25,
+    outputCost: 2
+  }
+}
+
+// GPT-5.1 Nano (ADDED 03/30/26)
+const GPT51Nano: LLM = {
+  modelId: "gpt-5.1-nano",
+  modelName: "GPT-5.1 Nano",
+  provider: "openai",
+  hostedId: "gpt-5.1-nano",
+  platformLink: OPENAI_PLATORM_LINK,
+  imageInput: true,
+  pricing: {
+    currency: "USD",
+    unit: "1M tokens",
+    inputCost: 0.05,
+    outputCost: 0.4
+  }
+}
+
 const GPT4o: LLM = {
   modelId: "gpt-4o",
   modelName: "GPT-4o",
@@ -132,6 +164,8 @@ const GPT3_5Turbo: LLM = {
 
 export const OPENAI_LLM_LIST: LLM[] = [
   GPT5,
+  GPT51Mini,
+  GPT51Nano,
   GPT5Mini,
   GPT5Nano,
   GPT4o,

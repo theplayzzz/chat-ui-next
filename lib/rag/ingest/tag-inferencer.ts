@@ -24,13 +24,13 @@ export async function inferChunkTag(
   const tags = availableTags || [...SYSTEM_TAGS]
 
   const llm = new ChatOpenAI({
-    modelName: "gpt-5-mini",
+    modelName: "gpt-5.1-nano",
     temperature: 1,
     timeout: 10000,
     maxRetries: 2,
+    maxCompletionTokens: 64,
     tags: ["tag-inferencer", "health-plan-v2", "rag", "level3"],
     modelKwargs: {
-      max_completion_tokens: 64,
       reasoning_effort: "low"
     }
   })

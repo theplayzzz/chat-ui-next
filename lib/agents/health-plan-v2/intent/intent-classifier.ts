@@ -138,15 +138,15 @@ export async function classifyIntent(
     // Inicializar ChatOpenAI com tags para LangSmith
     // GPT-5-mini requer temperature=1 e usa reasoning_effort
     const model = new ChatOpenAI({
-      modelName: "gpt-5-mini",
+      modelName: "gpt-5.1-mini",
       temperature: 1, // GPT-5 apenas suporta temperature=1
-      timeout: 10000, // 10s timeout (GPT-5 pode ser mais lento)
+      timeout: 10000, // 10s timeout
       maxRetries: 2,
+      maxCompletionTokens: 2048,
       // Tags para identificar no LangSmith
       tags: ["intent-classifier", "health-plan-v2"],
       // Parâmetros GPT-5 via modelKwargs (Chat Completions API)
       modelKwargs: {
-        max_completion_tokens: 2048,
         reasoning_effort: "low"
       }
     })

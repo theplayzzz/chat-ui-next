@@ -206,13 +206,13 @@ export async function humanizeResponse(
 
   try {
     const llm = new ChatOpenAI({
-      modelName: "gpt-5-mini",
+      modelName: "gpt-5.1-mini",
       temperature: 1,
       timeout: 15000,
       maxRetries: 2,
+      maxCompletionTokens: 2048,
       tags: ["humanize-response", "health-plan-v2"],
       modelKwargs: {
-        max_completion_tokens: 2048,
         reasoning_effort: "low"
       }
     })

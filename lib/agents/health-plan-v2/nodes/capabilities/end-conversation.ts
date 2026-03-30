@@ -133,13 +133,13 @@ export async function endConversation(
 
   try {
     const llm = new ChatOpenAI({
-      modelName: "gpt-5-mini",
+      modelName: "gpt-5.1-mini",
       temperature: 1,
       timeout: 30000,
       maxRetries: 2,
+      maxCompletionTokens: 4096,
       tags: ["end-conversation", "health-plan-v2"],
       modelKwargs: {
-        max_completion_tokens: 4096,
         reasoning_effort: "low"
       }
     })

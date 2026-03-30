@@ -47,7 +47,7 @@ export interface GradeByCollectionOptions {
 }
 
 const DEFAULT_OPTIONS: Required<GradeByCollectionOptions> = {
-  model: "gpt-5-mini",
+  model: "gpt-5.1-mini",
   timeout: 60000,
   parallelBatchSize: 2
 }
@@ -359,17 +359,11 @@ async function analyzeCollection(
       temperature: isGPT5 ? 1 : 0.3,
       timeout: options.timeout,
       maxRetries: 2,
+      maxCompletionTokens: isGPT5 ? 4096 : undefined,
       tags: ["grade-by-collection", "health-plan-v2", "fase-6e"],
-      // Configurações adicionais via modelKwargs (Chat Completions API)
       modelKwargs: {
         response_format: { type: "json_object" },
-        // GPT-5 usa max_completion_tokens e reasoning_effort
-        ...(isGPT5
-          ? {
-              max_completion_tokens: 4096,
-              reasoning_effort: "low"
-            }
-          : {})
+        ...(isGPT5 ? { reasoning_effort: "low" } : {})
       },
       // maxTokens para modelos não-GPT-5
       ...(isGPT5 ? {} : { maxTokens: 4096 })

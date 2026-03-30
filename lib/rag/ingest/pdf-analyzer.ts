@@ -14,22 +14,23 @@ export interface PDFAnalysisResult {
 }
 
 export async function analyzePDF(text: string): Promise<PDFAnalysisResult> {
-  // Truncate to first ~8000 tokens (rough estimate: 4 chars per token)
-  const truncated = text.slice(0, 32000)
+  try {
+    // Truncate to first ~8000 tokens (rough estimate: 4 chars per token)
+    const truncated = text.slice(0, 32000)
 
-  const llm = new ChatOpenAI({
-    modelName: "gpt-5-mini",
-    temperature: 1,
-    timeout: 30000,
-    maxRetries: 2,
-    tags: ["pdf-analyzer", "health-plan-v2", "rag", "level3"],
-    modelKwargs: {
-      max_completion_tokens: 4096,
-      reasoning_effort: "medium"
-    }
-  })
+    const llm = new ChatOpenAI({
+      modelName: "gpt-5.1-mini",
+      temperature: 1,
+      timeout: 30000,
+      maxRetries: 2,
+      maxCompletionTokens: 4096,
+      tags: ["pdf-analyzer", "health-plan-v2", "rag", "level3"],
+      modelKwargs: {
+        reasoning_effort: "medium"
+      }
+    })
 
-  const prompt = `Você é um especialista em planos de saúde brasileiros.
+    const prompt = `Você é um especialista em planos de saúde brasileiros.
 Analise este documento e responda em JSON:
 
 {
@@ -48,14 +49,29 @@ Analise este documento e responda em JSON:
 Documento:
 ${truncated}`
 
-  const response = await llm.invoke([{ role: "user", content: prompt }])
-  const content = typeof response.content === "string" ? response.content : ""
+    const response = await llm.invoke([{ role: "user", content: prompt }])
+    const content = typeof response.content === "string" ? response.content : ""
 
-  // Extract JSON from response
-  const jsonMatch = content.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) {
-    throw new Error("Failed to extract JSON from PDF analysis response")
+    // Extract JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new Error("Failed to extract JSON from PDF analysis response")
+    }
+
+    return JSON.parse(jsonMatch[0]) as PDFAnalysisResult
+  } catch (error) {
+    console.error("[pdf-analyzer] Analysis failed, using defaults:", error)
+    return {
+      sugerir_nome: "Documento de Plano de Saúde",
+      sugerir_descricao: "Documento não analisado automaticamente",
+      operadora: "desconhecida",
+      tipo_plano: "outro",
+      abrangencia: "nacional",
+      secoes_detectadas: [],
+      tags_sugeridas: ["regras_gerais"],
+      chunk_size_recomendado: 3000,
+      chunk_overlap_recomendado: 200,
+      justificativa_chunking: "Configuração padrão (análise automática falhou)"
+    }
   }
-
-  return JSON.parse(jsonMatch[0]) as PDFAnalysisResult
 }

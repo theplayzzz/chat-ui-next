@@ -49,6 +49,8 @@ import {
   type AdaptiveRetrievalResult
 } from "../nodes/rag/retrieve-adaptive"
 import { rerankChunks, type RerankResult } from "../nodes/rag/rerank-chunks"
+import { retrieveHybrid } from "../nodes/rag/retrieve-hybrid"
+import { rewriteQuery } from "../nodes/rag/rewrite-query"
 
 // Types
 import type { PartialClientInfo } from "../../health-plan-v2/types"
@@ -62,6 +64,7 @@ import type { PartialClientInfo } from "../../health-plan-v2/types"
  * Set USE_RAG_LEVEL3=true em env para ativar
  */
 const USE_RAG_LEVEL3 = process.env.USE_RAG_LEVEL3 === "true"
+const USE_CRAG = process.env.USE_CRAG === "true"
 
 // =============================================================================
 // State Annotation
@@ -94,7 +97,7 @@ export const SearchPlansStateAnnotation = Annotation.Root({
   /** Modelo para grading (default: gpt-5-mini) */
   ragModel: Annotation<string>({
     reducer: (_, y) => y,
-    default: () => "gpt-5-mini"
+    default: () => "gpt-5.1-mini"
   }),
   /** IDs dos arquivos para buscar */
   fileIds: Annotation<string[]>({
@@ -154,6 +157,21 @@ export const SearchPlansStateAnnotation = Annotation.Root({
     reducer: (_, y) => y,
     default: () => "level1"
   }),
+  /** Plan type filter for scoped retrieval */
+  planType: Annotation<string | null>({
+    reducer: (_, y) => y,
+    default: () => null
+  }),
+  /** CRAG: retry count (max 1) */
+  retryCount: Annotation<number>({
+    reducer: (_, y) => y,
+    default: () => 0
+  }),
+  /** CRAG: original query before rewrite */
+  originalQuery: Annotation<string>({
+    reducer: (_, y) => y,
+    default: () => ""
+  }),
 
   // === OUTPUT ===
   /** Texto formatado com todas as análises */
@@ -201,6 +219,10 @@ export interface SearchMetadata {
     mediumRelevancePlans: number
     lowRelevancePlans: number
   }
+  /** CRAG: whether query was retried after rewrite */
+  cragRetried?: boolean
+  /** CRAG: original query before rewrite */
+  originalQuery?: string
 }
 
 // =============================================================================
@@ -459,7 +481,9 @@ async function formatResultsNode(
     ragModel: state.ragModel,
     executionTimeMs: 0, // Será calculado no invoke
     gradingStats,
-    collectionStats
+    collectionStats,
+    cragRetried: state.retryCount > 0,
+    originalQuery: state.originalQuery || undefined
   }
 
   const relevantCount =
@@ -621,6 +645,108 @@ async function rerankChunksNode(
   return { rerankedChunks: result.chunks }
 }
 
+/**
+ * Nó: Retrieve Hybrid (Level 3 - Hybrid Search)
+ * BM25 + Vector with RRF fusion, supports plan_type filtering
+ */
+async function retrieveHybridNode(
+  state: SearchPlansState
+): Promise<Partial<SearchPlansState>> {
+  console.log("[search-plans-graph] [L3] Retrieving hybrid chunks...")
+  const planType = state.queryClassification?.planType || state.planType || null
+
+  const result = await retrieveHybrid(state.userQuery, state.assistantId, {
+    maxChunks: 20,
+    planType,
+    fileIds: state.fileIds.length > 0 ? state.fileIds : undefined
+  })
+
+  console.log(
+    `[search-plans-graph] [L3] Hybrid retrieved ${result.chunks.length} chunks`
+  )
+
+  // Convert to fileResults for downstream grading (same pattern as retrieveAdaptiveNode)
+  const fileMap = new Map<string, RetrieveByFileResult>()
+  for (const chunk of result.chunks) {
+    if (!fileMap.has(chunk.fileId)) {
+      fileMap.set(chunk.fileId, {
+        fileId: chunk.fileId,
+        fileName: chunk.fileName,
+        fileDescription: chunk.fileDescription || "",
+        collection: chunk.collectionId
+          ? {
+              id: chunk.collectionId,
+              name: chunk.collectionName || "",
+              description: ""
+            }
+          : null,
+        chunks: [],
+        totalChunks: 0
+      })
+    }
+    const fileResult = fileMap.get(chunk.fileId)!
+    fileResult.chunks.push({
+      id: chunk.chunkId,
+      content: chunk.content,
+      tokens: chunk.tokens,
+      similarity: chunk.baseSimilarity,
+      file: {
+        id: chunk.fileId,
+        name: chunk.fileName,
+        description: chunk.fileDescription || ""
+      },
+      collection: chunk.collectionId
+        ? {
+            id: chunk.collectionId,
+            name: chunk.collectionName || "",
+            description: ""
+          }
+        : null
+    })
+    fileResult.totalChunks = fileResult.chunks.length
+  }
+
+  return {
+    fileResults: Array.from(fileMap.values()),
+    rerankedChunks: result.chunks,
+    planType
+  }
+}
+
+/**
+ * Nó: Should Retry (CRAG - Corrective RAG)
+ * Evaluates if all results are irrelevant and rewrites query for retry
+ */
+async function shouldRetryNode(
+  state: SearchPlansState
+): Promise<Partial<SearchPlansState>> {
+  console.log("[search-plans-graph] [CRAG] Evaluating retry...")
+  const allIrrelevant = state.fileGradingResults.every(
+    f => f.relevance === "irrelevant"
+  )
+
+  if (allIrrelevant && state.retryCount === 0) {
+    console.log(
+      "[search-plans-graph] [CRAG] All results irrelevant, rewriting query..."
+    )
+    const rewritten = await rewriteQuery(
+      state.userQuery,
+      state.fileGradingResults,
+      state.clientInfo as Record<string, unknown>
+    )
+    console.log(
+      `[search-plans-graph] [CRAG] Rewritten: "${rewritten.substring(0, 100)}..."`
+    )
+    return {
+      userQuery: rewritten,
+      originalQuery: state.userQuery,
+      retryCount: 1
+    }
+  }
+
+  return {}
+}
+
 // =============================================================================
 // Graph Builder
 // =============================================================================
@@ -642,7 +768,7 @@ export function createSearchPlansGraph() {
       .addNode("classifyQuery", classifyQueryNode)
       .addNode("selectCollections", selectCollectionsNode)
       .addNode("selectFiles", selectFilesNode)
-      .addNode("retrieveAdaptive", retrieveAdaptiveNode)
+      .addNode("retrieveHybrid", retrieveHybridNode)
       .addNode("rerankChunks", rerankChunksNode)
       .addNode("gradeByFile", gradeByFileNode)
       .addNode("gradeByCollection", gradeByCollectionNode)
@@ -651,10 +777,27 @@ export function createSearchPlansGraph() {
       .addEdge(START, "classifyQuery")
       .addEdge("classifyQuery", "selectCollections")
       .addEdge("selectCollections", "selectFiles")
-      .addEdge("selectFiles", "retrieveAdaptive")
-      .addEdge("retrieveAdaptive", "rerankChunks")
+      .addEdge("selectFiles", "retrieveHybrid")
+      .addEdge("retrieveHybrid", "rerankChunks")
       .addEdge("rerankChunks", "gradeByFile")
-      .addEdge("gradeByFile", "gradeByCollection")
+
+    if (USE_CRAG) {
+      console.log("[search-plans-graph] CRAG self-correcting loop enabled")
+      workflow
+        .addNode("shouldRetry", shouldRetryNode)
+        .addConditionalEdges("gradeByFile", (state: SearchPlansState) => {
+          const allIrrelevant = state.fileGradingResults.every(
+            f => f.relevance === "irrelevant"
+          )
+          if (allIrrelevant && state.retryCount === 0) return "shouldRetry"
+          return "gradeByCollection"
+        })
+        .addEdge("shouldRetry", "retrieveHybrid")
+    } else {
+      workflow.addEdge("gradeByFile", "gradeByCollection")
+    }
+
+    workflow
       .addEdge("gradeByCollection", "formatResults")
       .addEdge("formatResults", END)
 
@@ -736,7 +879,7 @@ export const invokeSearchPlansGraph = traceable(
       userQuery: params.userQuery,
       clientInfo: params.clientInfo || {},
       conversationMessages: params.conversationMessages || [],
-      ragModel: params.ragModel || "gpt-5-mini",
+      ragModel: params.ragModel || "gpt-5.1-mini",
       chunksPerFile: params.chunksPerFile || 5
     })
 
