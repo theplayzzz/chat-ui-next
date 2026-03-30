@@ -63,3 +63,9 @@ node_modules/
 
 # Task files
 
+# Playwright test artifacts
+__tests__/playwright-test/node_modules/
+__tests__/playwright-test/screenshots/
+__tests__/playwright-test/test-results/
+__tests__/playwright-test/playwright-report/
+__tests__/documentos/

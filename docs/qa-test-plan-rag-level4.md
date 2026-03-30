@@ -1,284 +1,600 @@
-# QA Test Plan — RAG Level 4 Upgrade
+# QA Test Plan — RAG Level 4
 
-## Objetivo
-Validar pelo frontend todas as mudancas do upgrade RAG Level 4: upload wizard, processamento de arquivos, e qualidade das respostas do agente.
+## Ferramentas de Teste
+
+| Ferramenta | Finalidade |
+|------------|-----------|
+| **Playwright** | Automacao de testes no frontend (headless Chromium) |
+| **Supabase MCP** | Validacao direta no banco de dados (queries SQL) |
+| **Screenshots** | Evidencia visual de cada etapa |
+
+### Como rodar Playwright
+
+```bash
+cd __tests__/playwright-test
+npx playwright test <arquivo>.spec.ts --project=chromium --reporter=list
+```
+
+Screenshots sao salvos em `__tests__/playwright-test/screenshots/`.
+
+### Como usar Supabase MCP
+
+Via Claude Code, usar o tool `mcp__supabase__execute_sql` com queries SQL para validar dados no banco.
 
 ---
 
-## Pre-requisitos
-- Acesso ao frontend da aplicacao (login valido)
-- Workspace com assistente de plano de saude configurado
-- Arquivos PDF de planos de saude para upload (minimo 2 arquivos de operadoras/tipos diferentes)
-  - Ex: "Bradesco Saude Empresarial.pdf" e "Bradesco Saude Individual.pdf"
-- Navegador com DevTools aberto (aba Network) para acompanhar chamadas API
+## Mapa da Interface (Coordenadas Playwright)
 
----
-
-## Teste 1: Upload Wizard — Fluxo Completo
-
-**O que testar:** O novo wizard multi-step de upload substituiu o formulario antigo.
-
-**Passos:**
-1. Na sidebar, clique em "Files" e depois no botao de criar arquivo (+)
-2. O wizard deve abrir como um dialog/modal com o Step 1 (selecao de arquivo)
-3. Selecione um arquivo PDF de plano de saude
-4. O wizard deve avancar para o Step 2 (analise) ou Step 3 (confirmacao)
-5. Na tela de confirmacao, verifique:
-   - Nome sugerido (editavel)
-   - Descricao sugerida (editavel)
-   - Operadora detectada
-   - Tipo de plano detectado
-   - Secoes detectadas (badges)
-   - Tags sugeridas (botoes toggleaveis)
-   - Chunk Size e Chunk Overlap recomendados (editaveis)
-   - Justificativa do chunking
-6. Clique em "Confirmar e Processar"
-7. O wizard deve mostrar o Step 4 (processamento) com progresso por etapa:
-   - Quebrando documento em chunks
-   - Gerando embeddings
-   - Classificando tags dos chunks
-   - Gerando contexto posicional
-   - Embedding do arquivo
-8. Apos concluir, o Step 5 (resumo) deve mostrar uma tabela com:
-   - Nome do arquivo, tipo, tamanho
-   - Quantidade de chunks criados
-   - Chunk size e overlap usados
-   - Tags, tipo de plano
-   - Tempo de processamento
-
-**Resultado esperado:** Todos os 5 steps completam sem erro. A tabela resumo mostra dados coerentes.
-
-**Output para reportar:**
 ```
-Arquivo: [nome do arquivo]
-Steps completados: [1/2/3/4/5 de 5]
-Chunks criados: [numero]
-Tags detectadas: [lista]
-Tipo de plano: [empresarial/individual/familiar/outro]
-Tempo de processamento: [Xs]
-Erros: [nenhum / descricao do erro]
-Screenshot: [anexar]
+URL base: https://chat-ui-next.vercel.app
+Login: play-felix@hotmail.com (magic link, sem senha)
+
+Landing Page:
+  [Start Chatting] → /login
+
+Login Page:
+  input email → preencher → [Entrar] → /78fb784a-.../chat
+
+Chat Page:
+  ┌─────────┬──────────────────────────────────────┐
+  │ Icons   │ Sidebar (aparece apos clicar >)      │
+  │ laterais│                                      │
+  │         │ [+ New File] / [+ New Chat] etc      │
+  │ y=12  ◉ │ Chat list / Files list / etc         │
+  │ y=68  ◎ │                                      │
+  │ y=124 ◎ │                                      │
+  │ y=180 ◎ │                                      │
+  │ y=236 ◎ │ ← FILES (icon 3, y=236)              │
+  │ y=292 ◎ │ ← COLLECTIONS (icon 4, y=292)        │
+  │ y=348 ◎ │                                      │
+  │ y=396 ◎ │                                      │
+  │         │                                      │
+  │ y=660 ◎ │ ← PROFILE                            │
+  ├─────────┤                                      │
+  │ [>]     │ Toggle sidebar (x=20, y=375)         │
+  └─────────┴──────────────────────────────────────┘
+  │                                                │
+  │              Chatbot UI (area central)         │
+  │                                                │
+  │  ┌─[⊕]─────────────────────────────────[▶]─┐  │
+  │  │ Ask anything. Type @ / # !               │  │
+  │  └──────────────────────────────────────────┘  │
+  │   ⊕ = upload via chat (x=455, y=657)          │
+  └────────────────────────────────────────────────┘
 ```
 
----
+### Navegacao Playwright
 
-## Teste 2: Upload de Arquivo Grande (150+ paginas)
+```typescript
+// Login
+await page.goto(BASE_URL);
+await page.locator('text=Start Chatting').click();
+await page.locator('input[type="email"]').fill(LOGIN_EMAIL);
+await page.locator('button:has-text("Entrar")').click();
+await page.waitForTimeout(5000);
 
-**O que testar:** O sistema processa arquivos grandes sem travar ou dar timeout.
+// Abrir sidebar
+await page.mouse.click(20, 375);
 
-**Passos:**
-1. Repita o Teste 1 com o maior PDF disponivel (150+ paginas se possivel)
-2. Observe o tempo de processamento no Step 4
-3. Verifique se o progresso atualiza em tempo real (nao fica travado)
-4. Confirme que o resumo final mostra um numero alto de chunks
+// Ir para Files
+await page.mouse.click(28, 236);
 
-**Resultado esperado:** Upload completa sem timeout. Progresso atualiza durante o processamento.
+// Ir para Collections
+await page.mouse.click(28, 292);
 
-**Output para reportar:**
-```
-Arquivo: [nome]
-Paginas (estimativa): [numero]
-Tamanho: [X MB]
-Chunks criados: [numero]
-Tempo total: [Xs]
-Progresso atualizou em tempo real: [Sim/Nao]
-Erros: [nenhum / descricao]
-```
+// Clicar "+ New File"
+await page.locator('button:has-text("New File")').click();
 
----
-
-## Teste 3: Upload de Multiplos Arquivos do Mesmo Tipo
-
-**O que testar:** Subir 2+ arquivos da mesma operadora mas tipos diferentes (ex: empresarial e individual).
-
-**Passos:**
-1. Faca upload do arquivo "Plano Empresarial" (Teste 1 acima)
-2. Faca upload do arquivo "Plano Individual" (repita o wizard)
-3. Verifique na sidebar que ambos os arquivos aparecem listados
-4. Para cada arquivo, clique nele e verifique se mostra:
-   - Nome e descricao corretos
-   - Chunk size e overlap
-   - Tipo do arquivo
-
-**Resultado esperado:** Ambos os arquivos sao criados com sucesso e aparecem na lista.
-
-**Output para reportar:**
-```
-Arquivo 1: [nome] — Chunks: [X], Tipo plano: [empresarial]
-Arquivo 2: [nome] — Chunks: [X], Tipo plano: [individual]
-Ambos aparecem na sidebar: [Sim/Nao]
-Erros: [nenhum / descricao]
+// Upload via chat (+)
+await page.locator('input[type="file"]').first().setInputFiles(filePath);
 ```
 
 ---
 
-## Teste 4: Consulta ao Agente — Busca Geral
+## PROBLEMA CRITICO ENCONTRADO
 
-**O que testar:** O agente usa os arquivos uploadados para responder perguntas.
+**Migrations Level 3 NAO aplicadas no banco hosted.**
 
-**Pre-requisito:** Testes 1-3 completos (arquivos ja uploadados).
+Colunas FALTANDO na tabela `file_items`:
+- `section_type` (TEXT)
+- `weight` (NUMERIC)
+- `page_number` (INTEGER)
+- `document_context` (TEXT)
 
-**Passos:**
-1. Abra um novo chat com o assistente de plano de saude
-2. Envie: "Quais planos voces tem disponiveis?"
-3. Aguarde a resposta do agente
-4. Verifique se a resposta menciona os planos dos arquivos que voce subiu
+Tabela FALTANDO:
+- `chunk_tags`
 
-**Resultado esperado:** O agente lista/menciona planos baseados nos documentos uploadados.
+Colunas FALTANDO em `files`:
+- `file_embedding` (vector)
 
-**Output para reportar:**
+Colunas FALTANDO em `collections`:
+- `collection_embedding` (vector)
+
+**Impacto:** O Level 3 enrichment (tags, contexto, peso, embeddings por arquivo/collection) NAO funciona. Os chunks sao criados apenas com conteudo + embedding basico.
+
+**Migrations pendentes** (devem ser aplicadas antes dos testes):
 ```
-Pergunta: "Quais planos voces tem disponiveis?"
-Resposta menciona arquivos uploadados: [Sim/Nao]
-Planos mencionados: [lista]
-Tempo de resposta: [Xs]
-Erros: [nenhum / descricao]
+supabase/migrations/20260321000001_add_rag_level3_file_items.sql
+supabase/migrations/20260321000002_create_chunk_tags.sql
+supabase/migrations/20260321000003_add_file_embedding.sql
+supabase/migrations/20260321000004_add_collection_embedding.sql
+```
+
+**Acao:** Rodar essas 4 migrations no banco hosted via `psql` ou Supabase MCP `execute_sql`.
+
+---
+
+## Teste 0: Aplicar Migrations Pendentes
+
+**Objetivo:** Aplicar todas as migrations que faltam no banco hosted.
+
+### Execucao (Supabase MCP)
+
+Rodar cada migration SQL via `mcp__supabase__execute_sql`.
+
+### Validacao (Supabase MCP)
+
+```sql
+-- Verificar colunas Level 3
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'file_items'
+AND column_name IN ('section_type','weight','page_number','document_context','plan_type','content_tsvector');
+
+-- Verificar colunas de embedding
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'files' AND column_name = 'file_embedding';
+
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'collections' AND column_name = 'collection_embedding';
+
+-- Verificar tabela chunk_tags
+SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'chunk_tags');
+
+-- Verificar tabela rag_pipeline_logs
+SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name = 'rag_pipeline_logs');
+
+-- Verificar RPCs
+SELECT routine_name FROM information_schema.routines
+WHERE routine_name IN ('match_file_items_hybrid','match_file_items_weighted','match_file_items_enriched','match_files_by_embedding');
+```
+
+**Resultado esperado:** Todas as colunas, tabelas e RPCs existem.
+
+---
+
+## Teste 1: Delete de Arquivos Existentes (Limpeza)
+
+**Objetivo:** Limpar arquivos de testes anteriores antes de iniciar.
+
+### Execucao (Playwright)
+
+```
+1. Login → Abrir sidebar (x=20,y=375) → Files (x=28,y=236)
+2. Para cada arquivo na lista:
+   a. Clicar no arquivo → abre Sheet lateral
+   b. Procurar botao de delete (icone lixeira ou "Delete")
+   c. Confirmar delete
+   d. Verificar que arquivo sumiu da lista
+```
+
+### Validacao (Supabase MCP)
+
+```sql
+-- Antes do delete: contar arquivos
+SELECT name, id, tokens, created_at::date FROM files ORDER BY created_at DESC;
+
+-- Apos cada delete: verificar que arquivo e chunks foram removidos
+SELECT count(*) FROM files WHERE name = '<nome_arquivo>';
+SELECT count(*) FROM file_items WHERE file_id = '<id_arquivo>';
+
+-- Verificar que nao ha orfaos
+SELECT count(*) FROM file_items fi
+WHERE NOT EXISTS (SELECT 1 FROM files f WHERE f.id = fi.file_id);
+```
+
+**Resultado esperado:** Arquivos e chunks deletados. Zero orfaos.
+
+---
+
+## Teste 2: Upload de Arquivo via Wizard (Sidebar)
+
+**Objetivo:** Validar o fluxo completo do Upload Wizard (5 steps).
+
+### Execucao (Playwright)
+
+```
+1. Login → Sidebar → Files (x=28,y=236)
+2. Clicar [+ New File]
+3. STEP 1 (FILE_SELECT):
+   - Selecionar PDF: "Manual_de_Vendas_PME AMIL.pdf"
+   - input[data-testid="file-upload-input"].setInputFiles(path)
+   - Clicar [Proximo]
+4. STEP 2/3 (ANALYZING/CONFIRMATION):
+   - Aguardar analise (ate 30s)
+   - Verificar campos: nome sugerido, descricao, operadora, tipo_plano
+   - Verificar tags sugeridas (botoes toggleaveis)
+   - Verificar chunk_size e chunk_overlap recomendados
+   - Clicar [Confirmar e Processar]
+5. STEP 4 (PROCESSING):
+   - Observar progresso por etapa:
+     [x] Quebrando documento em chunks
+     [x] Gerando embeddings
+     [x] Classificando tags
+     [x] Gerando contexto
+     [x] Embedding do arquivo
+6. STEP 5 (SUMMARY):
+   - Tabela com: nome, tipo, tamanho, chunks, tags, tempo
+   - Clicar [Fechar]
+```
+
+### Validacao (Supabase MCP)
+
+```sql
+-- Verificar arquivo criado
+SELECT id, name, tokens, type, chunk_size, chunk_overlap,
+       ingestion_metadata
+FROM files WHERE name LIKE '%amil%' ORDER BY created_at DESC LIMIT 1;
+
+-- Verificar chunks criados
+SELECT count(*) as total_chunks,
+       count(openai_embedding) as with_embedding,
+       count(content_tsvector) as with_tsvector,
+       count(section_type) as with_section_type,
+       count(document_context) as with_context,
+       count(plan_type) as with_plan_type,
+       avg(tokens) as avg_tokens,
+       min(tokens) as min_tokens,
+       max(tokens) as max_tokens
+FROM file_items WHERE file_id = '<id_arquivo>';
+
+-- Verificar tags dos chunks
+SELECT DISTINCT section_type, plan_type, weight
+FROM file_items WHERE file_id = '<id_arquivo>';
+
+-- Verificar logs do pipeline
+SELECT stage, status, duration_ms, chunks_processed, chunks_created, model_used
+FROM rag_pipeline_logs
+WHERE correlation_id = '<correlation_id>'
+ORDER BY created_at;
+```
+
+**Resultado esperado:**
+- Arquivo criado com tokens > 0
+- Todos chunks tem embedding e tsvector
+- Logs mostram todas etapas completed
+
+---
+
+## Teste 3: Upload via Chat (+)
+
+**Objetivo:** Upload alternativo pelo botao (+) no chat input.
+
+### Execucao (Playwright)
+
+```
+1. Login → Chat page
+2. Localizar input[type="file"] (hidden, no chat area)
+3. setInputFiles("Material de Apoio ao Corretor Linha Porto SaUDE.pdf")
+4. Aguardar ate "Hide files" aparecer (arquivo processado)
+5. Verificar pill azul com nome do arquivo no chat area
+```
+
+### Validacao (Supabase MCP)
+
+```sql
+SELECT id, name, tokens FROM files
+WHERE name LIKE '%porto%' ORDER BY created_at DESC LIMIT 1;
+
+SELECT count(*) as chunks,
+       count(openai_embedding) as with_embedding
+FROM file_items WHERE file_id = '<id>';
+```
+
+**Resultado esperado:** Arquivo criado e processado com chunks + embeddings.
+
+---
+
+## Teste 4: Upload de Multiplos Arquivos
+
+**Objetivo:** Subir os 5 PDFs e verificar todos no banco.
+
+### Arquivos de Teste
+
+| # | Arquivo | Tamanho |
+|---|---------|---------|
+| 1 | Manual_de_Vendas_PME AMIL.pdf | 1.3 MB |
+| 2 | Material de Apoio ao Corretor Linha Porto SaUDE.pdf | 2.1 MB |
+| 3 | PLANOS BASICO.pdf | 1.4 MB |
+| 4 | PLANOS COM EINSTEIN.pdf | 4.9 MB |
+| 5 | Treinamento todas as linhas.pdf | 6.3 MB |
+
+Localicacao: `__tests__/documentos/`
+
+### Execucao (Playwright)
+
+Upload sequencial via chat (+), um arquivo por vez, aguardando processamento entre cada.
+
+### Validacao (Supabase MCP)
+
+```sql
+-- Resumo geral de todos os arquivos
+SELECT f.name, f.tokens,
+       (SELECT count(*) FROM file_items fi WHERE fi.file_id = f.id) as chunks,
+       (SELECT count(*) FROM file_items fi WHERE fi.file_id = f.id AND fi.openai_embedding IS NOT NULL) as embeddings,
+       (SELECT count(*) FROM file_items fi WHERE fi.file_id = f.id AND fi.content_tsvector IS NOT NULL) as tsvectors,
+       (SELECT count(DISTINCT fi.section_type) FROM file_items fi WHERE fi.file_id = f.id AND fi.section_type IS NOT NULL) as section_types,
+       (SELECT count(DISTINCT fi.plan_type) FROM file_items fi WHERE fi.file_id = f.id AND fi.plan_type IS NOT NULL) as plan_types,
+       f.created_at::date
+FROM files f
+ORDER BY f.created_at DESC LIMIT 10;
+
+-- Verificar integridade: todos chunks tem embedding?
+SELECT f.name,
+       count(*) as total,
+       count(*) FILTER (WHERE fi.openai_embedding IS NULL) as missing_embedding
+FROM file_items fi JOIN files f ON f.id = fi.file_id
+GROUP BY f.name
+HAVING count(*) FILTER (WHERE fi.openai_embedding IS NULL) > 0;
+
+-- Total de chunks e tokens
+SELECT count(*) as total_chunks, sum(tokens) as total_tokens
+FROM file_items fi
+JOIN files f ON f.id = fi.file_id
+WHERE f.created_at::date = CURRENT_DATE;
+```
+
+**Resultado esperado:**
+- 5 arquivos com chunks > 0
+- 0 chunks sem embedding
+- Total de tokens > 100K
+
+---
+
+## Teste 5: Validacao de Logs do Pipeline
+
+**Objetivo:** Verificar que o sistema de logging registrou todas as etapas.
+
+### Validacao (Supabase MCP)
+
+```sql
+-- Resumo de logs por correlation
+SELECT correlation_id,
+       count(*) as total_stages,
+       count(*) FILTER (WHERE status = 'completed') as completed,
+       count(*) FILTER (WHERE status = 'failed') as failed,
+       sum(duration_ms) as total_ms,
+       array_agg(stage ORDER BY created_at) as stages
+FROM rag_pipeline_logs
+WHERE created_at::date = CURRENT_DATE
+GROUP BY correlation_id
+ORDER BY min(created_at) DESC;
+
+-- Verificar se houve falhas
+SELECT stage, status, error_details, model_used, duration_ms
+FROM rag_pipeline_logs
+WHERE status = 'failed'
+ORDER BY created_at DESC LIMIT 10;
+
+-- Logs por arquivo especifico
+SELECT rpl.stage, rpl.status, rpl.duration_ms, rpl.chunks_processed,
+       rpl.chunks_created, rpl.model_used, rpl.tokens_used
+FROM rag_pipeline_logs rpl
+JOIN files f ON f.id = rpl.file_id
+WHERE f.name LIKE '%amil%'
+ORDER BY rpl.created_at;
+```
+
+**Resultado esperado:**
+- Cada upload tem stages: chunking, embedding, tag_inference, context_generation, file_embedding
+- Todos com status = completed
+- 0 falhas
+
+---
+
+## Teste 6: Consulta ao Agente — Busca Geral
+
+**Objetivo:** Verificar que o agente usa os vetores para responder.
+
+### Execucao (Playwright)
+
+```
+1. Abrir novo chat (sidebar → [+ New Chat])
+2. Verificar assistente "Health Plan v2" selecionado
+3. Digitar no input: "Quais planos voces tem disponiveis?"
+4. Clicar enviar (botao ▶ ou Enter)
+5. Aguardar resposta (ate 30s)
+6. Capturar screenshot da resposta
+7. Verificar se menciona operadoras dos PDFs (AMIL, Porto Seguro, Einstein)
+```
+
+### Validacao (Supabase MCP)
+
+```sql
+-- Verificar que houve busca vetorial (agent_workflow_logs)
+SELECT intent, routed_capability, search_results_count,
+       execution_time_ms, has_recommendation,
+       (debug_payload->>'ragLevel') as rag_level
+FROM agent_workflow_logs
+ORDER BY created_at DESC LIMIT 1;
 ```
 
 ---
 
-## Teste 5: Consulta ao Agente — Busca Especifica por Tipo de Plano (Scoped Retrieval)
+## Teste 7: Consulta — Termo Exato (Hybrid Search)
 
-**O que testar:** Quando o usuario menciona um tipo de plano, o agente busca SOMENTE naquele escopo.
+**Objetivo:** Testar que BM25 + vetor encontra termos especificos.
 
-**Pre-requisito:** Ter uploadado pelo menos 2 arquivos de tipos diferentes (empresarial + individual).
+### Execucao (Playwright)
 
-**Passos:**
-1. No mesmo chat ou novo chat, envie: "Quero informacoes sobre o plano empresarial"
-2. Verifique se a resposta fala SOMENTE do plano empresarial
-3. Envie: "E sobre o plano individual, o que voces oferecem?"
-4. Verifique se a resposta fala SOMENTE do plano individual
-5. Envie: "Qual a diferenca entre o plano empresarial e o individual?"
-6. Verifique se a resposta compara os dois corretamente
-
-**Resultado esperado:** Respostas filtradas por tipo de plano. Na comparacao, ambos sao mencionados com informacoes corretas de cada um.
-
-**Output para reportar:**
 ```
-Pergunta 1: "informacoes sobre plano empresarial"
-  Resposta fala so do empresarial: [Sim/Nao]
-  Menciona plano individual indevidamente: [Sim/Nao]
+1. No chat, enviar: "Qual o valor da coparticipacao do plano AMIL PME?"
+2. Aguardar resposta
+3. Verificar se resposta contem valores especificos do PDF
+```
 
-Pergunta 2: "plano individual"
-  Resposta fala so do individual: [Sim/Nao]
-  Menciona plano empresarial indevidamente: [Sim/Nao]
+### Validacao (Supabase MCP)
 
-Pergunta 3: "diferenca entre empresarial e individual"
-  Compara ambos corretamente: [Sim/Nao]
-  Informacoes parecem corretas: [Sim/Nao]
-
-Erros: [nenhum / descricao]
+```sql
+-- Testar hybrid search diretamente
+-- (requer query embedding, mas podemos verificar FTS)
+SELECT id, LEFT(content, 200) as preview,
+       ts_rank_cd(content_tsvector, plainto_tsquery('portuguese', 'coparticipacao AMIL PME')) as fts_rank
+FROM file_items
+WHERE content_tsvector @@ plainto_tsquery('portuguese', 'coparticipacao AMIL')
+ORDER BY fts_rank DESC LIMIT 5;
 ```
 
 ---
 
-## Teste 6: Consulta ao Agente — Termos Exatos (Hybrid Search)
+## Teste 8: Consulta — Scoped Retrieval por Tipo de Plano
 
-**O que testar:** O sistema encontra informacoes por termos exatos (nao apenas por semantica).
+**Objetivo:** Quando usuario menciona tipo de plano, agente filtra corretamente.
 
-**Passos:**
-1. Identifique nos PDFs um termo especifico que aparece no documento (ex: um numero de registro ANS, um nome de procedimento, um valor exato como "R$ 450,00")
-2. Pergunte ao agente sobre esse termo especifico. Exemplos:
-   - "Qual o valor da mensalidade para a faixa de 30-39 anos?"
-   - "O plano cobre [procedimento especifico que voce viu no PDF]?"
-   - "Qual o periodo de carencia para parto?"
-3. Verifique se a resposta traz a informacao exata do documento
+### Execucao (Playwright)
 
-**Resultado esperado:** O agente encontra e retorna informacoes com termos exatos que estavam no PDF.
-
-**Output para reportar:**
 ```
-Termo buscado: [termo exato do PDF]
-Pergunta feita: [pergunta]
-Agente encontrou a informacao: [Sim/Nao/Parcial]
-Informacao retornada esta correta: [Sim/Nao]
-Erros: [nenhum / descricao]
+1. Enviar: "Me fale sobre o plano empresarial PME da AMIL"
+2. Verificar resposta fala APENAS do plano PME
+3. Enviar: "E sobre os planos com Einstein?"
+4. Verificar resposta fala dos planos Einstein
+5. Verificar que NAO mistura informacoes entre eles
 ```
 
----
+### Validacao (Supabase MCP)
 
-## Teste 7: Consulta ao Agente — Informacao Diferenciada Entre Planos Similares
-
-**O que testar:** O cenario critico — quando dois planos tem textos quase identicos mas com valores diferentes.
-
-**Pre-requisito:** Ter 2 arquivos com informacoes similares mas diferentes (ex: multa empresarial vs individual, ou precos diferentes por faixa etaria).
-
-**Passos:**
-1. Identifique uma informacao que DIFERE entre os dois planos (ex: preco, multa, carencia)
-2. Pergunte especificamente sobre essa informacao para UM dos planos:
-   - "Qual a multa por cancelamento do plano empresarial?"
-   - "Qual o valor para faixa 30-39 anos no plano individual?"
-3. Verifique se a resposta traz o valor CORRETO do plano especificado
-4. Faca a mesma pergunta para o OUTRO plano
-5. Verifique se os valores sao DIFERENTES (como esperado)
-
-**Resultado esperado:** O agente retorna valores diferentes e corretos para cada plano. Nao mistura informacoes entre eles.
-
-**Output para reportar:**
-```
-Informacao testada: [ex: multa por cancelamento]
-
-Plano 1 ([tipo]):
-  Pergunta: [pergunta]
-  Valor esperado (do PDF): [valor]
-  Valor retornado pelo agente: [valor]
-  Correto: [Sim/Nao]
-
-Plano 2 ([tipo]):
-  Pergunta: [pergunta]
-  Valor esperado (do PDF): [valor]
-  Valor retornado pelo agente: [valor]
-  Correto: [Sim/Nao]
-
-Valores sao diferentes entre os planos: [Sim/Nao]
-Agente misturou informacoes: [Sim/Nao]
+```sql
+-- Verificar plan_type nos chunks
+SELECT DISTINCT plan_type, count(*) as chunks
+FROM file_items
+WHERE file_id IN (SELECT id FROM files WHERE created_at::date = CURRENT_DATE)
+GROUP BY plan_type;
 ```
 
 ---
 
-## Teste 8: Tratamento de Erro — Upload de Arquivo Invalido
+## Teste 9: Delete de Arquivo e Verificacao de Limpeza
 
-**O que testar:** O sistema trata erros de forma elegante.
+**Objetivo:** Deletar um arquivo e confirmar que chunks e dados relacionados sao removidos.
 
-**Passos:**
-1. Tente fazer upload de um arquivo nao suportado (ex: .exe, .zip, .mp3)
-   - Resultado esperado: O file picker nao permite selecionar, ou mostra erro
-2. Tente fazer upload de um PDF corrompido ou vazio (se tiver um disponivel)
-   - Resultado esperado: Erro amigavel, nao trava o wizard
+### Execucao (Playwright)
 
-**Output para reportar:**
 ```
-Arquivo invalido: [nome.extensao]
-Comportamento: [nao permitiu selecionar / mostrou erro / travou]
-Mensagem de erro: [texto da mensagem, se houver]
+1. Sidebar → Files (x=28, y=236)
+2. Clicar no arquivo "manual_de_vendas_pme_amil.pdf"
+3. No Sheet que abre, localizar botao de delete
+4. Confirmar delete
+5. Verificar que arquivo sumiu da lista
+```
+
+### Validacao (Supabase MCP)
+
+```sql
+-- ANTES do delete: anotar o id do arquivo
+SELECT id, name, tokens FROM files WHERE name LIKE '%amil%';
+
+-- APOS o delete: verificar remocao completa
+-- 1. Arquivo removido
+SELECT count(*) as files FROM files WHERE name LIKE '%amil%';
+
+-- 2. Chunks removidos (cascade ou trigger)
+SELECT count(*) as orphan_chunks FROM file_items
+WHERE file_id = '<id_anotado>';
+
+-- 3. Logs NAO devem ser removidos (historico)
+SELECT count(*) as logs FROM rag_pipeline_logs
+WHERE file_id = '<id_anotado>';
+
+-- 4. Storage: verificar se arquivo foi removido do bucket
+-- (verificar via Supabase dashboard ou API)
+
+-- 5. File-workspace association removida
+SELECT count(*) FROM file_workspaces WHERE file_id = '<id_anotado>';
+```
+
+**Resultado esperado:**
+- 0 files com o nome
+- 0 chunks orfaos
+- Logs preservados (historico)
+- Association removida
+
+---
+
+## Teste 10: Delete de Todos os Arquivos de Teste
+
+**Objetivo:** Limpeza final — remover todos os arquivos de teste.
+
+### Execucao (Playwright)
+
+Repetir Teste 9 para cada arquivo restante.
+
+### Validacao (Supabase MCP)
+
+```sql
+-- Estado final limpo
+SELECT count(*) as total_files FROM files WHERE created_at::date = CURRENT_DATE;
+SELECT count(*) as total_chunks FROM file_items fi
+JOIN files f ON f.id = fi.file_id WHERE f.created_at::date = CURRENT_DATE;
+
+-- Verificar zero orfaos globais
+SELECT count(*) as orphan_chunks FROM file_items fi
+WHERE NOT EXISTS (SELECT 1 FROM files f WHERE f.id = fi.file_id);
 ```
 
 ---
 
-## Template de Relatorio Final
-
-Apos executar todos os testes, preencha:
+## Loop de Teste Completo
 
 ```
-=== RELATORIO QA — RAG Level 4 ===
-Data: [DD/MM/YYYY]
-Testador: [nome]
-Ambiente: [URL do frontend]
-Navegador: [Chrome/Firefox/Safari + versao]
-
-TESTE 1 — Upload Wizard: [PASSOU / FALHOU / PARCIAL]
-TESTE 2 — Arquivo Grande: [PASSOU / FALHOU / PARCIAL / NAO TESTADO]
-TESTE 3 — Multiplos Arquivos: [PASSOU / FALHOU / PARCIAL]
-TESTE 4 — Busca Geral: [PASSOU / FALHOU / PARCIAL]
-TESTE 5 — Scoped Retrieval: [PASSOU / FALHOU / PARCIAL]
-TESTE 6 — Hybrid Search: [PASSOU / FALHOU / PARCIAL]
-TESTE 7 — Diferenciacao de Planos: [PASSOU / FALHOU / PARCIAL]
-TESTE 8 — Tratamento de Erro: [PASSOU / FALHOU / PARCIAL]
-
-BUGS ENCONTRADOS:
-1. [descricao + steps para reproduzir]
-2. ...
-
-OBSERVACOES GERAIS:
-[comentarios livres sobre a experiencia]
+┌─────────────────────────────────────────────────────────┐
+│                    CICLO DE TESTE                        │
+│                                                         │
+│  1. PREPARACAO                                          │
+│     ├─ Aplicar migrations pendentes (Teste 0)           │
+│     ├─ Limpar arquivos existentes (Teste 1)             │
+│     └─ Validar banco limpo (MCP)                        │
+│                                                         │
+│  2. UPLOAD                                              │
+│     ├─ Upload via Wizard (Teste 2)                      │
+│     ├─ Upload via Chat (Teste 3)                        │
+│     ├─ Upload batch 5 PDFs (Teste 4)                    │
+│     └─ Validar: arquivos, chunks, embeddings,           │
+│        tsvectors, tags, plan_type (MCP)                 │
+│                                                         │
+│  3. LOGS                                                │
+│     ├─ Validar logs pipeline (Teste 5)                  │
+│     └─ Verificar: stages, status, duracoes (MCP)        │
+│                                                         │
+│  4. RETRIEVAL                                           │
+│     ├─ Busca geral (Teste 6)                            │
+│     ├─ Termo exato / Hybrid Search (Teste 7)            │
+│     ├─ Scoped retrieval (Teste 8)                       │
+│     └─ Validar: agent_workflow_logs, FTS ranking (MCP)  │
+│                                                         │
+│  5. DELETE                                              │
+│     ├─ Delete individual (Teste 9)                      │
+│     ├─ Delete todos (Teste 10)                          │
+│     └─ Validar: limpeza completa, zero orfaos (MCP)     │
+│                                                         │
+│  6. REPETIR do passo 2 se necessario                    │
+└─────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Checklist de Validacao no Banco (Supabase MCP)
+
+Usar apos cada ciclo de teste:
+
+| Item | Query | Esperado |
+|------|-------|----------|
+| Arquivos criados | `SELECT count(*) FROM files WHERE created_at::date = CURRENT_DATE` | = numero de uploads |
+| Chunks com embedding | `SELECT count(*) FROM file_items WHERE openai_embedding IS NULL` | = 0 |
+| Chunks com tsvector | `SELECT count(*) FROM file_items WHERE content_tsvector IS NULL` | = 0 |
+| Chunks com section_type | `SELECT count(*) FROM file_items WHERE section_type IS NOT NULL` | > 0 (apos L3) |
+| Chunks com document_context | `SELECT count(*) FROM file_items WHERE document_context IS NOT NULL` | > 0 (apos L3) |
+| Chunks com plan_type | `SELECT count(*) FROM file_items WHERE plan_type IS NOT NULL` | > 0 |
+| Logs sem falhas | `SELECT count(*) FROM rag_pipeline_logs WHERE status = 'failed'` | = 0 |
+| Logs completos | `SELECT count(DISTINCT correlation_id) FROM rag_pipeline_logs WHERE created_at::date = CURRENT_DATE` | = numero de uploads |
+| Chunks orfaos | `SELECT count(*) FROM file_items fi WHERE NOT EXISTS (SELECT 1 FROM files f WHERE f.id = fi.file_id)` | = 0 |
+| Collections com embedding | `SELECT count(*) FROM collections WHERE collection_embedding IS NOT NULL` | > 0 (apos L3) |
+| Files com embedding | `SELECT count(*) FROM files WHERE file_embedding IS NOT NULL` | > 0 (apos L3) |

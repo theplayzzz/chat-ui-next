@@ -103,6 +103,7 @@ export function UploadWizard({
   } | null>(null)
 
   const startTimeRef = useRef<number>(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const resetWizard = useCallback(() => {
     setStep("FILE_SELECT")
@@ -129,13 +130,19 @@ export function UploadWizard({
   )
 
   // Step 1: File selection
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0]) return
+  // Supports both React synthetic events and native DOM events (for Playwright/automation)
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement> | Event) => {
+      const input =
+        "target" in e ? (e.target as HTMLInputElement) : fileInputRef.current
+      if (!input?.files || !input.files[0]) return
 
-    const file = e.target.files[0]
-    setSelectedFile(file)
-    setError("")
-  }
+      const file = input.files[0]
+      setSelectedFile(file)
+      setError("")
+    },
+    []
+  )
 
   const handleProceedToAnalysis = async () => {
     if (!selectedFile) return
@@ -416,10 +423,13 @@ export function UploadWizard({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Arquivo</Label>
-              <Input
+              <input
+                ref={fileInputRef}
                 type="file"
-                onChange={handleFileSelect}
+                onChange={handleFileSelect as any}
                 accept={ACCEPTED_FILE_TYPES}
+                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm file:bg-transparent file:text-sm file:font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                data-testid="file-upload-input"
               />
               {selectedFile && (
                 <p className="text-muted-foreground text-xs">

@@ -186,6 +186,18 @@ export async function POST(req: Request) {
     if (fileError)
       throw new Error(`Failed to retrieve file: ${fileError.message}`)
 
+    logRagStage({
+      correlationId,
+      fileId: file_id,
+      stage: "storage_download",
+      status: "completed",
+      inputMetadata: {
+        filePath: fileMetadata.file_path,
+        fileName: fileMetadata.name,
+        fileSize: fileMetadata.size
+      }
+    })
+
     const fileBuffer = Buffer.from(await file.arrayBuffer())
     const blob = new Blob([fileBuffer])
     const fileExtension = fileMetadata.name.split(".").pop()?.toLowerCase()
@@ -328,6 +340,22 @@ export async function POST(req: Request) {
 
     const totalTokens = file_items.reduce((acc, item) => acc + item.tokens, 0)
 
+    logRagStage({
+      correlationId,
+      fileId: file_id,
+      stage: "chunks_upsert",
+      status: "completed",
+      chunksCreated: file_items.length,
+      outputMetadata: {
+        totalTokens,
+        avgTokensPerChunk: Math.round(totalTokens / file_items.length),
+        embeddingsProvider: embeddingsProvider,
+        hasEmbeddings: file_items.filter(
+          i => i.openai_embedding || i.local_embedding
+        ).length
+      }
+    })
+
     await supabaseAdmin
       .from("files")
       .update({ tokens: totalTokens })
@@ -457,6 +485,24 @@ export async function POST(req: Request) {
         // Level 1 data is already saved, so we just log the error
       }
     }
+
+    logRagStage({
+      correlationId,
+      fileId: file_id,
+      stage: "pipeline_complete",
+      status: "completed",
+      chunksCreated: file_items.length,
+      outputMetadata: {
+        totalTokens,
+        totalChunks: file_items.length,
+        fileName: fileMetadata.name,
+        fileType: fileExtension,
+        fileSize: fileMetadata.size,
+        level3Enabled: !!(fileMetadata as any).ingestion_metadata,
+        chunkSize: chunkConfig.chunkSize,
+        chunkOverlap: chunkConfig.chunkOverlap
+      }
+    })
 
     return NextResponse.json({
       success: true,

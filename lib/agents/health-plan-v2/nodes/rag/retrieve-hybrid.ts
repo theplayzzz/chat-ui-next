@@ -9,6 +9,7 @@
 import { createClient } from "@supabase/supabase-js"
 import type { Database } from "@/supabase/types"
 import { generateEmbedding } from "@/lib/rag/ingest/embedding-generator"
+import { logRagStage } from "@/lib/rag/logging"
 import type {
   AdaptiveChunk,
   AdaptiveRetrievalResult
@@ -145,6 +146,26 @@ export async function retrieveHybrid(
     collectionId: row.collection_id || null,
     collectionName: row.collection_name || null
   }))
+
+  logRagStage({
+    correlationId,
+    stage: "hybrid_search",
+    status: "completed",
+    chunksProcessed: fileIds.length,
+    chunksCreated: chunks.length,
+    inputMetadata: {
+      query: query.substring(0, 200),
+      planTypeFilter: options?.planType || null,
+      fileIdsCount: fileIds.length,
+      maxChunks
+    },
+    outputMetadata: {
+      chunksReturned: chunks.length,
+      topScore: chunks[0]?.weightedScore || 0,
+      bottomScore: chunks[chunks.length - 1]?.weightedScore || 0,
+      uniqueFiles: new Set(chunks.map(c => c.fileId)).size
+    }
+  })
 
   return {
     chunks,
