@@ -47,7 +47,7 @@ export interface GradeByCollectionOptions {
 }
 
 const DEFAULT_OPTIONS: Required<GradeByCollectionOptions> = {
-  model: "gpt-5-mini",
+  model: "gpt-5.4-mini",
   timeout: 60000,
   parallelBatchSize: 2
 }

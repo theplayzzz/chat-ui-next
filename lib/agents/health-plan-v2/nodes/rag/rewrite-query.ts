@@ -14,7 +14,7 @@ export async function rewriteQuery(
   clientInfo: Record<string, unknown>
 ): Promise<string> {
   const llm = new ChatOpenAI({
-    modelName: "gpt-5-mini",
+    modelName: "gpt-5.4-nano",
     temperature: 1,
     timeout: 10000,
     maxRetries: 2,

@@ -97,7 +97,7 @@ export const SearchPlansStateAnnotation = Annotation.Root({
   /** Modelo para grading (default: gpt-5-mini) */
   ragModel: Annotation<string>({
     reducer: (_, y) => y,
-    default: () => "gpt-5-mini"
+    default: () => "gpt-5.4-mini"
   }),
   /** IDs dos arquivos para buscar */
   fileIds: Annotation<string[]>({
@@ -879,7 +879,7 @@ export const invokeSearchPlansGraph = traceable(
       userQuery: params.userQuery,
       clientInfo: params.clientInfo || {},
       conversationMessages: params.conversationMessages || [],
-      ragModel: params.ragModel || "gpt-5-mini",
+      ragModel: params.ragModel || "gpt-5.4-mini",
       chunksPerFile: params.chunksPerFile || 5
     })
 

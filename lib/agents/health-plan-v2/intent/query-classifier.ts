@@ -15,7 +15,7 @@ export async function classifyQuery(
   query: string
 ): Promise<QueryClassification> {
   const llm = new ChatOpenAI({
-    modelName: "gpt-5-mini",
+    modelName: "gpt-5.4-nano",
     temperature: 1, // GPT-5 apenas suporta temperature=1
     timeout: 10000,
     maxRetries: 2,

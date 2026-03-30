@@ -155,7 +155,7 @@ export async function generateRecommendation(
     // Configurar GPT-5-mini
     // IMPORTANTE: GPT-5 APENAS suporta temperature=1
     const llm = new ChatOpenAI({
-      modelName: "gpt-5-mini",
+      modelName: "gpt-5.4-mini",
       temperature: 1,
       timeout: 45000, // Mais tempo para resposta longa
       maxRetries: 2,

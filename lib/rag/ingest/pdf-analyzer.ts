@@ -19,7 +19,7 @@ export async function analyzePDF(text: string): Promise<PDFAnalysisResult> {
     const truncated = text.slice(0, 32000)
 
     const llm = new ChatOpenAI({
-      modelName: "gpt-5-mini",
+      modelName: "gpt-5.4-mini",
       temperature: 1,
       timeout: 30000,
       maxRetries: 2,

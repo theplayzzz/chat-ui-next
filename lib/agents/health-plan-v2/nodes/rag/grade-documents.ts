@@ -73,7 +73,7 @@ export interface GradeByFileResult {
 }
 
 const DEFAULT_OPTIONS: Required<GradeByFileOptions> = {
-  model: "gpt-5-mini",
+  model: "gpt-5.4-mini",
   timeout: 30000,
   parallelBatchSize: 3
 }

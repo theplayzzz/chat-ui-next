@@ -52,10 +52,10 @@ const GPT5Nano: LLM = {
   }
 }
 
-// GPT-5.1 Mini (ADDED 03/30/26)
-const GPT51Mini: LLM = {
+// GPT-5.4 Mini (ADDED 03/30/26)
+const GPT54Mini: LLM = {
   modelId: "gpt-5-mini",
-  modelName: "GPT-5.1 Mini",
+  modelName: "GPT-5.4 Mini",
   provider: "openai",
   hostedId: "gpt-5-mini",
   platformLink: OPENAI_PLATORM_LINK,
@@ -68,10 +68,10 @@ const GPT51Mini: LLM = {
   }
 }
 
-// GPT-5.1 Nano (ADDED 03/30/26)
-const GPT51Nano: LLM = {
+// GPT-5.4 Nano (ADDED 03/30/26)
+const GPT54Nano: LLM = {
   modelId: "gpt-5-mini",
-  modelName: "GPT-5.1 Nano",
+  modelName: "GPT-5.4 Nano",
   provider: "openai",
   hostedId: "gpt-5-mini",
   platformLink: OPENAI_PLATORM_LINK,
@@ -164,8 +164,8 @@ const GPT3_5Turbo: LLM = {
 
 export const OPENAI_LLM_LIST: LLM[] = [
   GPT5,
-  GPT51Mini,
-  GPT51Nano,
+  GPT54Mini,
+  GPT54Nano,
   GPT5Mini,
   GPT5Nano,
   GPT4o,

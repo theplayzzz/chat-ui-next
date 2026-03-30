@@ -165,7 +165,7 @@ export async function analyzeCompatibility(
     // Configurar GPT-5-mini
     // IMPORTANTE: GPT-5 APENAS suporta temperature=1
     const llm = new ChatOpenAI({
-      modelName: "gpt-5-mini",
+      modelName: "gpt-5.4-mini",
       temperature: 1,
       timeout: 30000,
       maxRetries: 2,
