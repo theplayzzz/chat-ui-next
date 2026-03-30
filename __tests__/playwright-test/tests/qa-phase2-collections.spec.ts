@@ -149,22 +149,14 @@ test.describe('FASE 2: Collections + Chat Semantico', () => {
 
     // ================================================================
     // STEP 4: Chat com retrieval — busca geral
-    // Usar o assistente Health Plan v2 e testar perguntas
+    // Os 4 PDFs ja estao anexados ao chat (do Step 1)
     // ================================================================
     console.log('\n========== STEP 4: Chat Semantico ==========');
 
-    // Navegar para novo chat
-    await page.goto(BASE_URL, { waitUntil: 'networkidle', timeout: 15000 });
-    if (page.url().includes('login')) {
-      await page.locator('input[type="email"]').first().fill(LOGIN_EMAIL);
-      await page.locator('button:has-text("Entrar")').first().click();
-      await page.waitForTimeout(5000);
-    }
-    await page.waitForTimeout(3000);
-
-    // Upload AMIL para contexto do chat
-    await page.locator('input[type="file"]').first().setInputFiles(path.join(DOCS_DIR, 'Manual_de_Vendas_PME AMIL.pdf'));
-    await page.waitForTimeout(10000);
+    // Fechar sidebar para focar no chat
+    await page.mouse.click(370, 375); // Clicar na seta < para fechar sidebar
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: 'screenshots/p2-chat-00-ready.png', fullPage: true });
 
     // ---- Teste semantico 1: Busca geral ----
     const r1 = await sendChatAndWait(page, 'Quais tipos de planos estao disponiveis neste documento?');

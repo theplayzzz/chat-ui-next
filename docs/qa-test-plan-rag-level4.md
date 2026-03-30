@@ -530,3 +530,220 @@ ORDER BY created_at DESC LIMIT 5;
 SELECT count(*) as orphans FROM file_items fi
 WHERE NOT EXISTS (SELECT 1 FROM files f WHERE f.id = fi.file_id);
 ```
+
+---
+
+# FASE 2: Collections + Chat Semantico
+
+## Objetivo
+
+Validar que:
+1. Collections podem ser criadas e associadas a arquivos
+2. O agente Health Plan v2 busca nos documentos e responde com base no conteudo real
+3. Interacoes semanticas (perfil familiar, empresa, termos exatos) retornam dados relevantes
+4. Chunks e embeddings estao corretos comparados ao conteudo dos PDFs
+
+## Arquivos de Teste
+
+| # | Arquivo | Collection |
+|---|---------|-----------|
+| 1 | Manual_de_Vendas_PME AMIL.pdf | AMIL PME |
+| 2 | Material de Apoio ao Corretor Linha Porto SaUDE.pdf | Porto Seguro |
+| 3 | PLANOS BASICO.pdf | SulAmerica Basico |
+| 4 | PLANOS COM EINSTEIN.pdf | Einstein |
+
+Localizacao: `__tests__/documentos/`
+
+---
+
+### Teste F2-1: Upload dos PDFs
+
+**Acao (Playwright):**
+```
+1. Login
+2. Para cada PDF: upload via chat (+) → aguardar processamento
+3. Sidebar → Files → screenshot da lista
+```
+
+**Validacao (Supabase MCP):**
+```sql
+SELECT f.name, f.tokens, f.ingestion_status,
+       (SELECT count(*) FROM file_items fi WHERE fi.file_id = f.id) as chunks,
+       (SELECT count(*) FROM file_items fi WHERE fi.file_id = f.id AND fi.openai_embedding IS NOT NULL) as embeddings,
+       (SELECT count(*) FROM file_items fi WHERE fi.file_id = f.id AND fi.content_tsvector IS NOT NULL) as tsvectors,
+       (SELECT count(*) FROM file_items fi WHERE fi.file_id = f.id AND fi.section_type IS NOT NULL) as sections,
+       (SELECT count(*) FROM file_items fi WHERE fi.file_id = f.id AND fi.tags IS NOT NULL AND array_length(fi.tags,1) > 0) as tagged
+FROM files f ORDER BY f.created_at DESC LIMIT 10;
+```
+
+---
+
+### Teste F2-2: Criar Collections
+
+**Acao (Playwright):**
+```
+1. Sidebar → Collections (x=28, y=292)
+2. Para cada collection:
+   a. Clicar [+ New Collection]
+   b. Preencher "Collection name..." com o nome
+   c. Preencher descricao: "Documentos de planos de saude - [nome]"
+   d. Clicar [Create]
+3. Screenshot da lista de collections
+```
+
+**Dialog de criar Collection:**
+```
+┌─────────────────────────────────────┐
+│ Input: "Collection name..."         │
+│ Textarea: "Descreva o conteudo..."  │
+│ [0 files selected]                  │
+│ [Cancel]  [Create]                  │
+└─────────────────────────────────────┘
+```
+
+**Validacao (Supabase MCP):**
+```sql
+SELECT id, name, description FROM collections
+ORDER BY created_at DESC LIMIT 10;
+```
+
+---
+
+### Teste F2-3: Chat — Busca Geral
+
+**Acao (Playwright):**
+```
+1. Upload "Manual_de_Vendas_PME AMIL.pdf" via chat (+)
+2. Aguardar pill azul e indicador de retrieval
+3. Enviar: "Quais tipos de planos estao disponiveis neste documento?"
+4. Aguardar resposta (ate 90s)
+5. Screenshot da resposta
+6. Verificar: resposta menciona informacoes do PDF AMIL
+```
+
+**Validacao (Supabase MCP):**
+```sql
+SELECT intent, routed_capability, search_results_count,
+       execution_time_ms, response_preview
+FROM agent_workflow_logs ORDER BY created_at DESC LIMIT 1;
+```
+
+---
+
+### Teste F2-4: Chat — Perfil Familiar
+
+**Acao (Playwright):**
+```
+1. No mesmo chat, enviar:
+   "Tenho 35 anos, moro em Sao Paulo, sou casado e tenho 2 filhos.
+    Quero um plano de saude para minha familia com orcamento de
+    R$1500 por mes. O que voce recomenda?"
+2. Aguardar resposta (ate 90s)
+3. Screenshot
+4. Verificar: resposta menciona planos adequados para familia
+```
+
+---
+
+### Teste F2-5: Chat — Empresa/PME
+
+**Acao (Playwright):**
+```
+1. No mesmo chat, enviar:
+   "Sou dono de uma empresa com 15 funcionarios. Preciso de um
+    plano empresarial que cubra consultas, exames e internacao.
+    Qual plano PME voces recomendam?"
+2. Aguardar resposta (ate 90s)
+3. Screenshot
+4. Verificar: resposta menciona PME, AMIL, planos empresariais
+```
+
+---
+
+### Teste F2-6: Chat — Carencia (Termo Exato)
+
+**Acao (Playwright):**
+```
+1. Enviar: "Qual e o periodo de carencia para parto?"
+2. Aguardar resposta
+3. Verificar: resposta contem periodo especifico (ex: 300 dias)
+```
+
+**Validacao (Supabase MCP):**
+```sql
+-- Verificar que BM25 encontra "carencia parto" nos chunks
+SELECT LEFT(content, 200) as preview, f.name,
+       ts_rank_cd(content_tsvector, plainto_tsquery('portuguese', 'carencia parto')) as rank
+FROM file_items fi JOIN files f ON f.id = fi.file_id
+WHERE content_tsvector @@ plainto_tsquery('portuguese', 'carencia parto')
+ORDER BY rank DESC LIMIT 5;
+```
+
+---
+
+### Teste F2-7: Chat — Coparticipacao
+
+**Acao (Playwright):**
+```
+1. Enviar: "Como funciona a coparticipacao? Tem algum limite de valor?"
+2. Aguardar resposta
+3. Verificar: resposta explica coparticipacao com dados do documento
+```
+
+---
+
+### Teste F2-8: Cleanup — Delete
+
+**Acao (Playwright):**
+```
+1. Sidebar → Files → deletar todos os arquivos
+2. Screenshot final
+```
+
+**Validacao (Supabase MCP):**
+```sql
+SELECT count(*) as files FROM files WHERE user_id = '<user_id>';
+SELECT count(*) as orphans FROM file_items fi
+WHERE NOT EXISTS (SELECT 1 FROM files f WHERE f.id = fi.file_id);
+```
+
+---
+
+## Ordem de Execucao Fase 2
+
+```
+F2-1: Upload 4 PDFs (Playwright)
+      → Validar chunks + embeddings + tsvectors (MCP)
+F2-2: Criar 4 Collections (Playwright)
+      → Validar collections no banco (MCP)
+F2-3: Chat busca geral (Playwright)
+F2-4: Chat perfil familiar (Playwright)
+F2-5: Chat empresa/PME (Playwright)
+F2-6: Chat carencia (Playwright)
+      → Validar BM25 ranking (MCP)
+F2-7: Chat coparticipacao (Playwright)
+F2-8: Delete cleanup (Playwright)
+      → Validar limpeza (MCP)
+```
+
+## Relatorio Fase 2 (Template)
+
+```
+=== RELATORIO FASE 2 — Collections + Chat Semantico ===
+Data: YYYY-MM-DD HH:MM
+
+F2-1: Upload PDFs           [PASS/FAIL] — [X/4] uploaded, [N] chunks
+F2-2: Criar Collections     [PASS/FAIL] — [X/4] created
+F2-3: Chat busca geral      [PASS/FAIL] — resposta [N] chars, menciona AMIL: [S/N]
+F2-4: Chat perfil familiar  [PASS/FAIL] — resposta [N] chars
+F2-5: Chat empresa/PME      [PASS/FAIL] — resposta [N] chars, menciona PME: [S/N]
+F2-6: Chat carencia          [PASS/FAIL] — contem periodo: [S/N]
+F2-7: Chat coparticipacao   [PASS/FAIL] — contem dados: [S/N]
+F2-8: Delete cleanup        [PASS/FAIL] — [X] deleted, [0] orfaos
+
+DB: Pipeline logs completos   [PASS/FAIL] — [N] correlations, [0] falhas
+DB: Level 3 enrichment        [PASS/FAIL] — tags: [N], contexts: [N]
+DB: Hybrid search executado   [PASS/FAIL] — [N] buscas, top score: [X]
+
+TOTAL: [X] PASS, [X] FAIL de 8 testes
+```
