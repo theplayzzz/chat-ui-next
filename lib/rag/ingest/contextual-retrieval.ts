@@ -14,7 +14,7 @@ export async function generateContextForChunk(
   sectionType?: string | null
 ): Promise<string> {
   const llm = new ChatOpenAI({
-    modelName: "gpt-5.1-nano",
+    modelName: "gpt-5-mini",
     temperature: 1,
     timeout: 30000,
     maxRetries: 2,

@@ -24,7 +24,7 @@ export async function inferChunkTag(
   const tags = availableTags || [...SYSTEM_TAGS]
 
   const llm = new ChatOpenAI({
-    modelName: "gpt-5.1-nano",
+    modelName: "gpt-5-mini",
     temperature: 1,
     timeout: 10000,
     maxRetries: 2,

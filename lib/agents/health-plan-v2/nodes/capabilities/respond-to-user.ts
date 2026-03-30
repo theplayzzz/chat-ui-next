@@ -171,7 +171,7 @@ export async function respondToUser(
 
   try {
     const llm = new ChatOpenAI({
-      modelName: "gpt-5.1-mini",
+      modelName: "gpt-5-mini",
       temperature: 1,
       timeout: 15000,
       maxRetries: 2,

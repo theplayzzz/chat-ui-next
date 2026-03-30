@@ -90,7 +90,7 @@ export async function searchPlans(
       userQuery,
       clientInfo: state.clientInfo,
       conversationMessages,
-      ragModel: "gpt-5.1-mini",
+      ragModel: "gpt-5-mini",
       chunksPerFile: 5
     })
 
@@ -116,7 +116,7 @@ export async function searchPlans(
           totalFiles: 0,
           filesWithResults: 0,
           totalChunks: 0,
-          ragModel: "gpt-5.1-mini",
+          ragModel: "gpt-5-mini",
           executionTimeMs,
           gradingStats: {
             highRelevance: 0,

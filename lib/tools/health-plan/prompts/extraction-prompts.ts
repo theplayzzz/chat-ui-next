@@ -257,7 +257,7 @@ export const EDGE_CASE_EXAMPLES = {
  * (default: gpt-5-mini para balanço custo/qualidade)
  */
 export const EXTRACTION_MODEL_CONFIG = {
-  model: "gpt-5.1-mini" as const,
+  model: "gpt-5-mini" as const,
   temperature: 0.2,
   maxTokens: 4096,
   responseFormat: { type: "json_object" as const }
