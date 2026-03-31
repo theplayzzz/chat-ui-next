@@ -33,7 +33,7 @@ export async function selectFiles(
   }
 ): Promise<SelectedFile[]> {
   const maxFiles = options?.maxFiles ?? 10
-  const minSimilarity = options?.minSimilarity ?? 0.5
+  const minSimilarity = options?.minSimilarity ?? 0.2
   const filterTags = options?.filterTags ?? null
 
   const supabase = createSupabaseAdmin()

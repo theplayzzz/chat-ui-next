@@ -19,8 +19,8 @@ interface CollectionRow {
  */
 const SIMILARITY_THRESHOLDS = {
   high: 0.75, // High confidence match
-  medium: 0.6, // Medium confidence
-  low: 0.5 // Minimum to consider
+  medium: 0.5, // Medium confidence
+  low: 0.2 // Minimum to consider (lowered: prefer returning all collections over missing relevant ones)
 }
 
 function cosineSimilarity(a: number[], b: number[]): number {
