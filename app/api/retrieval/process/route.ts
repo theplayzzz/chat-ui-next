@@ -202,6 +202,18 @@ export async function POST(req: Request) {
     const blob = new Blob([fileBuffer])
     const fileExtension = fileMetadata.name.split(".").pop()?.toLowerCase()
 
+    // Forward file to Claude Agent Docker service (fire-and-forget)
+    if (process.env.CLAUDE_AGENT_SERVICE_URL) {
+      const form = new FormData()
+      form.append("file", new Blob([fileBuffer]), fileMetadata.name)
+      fetch(`${process.env.CLAUDE_AGENT_SERVICE_URL}/upload`, {
+        method: "POST",
+        body: form
+      }).catch((e: Error) =>
+        console.warn("[claude-agent] upload forward failed:", e.message)
+      )
+    }
+
     if (embeddingsProvider === "openai") {
       try {
         if (profile.use_azure_openai) {

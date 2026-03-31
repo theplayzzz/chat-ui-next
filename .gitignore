@@ -63,6 +63,9 @@ node_modules/
 
 # Task files
 
+# Claude Agent Docker Service (runs locally, never deployed)
+claude-agent-service/
+
 # Playwright test artifacts
 __tests__/playwright-test/node_modules/
 __tests__/playwright-test/screenshots/

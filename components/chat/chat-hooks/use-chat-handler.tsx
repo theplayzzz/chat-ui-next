@@ -101,6 +101,24 @@ function isHealthPlanAssistant(
 }
 
 /**
+ * Checks if the assistant is a Claude Agent (Docker + Claude Code CLI).
+ * Uses /api/chat/claude-agent which proxies to the local Docker service.
+ */
+function isClaudeAgentAssistant(
+  assistant: Tables<"assistants"> | null
+): boolean {
+  if (!assistant) return false
+  const name = assistant.name.toLowerCase()
+  const desc = (assistant.description || "").toLowerCase()
+  return (
+    name.includes("claude agent") ||
+    name.includes("agente documentos") ||
+    name.includes("documents agent") ||
+    desc.includes("claude-agent")
+  )
+}
+
+/**
  * Checks if the assistant is specifically Health Plan v2 (LangGraph version).
  * V2 uses a different endpoint with state persistence and conversational flow.
  */
@@ -348,13 +366,16 @@ export const useChatHandler = () => {
 
       let retrievedFileItems: Tables<"file_items">[] = []
 
-      // Skip generic retrieval for health-plan-agent - it has its own RAG workflow
+      // Skip generic retrieval for health-plan-agent and claude-agent - both have their own retrieval
       const isHealthPlan = isHealthPlanAssistant(selectedAssistant)
+      const isV2 = isHealthPlanV2Assistant(selectedAssistant)
+      const skipGenericRAG =
+        isHealthPlan || isClaudeAgentAssistant(selectedAssistant)
 
       if (
         (newMessageFiles.length > 0 || chatFiles.length > 0) &&
         useRetrieval &&
-        !isHealthPlan // Don't do generic RAG for health-plan-agent
+        !skipGenericRAG // Don't do generic RAG for specialized agents
       ) {
         setToolInUse("retrieval")
 
@@ -391,11 +412,70 @@ export const useChatHandler = () => {
 
       let generatedText = ""
 
+      // Check if this is a Claude Agent assistant — routes to Docker service
+      const isClaudeAgent = isClaudeAgentAssistant(selectedAssistant)
+
+      if (isClaudeAgent) {
+        console.log(
+          "[use-chat-handler] 🤖 Claude Agent detected, using /api/chat/claude-agent"
+        )
+        setToolInUse("Claude Agent")
+
+        // Ensure chat exists for session continuity
+        if (!currentChat) {
+          currentChat = await handleCreateChat(
+            chatSettings!,
+            profile!,
+            selectedWorkspace!,
+            messageContent,
+            selectedAssistant!,
+            newMessageFiles,
+            setSelectedChat,
+            setChats,
+            setChatFiles
+          )
+        }
+
+        const simpleMessages = (
+          isRegeneration ? chatMessages : [...chatMessages, tempUserChatMessage]
+        ).map(msg => ({
+          role: msg.message.role as "user" | "assistant",
+          content: msg.message.content
+        }))
+
+        const response = await fetch("/api/chat/claude-agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workspaceId: selectedWorkspace!.id,
+            assistantId: selectedAssistant!.id,
+            chatId: currentChat?.id,
+            messages: simpleMessages
+          }),
+          signal: newAbortController.signal
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Claude Agent error: ${errorText}`)
+        }
+
+        generatedText = await processResponse(
+          response,
+          isRegeneration
+            ? chatMessages[chatMessages.length - 1]
+            : tempAssistantChatMessage,
+          false,
+          newAbortController,
+          setFirstTokenReceived,
+          setChatMessages,
+          setToolInUse
+        )
+      }
+
       // Check if this is a health plan assistant - use specialized API route
       // V2 uses LangGraph with state persistence, V1 uses the original linear workflow
-      const isV2 = isHealthPlanV2Assistant(selectedAssistant)
-
-      if (isHealthPlan) {
+      else if (isHealthPlan) {
         const agentVersion = isV2 ? "v2" : "v1"
         const apiEndpoint = isV2
           ? "/api/chat/health-plan-agent-v2"
