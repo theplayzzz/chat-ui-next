@@ -4,6 +4,7 @@ import { LLM_LIST } from "@/lib/models/llm/llm-list"
 import { cn } from "@/lib/utils"
 import {
   IconBolt,
+  IconBooks,
   IconCirclePlus,
   IconPlayerStopFilled,
   IconSend
@@ -15,6 +16,7 @@ import { toast } from "sonner"
 import { Input } from "../ui/input"
 import { TextareaAutosize } from "../ui/textarea-autosize"
 import { ChatCommandInput } from "./chat-command-input"
+import { ChatCollectionSelector } from "./chat-collection-selector"
 import { ChatFilesDisplay } from "./chat-files-display"
 import { useChatHandler } from "./chat-hooks/use-chat-handler"
 import { useChatHistoryHandler } from "./chat-hooks/use-chat-history"
@@ -31,6 +33,11 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
   })
 
   const [isTyping, setIsTyping] = useState<boolean>(false)
+  const [isCollectionSelectorOpen, setIsCollectionSelectorOpen] =
+    useState(false)
+  const [selectedCollectionFileIds, setSelectedCollectionFileIds] = useState<
+    string[]
+  >([])
 
   const {
     isAssistantPickerOpen,
@@ -217,12 +224,37 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
           <ChatCommandInput />
         </div>
 
+        <ChatCollectionSelector
+          isOpen={isCollectionSelectorOpen}
+          onOpenChange={setIsCollectionSelectorOpen}
+          selectedFileIds={selectedCollectionFileIds}
+          onSelectedFileIdsChange={setSelectedCollectionFileIds}
+        />
+
         <>
-          <IconCirclePlus
-            className="absolute bottom-[12px] left-3 cursor-pointer p-1 transition-all duration-200 hover:scale-110 hover:opacity-50 active:scale-95"
-            size={32}
-            onClick={() => fileInputRef.current?.click()}
-          />
+          <div className="absolute bottom-[12px] left-3 flex items-center gap-0.5">
+            <IconCirclePlus
+              className="cursor-pointer p-1 transition-all duration-200 hover:scale-110 hover:opacity-50 active:scale-95"
+              size={32}
+              onClick={() => fileInputRef.current?.click()}
+            />
+            <IconBooks
+              className={`cursor-pointer rounded p-1 transition-all duration-200 hover:scale-110 hover:opacity-50 active:scale-95 ${
+                selectedCollectionFileIds.length > 0
+                  ? "text-primary"
+                  : "text-muted-foreground"
+              }`}
+              size={28}
+              onClick={() =>
+                setIsCollectionSelectorOpen(!isCollectionSelectorOpen)
+              }
+            />
+            {selectedCollectionFileIds.length > 0 && (
+              <span className="bg-primary text-primary-foreground absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full text-[9px]">
+                {selectedCollectionFileIds.length}
+              </span>
+            )}
+          </div>
 
           {/* Hidden input to select files from device */}
           <Input
@@ -239,7 +271,7 @@ export const ChatInput: FC<ChatInputProps> = ({}) => {
 
         <TextareaAutosize
           textareaRef={chatInputRef}
-          className="ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full resize-none rounded-md border-none bg-transparent px-14 py-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring text-md flex w-full resize-none rounded-md border-none bg-transparent py-2 pl-[85px] pr-14 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           placeholder={t(
             // `Ask anything. Type "@" for assistants, "/" for prompts, "#" for files, and "!" for tools.`
             `Ask anything. Type @  /  #  !`
