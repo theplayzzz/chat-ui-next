@@ -27,6 +27,13 @@ test.describe('FASE 3: Collection Selector UI', () => {
     await login(page);
     await page.waitForTimeout(3000);
 
+    // Capturar console logs do browser
+    page.on('console', msg => {
+      if (msg.text().includes('coll-selector') || msg.text().includes('collection')) {
+        console.log(`  BROWSER: ${msg.text()}`);
+      }
+    });
+
     // F3-1: Verificar icone de books
     const booksIcon = page.locator('svg.tabler-icon-books, [class*="tabler-icon-books"]');
     // Alternativa: procurar pelo segundo icone na area do input
