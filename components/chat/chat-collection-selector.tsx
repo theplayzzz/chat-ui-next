@@ -38,7 +38,15 @@ export const ChatCollectionSelector: FC<ChatCollectionSelectorProps> = ({
   selectedFileIds,
   onSelectedFileIdsChange
 }) => {
-  const { selectedAssistant } = useContext(ChatbotUIContext)
+  const { selectedAssistant, assistants } = useContext(ChatbotUIContext)
+
+  // Use selectedAssistant or find Health Plan v2 from context
+  const activeAssistant =
+    selectedAssistant ||
+    assistants.find(
+      a => a.name === "Health Plan v2" || a.name === "Agente de Planos de Saúde"
+    ) ||
+    null
   const [collectionsWithFiles, setCollectionsWithFiles] = useState<
     CollectionWithFiles[]
   >([])
@@ -48,13 +56,13 @@ export const ChatCollectionSelector: FC<ChatCollectionSelectorProps> = ({
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (isOpen && selectedAssistant) {
+    if (isOpen && activeAssistant) {
       loadCollections()
     }
-  }, [isOpen, selectedAssistant?.id])
+  }, [isOpen, activeAssistant?.id])
 
   const loadCollections = async () => {
-    if (!selectedAssistant) return
+    if (!activeAssistant) return
     setLoading(true)
 
     try {
@@ -62,7 +70,7 @@ export const ChatCollectionSelector: FC<ChatCollectionSelectorProps> = ({
       const { data: assistantCollections } = await supabase
         .from("assistant_collections")
         .select("collection_id")
-        .eq("assistant_id", selectedAssistant.id)
+        .eq("assistant_id", activeAssistant.id)
 
       if (!assistantCollections || assistantCollections.length === 0) {
         setCollectionsWithFiles([])
@@ -190,9 +198,9 @@ export const ChatCollectionSelector: FC<ChatCollectionSelectorProps> = ({
             {selectedCount}/{totalFiles} selecionados
           </span>
         </div>
-        {selectedAssistant && (
+        {activeAssistant && (
           <p className="text-muted-foreground mt-1 text-xs">
-            Collections vinculadas a {selectedAssistant.name}
+            Collections vinculadas a {activeAssistant.name}
           </p>
         )}
       </div>

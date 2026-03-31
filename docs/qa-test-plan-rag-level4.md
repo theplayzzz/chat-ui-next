@@ -747,3 +747,179 @@ DB: Hybrid search executado   [PASS/FAIL] — [N] buscas, top score: [X]
 
 TOTAL: [X] PASS, [X] FAIL de 8 testes
 ```
+
+---
+
+# FASE 3: Collection Selector + RAG via Collections
+
+## Objetivo
+
+Validar que:
+1. O seletor de collections/files aparece no chat input (icone de livros)
+2. Collections vinculadas ao assistente sao carregadas com seus arquivos
+3. O usuario pode selecionar/desselecionar collections e arquivos individuais
+4. Arquivos selecionados sao usados como contexto para busca RAG
+5. Quando o agente busca planos, ele encontra dados especificos dos PDFs
+
+## Pre-requisitos
+- Collections vinculadas ao assistente Health Plan v2 no banco
+- Arquivos dentro das collections
+- Deploy com o componente ChatCollectionSelector
+
+## Mapa da Interface — Collection Selector
+
+```
+Chat Input Area:
+┌──────────────────────────────────────────────────┐
+│                                                  │
+│  ┌─ Collection Selector (popup) ────────────────┐│
+│  │ 📚 Documentos para consulta     3/4 selecion.││
+│  │ Collections vinculadas a Health Plan v2       ││
+│  │─────────────────────────────────────────────  ││
+│  │ ▼ ☑ 📚 AMIL PME                  1 arquivo   ││
+│  │     ☑ 📄 manual_de_vendas_pme_amil  38.5K    ││
+│  │ ▼ ☑ 📚 Einstein                  1 arquivo   ││
+│  │     ☑ 📄 planos_com_einstein        66.2K    ││
+│  │ ▼ ☐ 📚 Porto Seguro              0 arquivos  ││
+│  │ ▼ ☑ 📚 SulAmerica Basico         1 arquivo   ││
+│  │     ☑ 📄 planos_b_sico             24.9K     ││
+│  │─────────────────────────────────────────────  ││
+│  │ Desselecionar todos          [Confirmar]      ││
+│  └───────────────────────────────────────────────┘│
+│                                                  │
+│  ┌─[⊕][📚]──────────────────────────────[▶]──┐  │
+│  │ Ask anything. Type @ / # !                 │  │
+│  └────────────────────────────────────────────┘  │
+│   ⊕ = upload novo    📚 = collection selector   │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+### Teste F3-1: Icone de Collections Aparece
+
+**Acao (Playwright):**
+```
+1. Login → Chat page
+2. Verificar que existe icone 📚 (IconBooks) ao lado do (+)
+3. Clicar no icone
+4. Verificar que popup de collections abre
+5. Screenshot
+```
+
+---
+
+### Teste F3-2: Collections e Arquivos Carregados
+
+**Acao (Playwright):**
+```
+1. Clicar no icone 📚
+2. Verificar lista de collections:
+   - AMIL PME (1 arquivo)
+   - Einstein (1 arquivo)
+   - SulAmerica Basico (1 arquivo)
+   - Porto Seguro (0 arquivos)
+   - Proposta Neural (1 arquivo)
+3. Expandir cada collection → verificar arquivos dentro
+4. Screenshot
+```
+
+**Validacao (Supabase MCP):**
+```sql
+SELECT c.name, count(cf.file_id) as files
+FROM collections c
+LEFT JOIN collection_files cf ON cf.collection_id = c.id
+JOIN assistant_collections ac ON ac.collection_id = c.id
+WHERE ac.assistant_id = '<health_plan_v2_id>'
+GROUP BY c.name ORDER BY c.name;
+```
+
+---
+
+### Teste F3-3: Selecionar/Desselecionar Collection
+
+**Acao (Playwright):**
+```
+1. Abrir seletor de collections
+2. Desselecionar "Einstein" (clicar checkbox)
+3. Verificar que arquivo dentro ficou desmarcado
+4. Selecionar "Einstein" novamente
+5. Verificar que arquivo dentro ficou marcado
+6. Screenshot
+```
+
+---
+
+### Teste F3-4: Selecionar Arquivo Individual
+
+**Acao (Playwright):**
+```
+1. Abrir seletor de collections
+2. Expandir "AMIL PME"
+3. Desselecionar "manual_de_vendas_pme_amil.pdf"
+4. Verificar que collection mostra selecao parcial
+5. Re-selecionar o arquivo
+6. Screenshot
+```
+
+---
+
+### Teste F3-5: Chat com Collections Selecionadas
+
+**Acao (Playwright):**
+```
+1. Abrir seletor, garantir AMIL PME selecionado
+2. Confirmar selecao
+3. Enviar: "Quais planos PME da AMIL estao disponiveis?"
+4. Aguardar resposta (ate 90s)
+5. Verificar: resposta menciona dados do PDF AMIL
+6. Screenshot
+```
+
+**Validacao (Supabase MCP):**
+```sql
+-- Verificar que o agente fez busca nos documentos
+SELECT intent, routed_capability, search_results_count,
+       execution_time_ms
+FROM agent_workflow_logs
+ORDER BY created_at DESC LIMIT 1;
+
+-- Verificar hybrid search com fileIds filtrados
+SELECT stage, status,
+       input_metadata->>'query' as query,
+       output_metadata->>'chunksReturned' as chunks
+FROM rag_pipeline_logs
+WHERE stage = 'hybrid_search'
+ORDER BY created_at DESC LIMIT 1;
+```
+
+---
+
+### Teste F3-6: Chat sem Collections (Desselecionar Tudo)
+
+**Acao (Playwright):**
+```
+1. Abrir seletor → "Desselecionar todos"
+2. Confirmar
+3. Enviar: "Quais planos voces tem?"
+4. Verificar: resposta e generica (sem dados dos PDFs)
+5. Screenshot
+```
+
+---
+
+## Relatorio Fase 3 (Template)
+
+```
+=== RELATORIO FASE 3 — Collection Selector + RAG ===
+Data: YYYY-MM-DD HH:MM
+
+F3-1: Icone collections        [PASS/FAIL]
+F3-2: Collections carregadas   [PASS/FAIL] — [N] collections, [N] files
+F3-3: Toggle collection        [PASS/FAIL]
+F3-4: Toggle arquivo individual [PASS/FAIL]
+F3-5: Chat com collections     [PASS/FAIL] — search_results: [N]
+F3-6: Chat sem collections     [PASS/FAIL] — resposta generica: [S/N]
+
+TOTAL: [X] PASS, [X] FAIL de 6 testes
+```
