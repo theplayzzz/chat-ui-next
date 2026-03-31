@@ -673,7 +673,9 @@ async function retrieveHybridNode(
   state: SearchPlansState
 ): Promise<Partial<SearchPlansState>> {
   console.log("[search-plans-graph] [L3] Retrieving hybrid chunks...")
-  const planType = state.queryClassification?.planType || state.planType || null
+  // NOTE: planType is NOT used as a hard filter — PME documents serve
+  // individual/familiar clients too. The grading LLM evaluates fit instead.
+  const planType = null
 
   const result = await retrieveHybrid(state.userQuery, state.assistantId, {
     maxChunks: 20,
