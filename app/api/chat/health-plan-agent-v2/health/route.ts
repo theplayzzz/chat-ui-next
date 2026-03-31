@@ -11,7 +11,7 @@ export const runtime = "nodejs"
 export async function GET(request: NextRequest) {
   const result: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
-    buildVersion: "rag-level4-accuracy-v2",
+    buildVersion: "rag-level4-accuracy-v3-threshold-fix",
     nodeEnv: process.env.NODE_ENV,
     envVars: {
       DATABASE_URL: process.env.DATABASE_URL
