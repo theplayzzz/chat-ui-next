@@ -324,7 +324,18 @@ async function retrieveByFileNode(
 async function gradeByFileNode(
   state: SearchPlansState
 ): Promise<Partial<SearchPlansState>> {
-  console.log("[search-plans-graph] Avaliando arquivos...")
+  console.log("[search-plans-graph] Avaliando arquivos...", {
+    fileResultsCount: state.fileResults.length,
+    filesWithChunks: state.fileResults.filter(f => f.totalChunks > 0).length,
+    totalChunksAcrossFiles: state.fileResults.reduce(
+      (sum, f) => sum + f.totalChunks,
+      0
+    ),
+    fileNames: state.fileResults.map(
+      f =>
+        `${f.fileName}(${f.totalChunks}ch,col=${f.collection?.name || "NONE"})`
+    )
+  })
 
   if (state.fileResults.length === 0) {
     return {
@@ -372,6 +383,15 @@ async function gradeByFileNode(
 async function gradeByCollectionNode(
   state: SearchPlansState
 ): Promise<Partial<SearchPlansState>> {
+  console.log("[search-plans-graph] gradeByCollection input:", {
+    fileGradingResults: state.fileGradingResults.map(f => ({
+      file: f.fileName,
+      relevance: f.relevance,
+      analysisLen: f.analysisText?.length || 0
+    })),
+    fileResultsWithCollections: state.fileResults.filter(f => f.collection)
+      .length
+  })
   console.log("[search-plans-graph] Analisando por collection (Fase 6E)...")
 
   if (state.fileResults.length === 0) {
