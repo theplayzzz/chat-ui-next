@@ -8,7 +8,7 @@
  *
  * Em produção (Vercel), use DATABASE_URL_POOLER com PgBouncer:
  * ```
- * DATABASE_URL_POOLER=postgresql://user:pass@db.xxx.supabase.co:6543/postgres?pgbouncer=true
+ * DATABASE_URL_POOLER=postgresql://user:pass@aws-0-region.pooler.supabase.com:6543/postgres?pgbouncer=true
  * ```
  *
  * Em desenvolvimento, use DATABASE_URL com conexão direta:
@@ -28,6 +28,44 @@ import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres"
 let checkpointerInstance: PostgresSaver | null = null
 let setupComplete = false
 
+// Circuit breaker: stop retrying after consecutive failures
+let consecutiveFailures = 0
+let lastFailureTime = 0
+const MAX_CONSECUTIVE_FAILURES = 3
+const CIRCUIT_BREAKER_COOLDOWN_MS = 60_000 // 1 minute
+
+/**
+ * Parses and validates a database connection URL.
+ * Logs the hostname explicitly for debugging DNS issues.
+ */
+function parseAndValidateUrl(url: string, label: string): void {
+  try {
+    const parsed = new URL(url)
+    console.log(`[checkpointer] ${label} parsed:`, {
+      hostname: parsed.hostname,
+      port: parsed.port || "(default)",
+      protocol: parsed.protocol
+    })
+
+    // Warn if using legacy direct connection format from Vercel
+    if (
+      parsed.hostname.startsWith("db.") &&
+      !parsed.hostname.includes("pooler") &&
+      process.env.NODE_ENV === "production"
+    ) {
+      console.warn(
+        `[checkpointer] WARNING: ${label} uses legacy direct hostname "${parsed.hostname}". ` +
+          "Vercel serverless may not resolve this. " +
+          "Use pooler format: aws-0-<region>.pooler.supabase.com:6543"
+      )
+    }
+  } catch {
+    console.error(
+      `[checkpointer] ${label} is not a valid URL: ${url.slice(0, 30)}...`
+    )
+  }
+}
+
 /**
  * Obtém a connection string apropriada para o ambiente
  */
@@ -38,21 +76,21 @@ function getConnectionString(): string {
   console.log("[checkpointer] Environment check:", {
     NODE_ENV: process.env.NODE_ENV,
     DATABASE_URL_POOLER: poolerUrl
-      ? `SET (${poolerUrl.length} chars, ends: ...${poolerUrl.slice(-30)})`
+      ? `SET (${poolerUrl.length} chars)`
       : "MISSING",
-    DATABASE_URL: directUrl
-      ? `SET (${directUrl.length} chars, ends: ...${directUrl.slice(-30)})`
-      : "MISSING"
+    DATABASE_URL: directUrl ? `SET (${directUrl.length} chars)` : "MISSING"
   })
 
   // Preferir pooler em produção (PgBouncer para serverless)
   if (poolerUrl) {
+    parseAndValidateUrl(poolerUrl, "DATABASE_URL_POOLER")
     console.log("[checkpointer] Using DATABASE_URL_POOLER")
     return poolerUrl
   }
 
   // Fallback para conexão direta
   if (directUrl) {
+    parseAndValidateUrl(directUrl, "DATABASE_URL")
     console.log("[checkpointer] Using DATABASE_URL (direct connection)")
     if (process.env.NODE_ENV === "production") {
       console.warn(
@@ -76,10 +114,29 @@ function getConnectionString(): string {
  *
  * Em produção (Vercel): usa DATABASE_URL_POOLER (PgBouncer, porta 6543)
  * Em desenvolvimento: usa DATABASE_URL (conexão direta)
+ *
+ * Includes circuit breaker: after 3 consecutive failures, stops retrying
+ * for 60 seconds to avoid blocking requests with slow DNS timeouts.
  */
 export async function getCheckpointer(): Promise<PostgresSaver> {
   if (checkpointerInstance && setupComplete) {
+    // Reset circuit breaker on success path
+    consecutiveFailures = 0
     return checkpointerInstance
+  }
+
+  // Circuit breaker check
+  if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+    const elapsed = Date.now() - lastFailureTime
+    if (elapsed < CIRCUIT_BREAKER_COOLDOWN_MS) {
+      throw new Error(
+        `[checkpointer] Circuit breaker OPEN: ${consecutiveFailures} consecutive failures. ` +
+          `Cooldown: ${Math.ceil((CIRCUIT_BREAKER_COOLDOWN_MS - elapsed) / 1000)}s remaining.`
+      )
+    }
+    // Cooldown expired, allow retry
+    console.log("[checkpointer] Circuit breaker cooldown expired, retrying...")
+    consecutiveFailures = 0
   }
 
   try {
@@ -98,9 +155,23 @@ export async function getCheckpointer(): Promise<PostgresSaver> {
       console.log("[checkpointer] Setup complete")
     }
 
+    // Reset circuit breaker on success
+    consecutiveFailures = 0
     return checkpointerInstance
   } catch (error) {
-    console.error("[checkpointer] Failed to initialize:", error)
+    consecutiveFailures++
+    lastFailureTime = Date.now()
+
+    // Clear stale instance on failure
+    checkpointerInstance = null
+    setupComplete = false
+
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.error("[checkpointer] Failed to initialize:", {
+      error: errorMsg,
+      consecutiveFailures,
+      circuitBreakerWillOpen: consecutiveFailures >= MAX_CONSECUTIVE_FAILURES
+    })
     throw error
   }
 }
@@ -121,8 +192,6 @@ export function getThreadConfig(chatId: string) {
  */
 export async function closeCheckpointer(): Promise<void> {
   if (checkpointerInstance) {
-    // PostgresSaver não tem método close explícito,
-    // mas podemos limpar a referência
     checkpointerInstance = null
     setupComplete = false
     console.log("[checkpointer] Checkpointer instance cleared")

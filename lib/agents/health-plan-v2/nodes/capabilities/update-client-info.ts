@@ -337,9 +337,77 @@ function generateConfirmationMessage(
 // ============================================================================
 
 /**
- * Gera pergunta de follow-up contextual baseada nos dados faltantes
+ * Gera perguntas de follow-up específicas para fluxo empresarial/PME
+ */
+function generateEmpresarialFollowUp(ci: Record<string, unknown>): string {
+  const hasLocation = Boolean(ci.city || ci.state)
+  const hasEmployeeCount =
+    typeof ci.employeeCount === "number" && ci.employeeCount > 0
+
+  // Se não tem nenhum dado empresarial relevante, pergunta consolidada
+  if (!hasLocation && !hasEmployeeCount) {
+    const parts: string[] = []
+    if (ci.companyName) parts.push(`Empresa: ${ci.companyName}`)
+    if (ci.contractType) parts.push(`Tipo: ${ci.contractType}`)
+    const summary =
+      parts.length > 0 ? `📋 Já tenho: ${parts.join(", ")}.\n\n` : ""
+
+    return `${summary}Para encontrar os melhores planos empresariais, preciso de algumas informações:
+
+📋 **Informações necessárias:**
+- **Cidade** e **estado** da empresa
+- **Quantidade de funcionários/vidas** que serão incluídos
+- **Orçamento mensal** disponível (por vida ou total)
+
+Se puder, também me informe os **dados dos beneficiários** (idade de cada funcionário e se terão dependentes).
+
+Pode compartilhar essas informações?`
+  }
+
+  // Perguntas específicas por campo faltante
+  if (!hasLocation) {
+    return "Em qual **cidade** e **estado** a empresa está localizada?"
+  }
+
+  if (!hasEmployeeCount) {
+    return "Quantos **funcionários/vidas** serão incluídos no plano?"
+  }
+
+  if (ci.budget === undefined) {
+    return "Qual o **orçamento mensal** disponível para o plano? (pode ser valor total ou por vida)"
+  }
+
+  const beneficiaries = ci.beneficiaries as unknown[] | undefined
+  if (!beneficiaries || beneficiaries.length === 0) {
+    return `Pode me informar os **dados dos beneficiários**?
+
+Para cada funcionário, preciso saber:
+- **Idade**
+- Se terá **dependentes** (cônjuge, filhos) e a idade de cada um
+
+Exemplo: "João 35 anos com esposa de 32 e filho de 5, Maria 28 anos sem dependentes"`
+  }
+
+  // Todos campos obrigatórios preenchidos - gerar confirmação
+  return generateConfirmationMessage(
+    ci as unknown as V1PartialClientInfo,
+    calculateCompleteness(ci as unknown as V1PartialClientInfo),
+    []
+  )
+}
+
+/**
+ * Gera pergunta de follow-up contextual baseada nos dados faltantes.
+ * Contract-type-aware: empresarial/PME tem fluxo separado.
  */
 function generateFollowUpQuestion(clientInfo: V1PartialClientInfo): string {
+  const ci = clientInfo as Record<string, unknown>
+
+  // Fluxo empresarial/PME: perguntas específicas
+  if (ci.contractType === "empresarial" || ci.contractType === "pme") {
+    return generateEmpresarialFollowUp(ci)
+  }
+
   const hasAnyRequired =
     clientInfo.age !== undefined ||
     clientInfo.city ||

@@ -209,9 +209,33 @@ Responda a pergunta do usuário de forma educativa e contextual.`
       `[respondToUser] Response generated, topic: ${result.topicCategory}, terms: ${result.termsExplained.length}`
     )
 
+    // Guard: add disclaimer when topic requires RAG data and none is available
+    const TOPICS_REQUIRING_RAG: readonly string[] = [
+      "plan_comparison",
+      "coverage",
+      "pricing"
+    ]
+    const hasRAGContext = Boolean(
+      state.ragAnalysisContext ||
+        (state.searchResults && state.searchResults.length > 0) ||
+        state.compatibilityAnalysis
+    )
+
+    let finalResponse = result.response
+    if (TOPICS_REQUIRING_RAG.includes(result.topicCategory) && !hasRAGContext) {
+      const disclaimer =
+        "\n\n> **Nota:** Ainda não busquei planos específicos para seu perfil. " +
+        "Para informações mais precisas sobre coberturas e preços, me forneça seus dados " +
+        "(idade, cidade, orçamento) e farei uma busca personalizada."
+      finalResponse += disclaimer
+      console.log(
+        "[respondToUser] Added RAG grounding disclaimer (no search results available)"
+      )
+    }
+
     return {
-      currentResponse: result.response,
-      messages: [new AIMessage(result.response)]
+      currentResponse: finalResponse,
+      messages: [new AIMessage(finalResponse)]
     }
   } catch (error) {
     console.error("[respondToUser] LLM failed, using fallback:", error)

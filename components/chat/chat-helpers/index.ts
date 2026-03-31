@@ -415,11 +415,17 @@ export const handleCreateMessages = async (
     image_paths: []
   }
 
+  // Strip __DEBUG__ blocks before persisting to database
+  // Debug content is only for real-time UI display, not for storage
+  const cleanGeneratedText = generatedText
+    .replace(/__DEBUG__.*?__DEBUG__\s*/gs, "")
+    .trim()
+
   const finalAssistantMessage: TablesInsert<"messages"> = {
     chat_id: currentChat.id,
     assistant_id: selectedAssistant?.id || null,
     user_id: profile.user_id,
-    content: generatedText,
+    content: cleanGeneratedText,
     model: modelData.modelId,
     role: "assistant",
     sequence_number: chatMessages.length + 1,
@@ -433,7 +439,7 @@ export const handleCreateMessages = async (
 
     const updatedMessage = await updateMessage(lastStartingMessage.id, {
       ...lastStartingMessage,
-      content: generatedText
+      content: cleanGeneratedText
     })
 
     chatMessages[chatMessages.length - 1].message = updatedMessage

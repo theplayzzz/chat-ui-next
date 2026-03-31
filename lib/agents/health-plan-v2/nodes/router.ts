@@ -69,21 +69,32 @@ export interface RouteDecision {
 // ============================================================================
 
 /**
- * Verifica se clientInfo tem os dados mínimos necessários para buscar planos
+ * Verifica se clientInfo tem os dados mínimos necessários para buscar planos.
  *
- * Dados obrigatórios: age (ou faixa etária) e city/state
+ * Contract-type-aware:
+ * - Empresarial/PME: location + employeeCount (age pessoal NÃO obrigatória)
+ * - Individual/Familiar: age + location
  */
 export function hasRequiredClientData(
   clientInfo: PartialClientInfo | undefined
 ): boolean {
   if (!clientInfo) return false
 
-  // Precisa de idade (ou poder inferir da faixa etária)
-  const hasAge = typeof clientInfo.age === "number" && clientInfo.age > 0
-
-  // Precisa de localização (cidade ou estado)
   const hasLocation = Boolean(clientInfo.city || clientInfo.state)
 
+  // Empresarial/PME: precisa de localização + quantidade de funcionários
+  if (
+    clientInfo.contractType === "empresarial" ||
+    clientInfo.contractType === "pme"
+  ) {
+    const hasEmployeeCount =
+      typeof clientInfo.employeeCount === "number" &&
+      clientInfo.employeeCount > 0
+    return hasLocation && hasEmployeeCount
+  }
+
+  // Individual/Familiar (default): precisa de idade + localização
+  const hasAge = typeof clientInfo.age === "number" && clientInfo.age > 0
   return hasAge && hasLocation
 }
 

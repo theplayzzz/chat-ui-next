@@ -89,9 +89,29 @@ export type PartialClientInfo = z.infer<typeof PartialClientInfoSchema>
 export type MinimalClientInfo = z.infer<typeof MinimalClientInfoSchema>
 
 /**
- * Lista de campos obrigatórios para progressão
+ * Lista de campos obrigatórios para progressão (individual/familiar)
  */
 export const REQUIRED_FIELDS = ["age", "city", "state", "budget"] as const
+
+/**
+ * Lista de campos obrigatórios para fluxo empresarial/PME
+ */
+export const REQUIRED_FIELDS_EMPRESARIAL = [
+  "contractType",
+  "city",
+  "state",
+  "employeeCount"
+] as const
+
+/**
+ * Schema mínimo para validação de empresarial/PME
+ */
+export const EmpresarialMinimalSchema = z.object({
+  contractType: z.enum(["empresarial", "pme"]),
+  city: z.string().min(1),
+  state: z.string().length(2),
+  employeeCount: z.number().int().positive()
+})
 
 /**
  * Labels amigáveis para campos (usado em mensagens de erro)
@@ -104,16 +124,26 @@ export const FIELD_LABELS: Record<string, string> = {
   dependents: "dependentes",
   preExistingConditions: "condições pré-existentes",
   medications: "medicamentos de uso contínuo",
-  preferences: "preferências"
+  preferences: "preferências",
+  contractType: "tipo de contrato",
+  employeeCount: "quantidade de funcionários/vidas",
+  companyName: "nome da empresa",
+  beneficiaries: "dados dos beneficiários"
 }
 
 /**
  * Valida se as informações do cliente estão completas o suficiente
- * para prosseguir para o próximo step do processo
+ * para prosseguir para o próximo step do processo.
+ *
+ * Contract-type-aware: empresarial/PME usa EmpresarialMinimalSchema.
  */
 export function isClientInfoComplete(
   info: PartialClientInfo
 ): info is MinimalClientInfo {
+  const ci = info as Record<string, unknown>
+  if (ci.contractType === "empresarial" || ci.contractType === "pme") {
+    return EmpresarialMinimalSchema.safeParse(info).success
+  }
   const result = MinimalClientInfoSchema.safeParse(info)
   return result.success
 }
@@ -123,37 +153,49 @@ export function isClientInfoComplete(
  * Campos obrigatórios têm peso maior
  */
 export function calculateCompleteness(info: PartialClientInfo): number {
-  const weights = {
-    age: 20,
-    city: 15,
-    state: 15,
-    budget: 20,
-    dependents: 10,
-    preExistingConditions: 10,
-    medications: 5,
-    preferences: 5
-  }
+  const ci = info as Record<string, unknown>
+  const isEmpresarial =
+    ci.contractType === "empresarial" || ci.contractType === "pme"
+
+  const weights = isEmpresarial
+    ? {
+        contractType: 15,
+        city: 15,
+        state: 15,
+        employeeCount: 20,
+        budget: 15,
+        beneficiaries: 10,
+        companyName: 5,
+        preferences: 5
+      }
+    : {
+        age: 20,
+        city: 15,
+        state: 15,
+        budget: 20,
+        dependents: 10,
+        preExistingConditions: 10,
+        medications: 5,
+        preferences: 5
+      }
 
   let score = 0
   let maxScore = 0
 
   for (const [field, weight] of Object.entries(weights)) {
     maxScore += weight
-    const value = info[field as keyof PartialClientInfo]
+    const value = ci[field]
 
     if (value !== undefined && value !== null) {
       if (Array.isArray(value)) {
-        // Arrays contam como completos se não estão vazios
         if (value.length > 0) {
           score += weight
         }
       } else if (typeof value === "object") {
-        // Objetos contam como completos se têm pelo menos uma propriedade
         if (Object.keys(value).length > 0) {
           score += weight
         }
       } else {
-        // Valores primitivos contam se estão presentes
         score += weight
       }
     }

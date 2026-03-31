@@ -10,6 +10,7 @@ import {
   isClientInfoComplete,
   calculateCompleteness,
   REQUIRED_FIELDS,
+  REQUIRED_FIELDS_EMPRESARIAL,
   FIELD_LABELS,
   type PartialClientInfo,
   type ClientInfo
@@ -99,56 +100,91 @@ export function detectMissingFields(
   clientInfo: PartialClientInfo
 ): MissingFieldInfo[] {
   const missing: MissingFieldInfo[] = []
+  const ci = clientInfo as Record<string, unknown>
+  const isEmpresarial =
+    ci.contractType === "empresarial" || ci.contractType === "pme"
 
-  // Prioridades: campos obrigatórios primeiro
-  const fieldPriorities: Record<string, number> = {
-    age: 1,
-    city: 1,
-    state: 1,
-    budget: 1,
-    dependents: 2,
-    preExistingConditions: 3,
-    medications: 3,
-    preferences: 4
-  }
+  if (isEmpresarial) {
+    // Empresarial/PME: campos obrigatórios diferentes
+    const empresarialPriorities: Record<string, number> = {
+      contractType: 1,
+      city: 1,
+      state: 1,
+      employeeCount: 1,
+      budget: 2,
+      beneficiaries: 2,
+      companyName: 3
+    }
 
-  // Verificar campos obrigatórios
-  for (const field of REQUIRED_FIELDS) {
-    const value = clientInfo[field as keyof PartialClientInfo]
+    for (const field of REQUIRED_FIELDS_EMPRESARIAL) {
+      const value = ci[field]
+      if (value === undefined || value === null) {
+        missing.push({
+          field,
+          label: FIELD_LABELS[field] || field,
+          isRequired: true,
+          priority: empresarialPriorities[field] || 5
+        })
+      }
+    }
 
-    if (value === undefined || value === null) {
-      missing.push({
-        field,
-        label: FIELD_LABELS[field] || field,
-        isRequired: true,
-        priority: fieldPriorities[field] || 5
-      })
+    // Campos opcionais importantes para empresarial
+    const optionalEmpresarial = ["budget", "beneficiaries", "companyName"]
+    for (const field of optionalEmpresarial) {
+      const value = ci[field]
+      if (value === undefined) {
+        missing.push({
+          field,
+          label: FIELD_LABELS[field] || field,
+          isRequired: false,
+          priority: empresarialPriorities[field] || 5
+        })
+      }
+    }
+  } else {
+    // Individual/Familiar: lógica original
+    const fieldPriorities: Record<string, number> = {
+      age: 1,
+      city: 1,
+      state: 1,
+      budget: 1,
+      dependents: 2,
+      preExistingConditions: 3,
+      medications: 3,
+      preferences: 4
+    }
+
+    for (const field of REQUIRED_FIELDS) {
+      const value = clientInfo[field as keyof PartialClientInfo]
+      if (value === undefined || value === null) {
+        missing.push({
+          field,
+          label: FIELD_LABELS[field] || field,
+          isRequired: true,
+          priority: fieldPriorities[field] || 5
+        })
+      }
+    }
+
+    const optionalImportantFields = [
+      "dependents",
+      "preExistingConditions",
+      "medications"
+    ]
+
+    for (const field of optionalImportantFields) {
+      const value = clientInfo[field as keyof PartialClientInfo]
+      if (value === undefined) {
+        missing.push({
+          field,
+          label: FIELD_LABELS[field] || field,
+          isRequired: false,
+          priority: fieldPriorities[field] || 5
+        })
+      }
     }
   }
 
-  // Verificar campos opcionais importantes
-  const optionalImportantFields = [
-    "dependents",
-    "preExistingConditions",
-    "medications"
-  ]
-
-  for (const field of optionalImportantFields) {
-    const value = clientInfo[field as keyof PartialClientInfo]
-
-    // Considera missing se nunca foi perguntado (undefined)
-    // Não considera missing se foi explicitamente respondido como vazio ([])
-    if (value === undefined) {
-      missing.push({
-        field,
-        label: FIELD_LABELS[field] || field,
-        isRequired: false,
-        priority: fieldPriorities[field] || 5
-      })
-    }
-  }
-
-  // Ordenar por prioridade
   return missing.sort((a, b) => a.priority - b.priority)
 }
 

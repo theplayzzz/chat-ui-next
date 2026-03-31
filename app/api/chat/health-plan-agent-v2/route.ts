@@ -18,6 +18,7 @@ import { NextRequest } from "next/server"
 import { StreamingTextResponse } from "ai"
 import { getServerProfile } from "@/lib/server/server-chat-helpers"
 import { HumanMessage, AIMessage } from "@langchain/core/messages"
+import { createClient } from "@supabase/supabase-js"
 import {
   compileWorkflow,
   createInitialState,
@@ -84,28 +85,99 @@ interface HealthPlanAgentV2Request {
 }
 
 /**
- * Reconstrói clientInfo a partir do histórico de mensagens do assistente.
+ * Reconstrói clientInfo a partir dos workflow logs no banco de dados.
  * Usado como fallback quando o checkpointer está inativo.
- * Busca dados estruturados (idade, cidade, dependentes, etc.) nas respostas
- * de confirmação do assistente que contêm os dados coletados.
+ *
+ * Busca o registro mais recente de agent_workflow_logs para o chat,
+ * que contém o clientInfo completo como JSONB (incluindo campos
+ * empresariais como contractType, beneficiaries, companyName, etc.).
+ */
+async function reconstructClientInfoFromDB(
+  chatId: string
+): Promise<{ clientInfo: Record<string, unknown>; version: number } | null> {
+  try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.warn(
+        "[health-plan-v2] Missing Supabase env vars for clientInfo reconstruction"
+      )
+      return null
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    })
+
+    const { data, error } = await supabase
+      .from("agent_workflow_logs")
+      .select("client_info, client_info_version")
+      .eq("chat_id", chatId)
+      .not("client_info", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error) {
+      console.warn(
+        "[health-plan-v2] Failed to query workflow logs for reconstruction:",
+        error.message
+      )
+      return null
+    }
+
+    if (
+      data?.client_info &&
+      typeof data.client_info === "object" &&
+      Object.keys(data.client_info as Record<string, unknown>).length > 0
+    ) {
+      console.log(
+        "[health-plan-v2] Reconstructed clientInfo from workflow logs:",
+        {
+          keys: Object.keys(data.client_info as Record<string, unknown>),
+          version: data.client_info_version,
+          method: "agent_workflow_logs"
+        }
+      )
+      return {
+        clientInfo: data.client_info as Record<string, unknown>,
+        version: (data.client_info_version as number) || 1
+      }
+    }
+
+    return null
+  } catch (err) {
+    console.warn(
+      "[health-plan-v2] Error reconstructing clientInfo from DB:",
+      err instanceof Error ? err.message : err
+    )
+    return null
+  }
+}
+
+/**
+ * Fallback: reconstrói clientInfo via regex do histórico de mensagens.
+ * Usado apenas quando agent_workflow_logs não tem dados (chat legacy).
+ * Limpa __DEBUG__ blocks antes de aplicar regex.
  */
 function reconstructClientInfoFromHistory(
   messages: Array<{ role: string; content: string }>
 ): Record<string, unknown> | null {
-  // Procurar nas mensagens do assistente por confirmações de dados
   const assistantMessages = messages
     .filter(m => m.role === "assistant")
-    .map(m => m.content)
+    .map(m => m.content.replace(/__DEBUG__.*?__DEBUG__\s*/gs, "").trim())
 
   const clientInfo: Record<string, unknown> = {}
 
   for (const content of assistantMessages) {
-    // Extrair idade: "Idade: 29 anos"
-    const ageMatch = content.match(/Idade:\s*(\d+)\s*anos/i)
+    // Strip markdown bold markers for cleaner matching
+    const cleanContent = content.replace(/\*\*/g, "")
+
+    const ageMatch = cleanContent.match(/Idade:\s*(\d+)\s*anos/i)
     if (ageMatch) clientInfo.age = parseInt(ageMatch[1])
 
-    // Extrair cidade/estado: "Localização: Nova Iguaçu, RJ"
-    const locMatch = content.match(
+    const locMatch = cleanContent.match(
       /Localiza[çc][aã]o:\s*([^,\n]+),\s*([A-Z]{2})/i
     )
     if (locMatch) {
@@ -113,19 +185,19 @@ function reconstructClientInfoFromHistory(
       clientInfo.state = locMatch[2].trim()
     }
 
-    // Extrair orçamento: "Orçamento: R$ 900/mês"
-    const budgetMatch = content.match(/Or[çc]amento:\s*R\$\s*([\d.,]+)/i)
+    const budgetMatch = cleanContent.match(/Or[çc]amento:\s*R\$\s*([\d.,]+)/i)
     if (budgetMatch)
       clientInfo.budget = parseFloat(
         budgetMatch[1].replace(".", "").replace(",", ".")
       )
 
-    // Extrair dependentes: "cônjuge, 25 anos" e "filho(a), 3 anos"
     const depMatches = [
-      ...content.matchAll(/(?:cônjuge|esposa|marido|spouse),?\s*(\d+)\s*anos/gi)
+      ...cleanContent.matchAll(
+        /(?:cônjuge|esposa|marido|spouse),?\s*(\d+)\s*anos/gi
+      )
     ]
     const childMatches = [
-      ...content.matchAll(
+      ...cleanContent.matchAll(
         /(?:filho|filha|filho\(a\)|child),?\s*(\d+)\s*anos?/gi
       )
     ]
@@ -255,11 +327,15 @@ export async function POST(request: NextRequest) {
     console.log("[health-plan-v2] Step 4: Setting up LangGraph workflow...")
 
     // 5. Converter mensagens para formato LangChain
+    // Strip __DEBUG__ blocks that may have been persisted in older messages
     const langchainMessages = messages.map(msg => {
+      const cleanContent = msg.content
+        .replace(/__DEBUG__.*?__DEBUG__\s*/gs, "")
+        .trim()
       if (msg.role === "user") {
-        return new HumanMessage(msg.content)
+        return new HumanMessage(cleanContent)
       } else {
-        return new AIMessage(msg.content)
+        return new AIMessage(cleanContent)
       }
     })
 
@@ -322,16 +398,30 @@ export async function POST(request: NextRequest) {
     })
 
     // FALLBACK: Quando checkpointer está inativo, reconstruir clientInfo
-    // do histórico de mensagens para não perder contexto entre requests
+    // Prioridade: 1) agent_workflow_logs (JSONB estruturado), 2) regex do histórico
     if (!checkpointerEnabled && messages.length > 1) {
-      const reconstructed = reconstructClientInfoFromHistory(messages)
-      if (reconstructed && Object.keys(reconstructed).length > 0) {
-        ;(initialState as Record<string, unknown>).clientInfo = reconstructed
-        ;(initialState as Record<string, unknown>).clientInfoVersion = 1
+      // Tentar reconstrução via DB (mais confiável, inclui campos empresariais)
+      const dbResult = await reconstructClientInfoFromDB(effectiveChatId)
+      if (dbResult) {
+        ;(initialState as Record<string, unknown>).clientInfo =
+          dbResult.clientInfo
+        ;(initialState as Record<string, unknown>).clientInfoVersion =
+          dbResult.version
         console.log(
-          "[health-plan-v2] 🔄 Reconstructed clientInfo from history (no checkpointer):",
-          Object.keys(reconstructed)
+          "[health-plan-v2] 🔄 Reconstructed clientInfo from DB:",
+          Object.keys(dbResult.clientInfo)
         )
+      } else {
+        // Fallback: regex sobre histórico (limpa __DEBUG__ e markdown)
+        const reconstructed = reconstructClientInfoFromHistory(messages)
+        if (reconstructed && Object.keys(reconstructed).length > 0) {
+          ;(initialState as Record<string, unknown>).clientInfo = reconstructed
+          ;(initialState as Record<string, unknown>).clientInfoVersion = 1
+          console.log(
+            "[health-plan-v2] 🔄 Reconstructed clientInfo from history (regex fallback):",
+            Object.keys(reconstructed)
+          )
+        }
       }
     }
 
