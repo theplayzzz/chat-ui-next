@@ -172,11 +172,34 @@ export async function searchPlans(
       messageType: "search_status"
     })
 
+    // Build ragAnalysisContext: prefer consolidated analysis,
+    // but fallback to raw file grading analyses if consolidated is empty
+    let ragContext = result.analysisText || ""
+    if (
+      ragContext.length < 200 &&
+      result.fileGradingResults &&
+      result.fileGradingResults.length > 0
+    ) {
+      const fileAnalyses = result.fileGradingResults
+        .filter((f: any) => f.analysisText && f.relevance !== "irrelevant")
+        .map(
+          (f: any) =>
+            `=== ${f.fileName} (${f.collectionName || "?"}) ===\n${f.analysisText}`
+        )
+        .join("\n\n---\n\n")
+      if (fileAnalyses.length > ragContext.length) {
+        ragContext = fileAnalyses
+        console.log(
+          `[searchPlans] Using file-level analyses as ragContext (${ragContext.length} chars)`
+        )
+      }
+    }
+
     return {
       searchResults,
       searchMetadata,
       collectionAnalyses: result.collectionAnalyses,
-      ragAnalysisContext: result.analysisText, // Texto formatado para analyzeCompatibility
+      ragAnalysisContext: ragContext,
       searchResultsVersion: (state.searchResultsVersion || 0) + 1,
       currentResponse: humanized.response,
       messages: [new AIMessage(humanized.response)]
