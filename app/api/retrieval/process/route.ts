@@ -381,7 +381,8 @@ export async function POST(req: Request) {
             () =>
               openai.embeddings.create({
                 model: "text-embedding-3-small",
-                input: chunks.map(chunk => chunk.content)
+                // Truncate chunks to 8K chars for embedding (large parent chunks exceed limit)
+                input: chunks.map(chunk => chunk.content.slice(0, 8000))
               }),
             2, // maxRetries
             0 // step number
