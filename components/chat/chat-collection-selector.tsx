@@ -62,15 +62,34 @@ export const ChatCollectionSelector: FC<ChatCollectionSelectorProps> = ({
   }, [isOpen, activeAssistant?.id])
 
   const loadCollections = async () => {
-    if (!activeAssistant) return
+    if (!activeAssistant) {
+      console.log(
+        "[coll-selector] No active assistant, assistants:",
+        assistants.length
+      )
+      setLoading(false)
+      return
+    }
     setLoading(true)
+    console.log(
+      "[coll-selector] Loading for:",
+      activeAssistant.name,
+      activeAssistant.id
+    )
 
     try {
       // Get collections linked to this assistant
-      const { data: assistantCollections } = await supabase
+      const { data: assistantCollections, error: acErr } = await supabase
         .from("assistant_collections")
         .select("collection_id")
         .eq("assistant_id", activeAssistant.id)
+
+      console.log(
+        "[coll-selector] Found collections:",
+        assistantCollections?.length,
+        "err:",
+        acErr?.message
+      )
 
       if (!assistantCollections || assistantCollections.length === 0) {
         setCollectionsWithFiles([])

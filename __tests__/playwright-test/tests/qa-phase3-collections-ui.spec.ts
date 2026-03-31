@@ -53,6 +53,10 @@ test.describe('FASE 3: Collection Selector UI', () => {
     console.log('  Clicking books icon at x=311, y=657');
     await page.mouse.click(311, 657);
     let clickedBooks = true;
+
+    // Esperar mais tempo para a query carregar
+    console.log('  Waiting 8s for collections to load...');
+    await page.waitForTimeout(8000);
     await page.waitForTimeout(2000);
     await page.screenshot({ path: 'screenshots/p3-02-selector-open.png', fullPage: true });
 
