@@ -232,15 +232,28 @@ export async function POST(req: Request) {
         const ingestionMeta = (fileMetadata as any).ingestion_metadata
         let chunkingPlan = ingestionMeta?.chunkingPlan
 
-        // For PDFs: generate chunking plan on-the-fly if not provided
-        if (fileExtension === "pdf" && !chunkingPlan) {
+        // For PDFs: extract text via PDFLoader first (blob.text() returns binary)
+        let pdfFullText: string | null = null
+        if (fileExtension === "pdf") {
+          const { PDFLoader } = await import(
+            "langchain/document_loaders/fs/pdf"
+          )
+          const loader = new PDFLoader(blob)
+          const docs = await loader.load()
+          pdfFullText = docs.map(doc => doc.pageContent).join(" ")
+          console.log(
+            `[process] PDF text extracted: ${pdfFullText.length} chars`
+          )
+        }
+
+        // Generate chunking plan on-the-fly if not provided
+        if (fileExtension === "pdf" && pdfFullText && !chunkingPlan) {
           try {
             const { analyzePDF } = await import("@/lib/rag/ingest/pdf-analyzer")
-            const pdfTextForAnalysis = await blob.text()
             console.log(
-              `[process] Generating chunking plan for PDF (${pdfTextForAnalysis.length} chars)...`
+              `[process] Generating chunking plan (${pdfFullText.length} chars)...`
             )
-            const analysis = await analyzePDF(pdfTextForAnalysis)
+            const analysis = await analyzePDF(pdfFullText)
             chunkingPlan = analysis.chunking_plan || null
             console.log(
               `[process] Chunking plan: ${chunkingPlan?.sections?.length || 0} sections`
@@ -251,14 +264,17 @@ export async function POST(req: Request) {
         }
 
         // Use plan-based chunking for PDFs with a chunking plan
-        if (fileExtension === "pdf" && chunkingPlan?.sections?.length > 0) {
+        if (
+          fileExtension === "pdf" &&
+          pdfFullText &&
+          chunkingPlan?.sections?.length > 0
+        ) {
           const { smartChunkWithPlan, createParentChildChunks } = await import(
             "@/lib/rag/ingest/smart-chunker"
           )
           const { encode } = await import("gpt-tokenizer")
 
-          // Extract full text from PDF
-          const pdfText = await blob.text()
+          const pdfText = pdfFullText
 
           const smartChunks = await smartChunkWithPlan(pdfText, chunkingPlan, {
             chunkSize: chunkConfig.chunkSize ?? 4000,
