@@ -60,11 +60,11 @@ import type { PartialClientInfo } from "../../health-plan-v2/types"
 // =============================================================================
 
 /**
- * Feature flag para habilitar pipeline Level 3
- * Set USE_RAG_LEVEL3=true em env para ativar
+ * RAG Level 3 (hybrid search + rerank) e CRAG (self-correcting retrieval)
+ * estão sempre habilitados — não dependem de env var.
  */
-const USE_RAG_LEVEL3 = process.env.USE_RAG_LEVEL3 === "true"
-const USE_CRAG = process.env.USE_CRAG === "true"
+const USE_RAG_LEVEL3 = true
+const USE_CRAG = true
 
 // =============================================================================
 // State Annotation

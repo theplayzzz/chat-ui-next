@@ -91,14 +91,7 @@ app/
 INGEST: Upload → Storage Download → Chunking → Embedding → Chunks Upsert
         → Tag Inference → Context Generation → File Embedding → Pipeline Complete
 
-RETRIEVAL (Level 1 - default):
-  initializeNode (load fileIds from assistant's collections)
-  → retrieveByFile (top 5 chunks per file)
-  → gradeByFile (LLM evaluates file relevance)
-  → gradeByCollection (identifies real health plans)
-  → formatResults
-
-RETRIEVAL (Level 3 - USE_RAG_LEVEL3=true):
+RETRIEVAL (Level 3 - always enabled):
   classifyQuery → selectCollections → selectFiles
   → retrieveHybrid (BM25 + vector with RRF fusion)
   → rerankChunks (top 20 → top 8)
@@ -201,8 +194,8 @@ const llm = new ChatOpenAI({
 
 | Flag | Default | Controla |
 |------|---------|----------|
-| `USE_RAG_LEVEL3` | `"false"` | Pipeline Level 3 (hybrid search, rerank, pre-filtering) |
-| `USE_CRAG` | `"false"` | Self-correcting retrieval (query rewrite on failure) |
+| `USE_RAG_LEVEL3` | Always `true` | Pipeline Level 3 (hybrid search, rerank, pre-filtering) — hardcoded, no env var needed |
+| `USE_CRAG` | Always `true` | Self-correcting retrieval (query rewrite on failure) — hardcoded, no env var needed |
 
 ## Testing
 
