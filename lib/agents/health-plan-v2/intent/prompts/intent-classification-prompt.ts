@@ -349,6 +349,62 @@ export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
       reasoning: "Usuário solicita informação de preços"
     }
   },
+  // Follow-up price/coverage questions (NOT "conversar")
+  {
+    userMessage: "Quanto custa o P520 na faixa 29-33?",
+    expectedOutput: {
+      intent: "consultar_preco",
+      confidence: 0.95,
+      extractedData: {
+        planName: "P520",
+        questionTopic: "preço por faixa etária"
+      },
+      reasoning:
+        "Pergunta específica sobre preço de plano em faixa etária — follow-up factual"
+    }
+  },
+  {
+    userMessage: "E qual o valor com coparticipação?",
+    expectedOutput: {
+      intent: "consultar_preco",
+      confidence: 0.92,
+      extractedData: { questionTopic: "preço com coparticipação" },
+      reasoning: "Follow-up sobre preço de modalidade de plano"
+    }
+  },
+  {
+    userMessage: "Esse plano cobre meu município?",
+    expectedOutput: {
+      intent: "consultar_preco",
+      confidence: 0.88,
+      extractedData: { questionTopic: "cobertura geográfica" },
+      reasoning:
+        "Pergunta sobre cobertura geográfica de plano já discutido — factual, não conversa"
+    }
+  },
+  {
+    userMessage: "Quais hospitais estão na rede desse plano?",
+    expectedOutput: {
+      intent: "consultar_preco",
+      confidence: 0.9,
+      extractedData: { questionTopic: "rede credenciada" },
+      reasoning:
+        "Pergunta sobre rede credenciada de plano específico — dado factual"
+    }
+  },
+  {
+    userMessage: "E a carência do plano Einstein, como funciona?",
+    expectedOutput: {
+      intent: "consultar_preco",
+      confidence: 0.88,
+      extractedData: {
+        planName: "Einstein",
+        questionTopic: "carência"
+      },
+      reasoning:
+        "Pergunta sobre carência de plano específico — dado documental, não conversa geral"
+    }
+  },
 
   // ===== pedir_recomendacao =====
   {

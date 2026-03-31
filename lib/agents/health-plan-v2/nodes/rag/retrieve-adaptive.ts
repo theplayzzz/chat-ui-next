@@ -39,6 +39,7 @@ export interface AdaptiveChunk {
   fileDescription: string | null
   collectionId: string | null
   collectionName: string | null
+  parentChunkId?: string | null
 }
 
 export interface AdaptiveRetrievalResult {

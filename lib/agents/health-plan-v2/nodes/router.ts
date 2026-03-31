@@ -106,6 +106,23 @@ export function hasSearchResults(state: HealthPlanState): boolean {
 }
 
 /**
+ * Extrai a última mensagem do usuário do estado
+ */
+function extractLastUserMessage(state: HealthPlanState): string {
+  const messages = Array.isArray(state.messages) ? state.messages : []
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i]
+    const type = String(
+      (msg as any)._getType?.() || (msg as any).constructor?.name || ""
+    )
+    if (type === "human" || type === "HumanMessage") {
+      return typeof msg.content === "string" ? msg.content : String(msg.content)
+    }
+  }
+  return ""
+}
+
+/**
  * Verifica se há análise de compatibilidade disponível
  * Verifica tanto null quanto undefined
  */
@@ -207,8 +224,47 @@ export function routeToCapabilityWithReason(
     }
   }
 
-  // === Caso: Conversar (sem lógica especial) ===
+  // === Caso: Conversar (com heurística para perguntas factuais) ===
   if (intent === "conversar") {
+    // Heuristic: if user message contains price/coverage/network keywords
+    // AND we have searchResults, treat as a RAG-grounded response
+    if (hasSearchResults(state)) {
+      const lastMsg = extractLastUserMessage(state)
+      const RAG_KEYWORDS = [
+        "preço",
+        "preco",
+        "custo",
+        "custa",
+        "valor",
+        "quanto",
+        "cobertura",
+        "cobre",
+        "município",
+        "municipio",
+        "rede",
+        "hospital",
+        "coparticipação",
+        "coparticipacao",
+        "carência",
+        "carencia",
+        "faixa",
+        "etária",
+        "etaria",
+        "tabela",
+        "reembolso"
+      ]
+      const msgLower = lastMsg.toLowerCase()
+      if (RAG_KEYWORDS.some(kw => msgLower.includes(kw))) {
+        return {
+          capability: "respondToUser",
+          reason:
+            "Conversa com keywords factuais e searchResults disponíveis — respondendo com contexto RAG",
+          redirected: true,
+          originalIntent: "consultar_preco" as UserIntent
+        }
+      }
+    }
+
     return {
       capability: "respondToUser",
       reason: "Conversa geral, sem capacidade de negócio",

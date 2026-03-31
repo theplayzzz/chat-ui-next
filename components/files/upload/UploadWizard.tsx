@@ -47,6 +47,16 @@ interface AnalysisResult {
   chunk_size_recomendado: number
   chunk_overlap_recomendado: number
   justificativa_chunking: string
+  chunking_plan?: {
+    sections: Array<{
+      startOffset: number
+      endOffset: number
+      sectionType: string
+      recommendedChunkSize: number
+      isTabular: boolean
+      description: string
+    }>
+  }
 }
 
 interface SummaryData {
@@ -276,12 +286,14 @@ export function UploadWizard({
         .eq("id", createdFile.id)
 
       // 5. Always enable Level 3 enrichment (tags, context, plan_type)
+      // Also store chunking plan from pre-analysis for smart chunking
       await supabase
         .from("files")
         .update({
           ingestion_metadata: {
             tags: confirmed.tags.length > 0 ? confirmed.tags : [],
-            enableLevel3: true
+            enableLevel3: true,
+            chunkingPlan: analysis?.chunking_plan || null
           }
         } as any)
         .eq("id", createdFile.id)

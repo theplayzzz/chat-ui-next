@@ -144,8 +144,34 @@ export async function retrieveHybrid(
     fileName: row.file_name || "",
     fileDescription: row.file_description || null,
     collectionId: row.collection_id || null,
-    collectionName: row.collection_name || null
+    collectionName: row.collection_name || null,
+    parentChunkId: row.parent_chunk_id || null
   }))
+
+  // 4b. Resolve parent chunks: if a matched child has a parent,
+  // replace its content with the parent's full content for richer LLM context
+  const childChunks = chunks.filter(c => c.parentChunkId)
+  if (childChunks.length > 0) {
+    const parentIds = [...new Set(childChunks.map(c => c.parentChunkId!))]
+    const supabase = createSupabaseAdmin()
+    const { data: parents } = await supabase
+      .from("file_items")
+      .select("id, content")
+      .in("id", parentIds)
+
+    if (parents && parents.length > 0) {
+      const parentMap = new Map(parents.map(p => [p.id, p.content]))
+      for (const chunk of chunks) {
+        if (chunk.parentChunkId && parentMap.has(chunk.parentChunkId)) {
+          chunk.content = parentMap.get(chunk.parentChunkId)!
+          chunk.tokens = Math.ceil(chunk.content.length / 4) // rough estimate
+        }
+      }
+      console.log(
+        `[retrieve-hybrid] Resolved ${parentIds.length} parent chunks for ${childChunks.length} children`
+      )
+    }
+  }
 
   logRagStage({
     correlationId,

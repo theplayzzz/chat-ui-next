@@ -84,9 +84,9 @@ function buildConversationContext(state: HealthPlanState): string {
     parts.push(`## Dados do Cliente\n${clientParts.join("\n")}`)
   }
 
-  // Contexto RAG se disponível
+  // Contexto RAG se disponível — usar até 8K chars para não perder dados tabulares
   if (state.ragAnalysisContext) {
-    const truncated = state.ragAnalysisContext.substring(0, 2000)
+    const truncated = state.ragAnalysisContext.substring(0, 8000)
     parts.push(`## Planos Encontrados (resumo)\n${truncated}`)
   }
 

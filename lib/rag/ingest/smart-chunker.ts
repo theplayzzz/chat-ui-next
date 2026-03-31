@@ -1,5 +1,9 @@
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter"
-import type { PDFAnalysisResult } from "./pdf-analyzer"
+import type { PDFAnalysisResult, ChunkingPlan } from "./pdf-analyzer"
+
+// =============================================================================
+// TYPES
+// =============================================================================
 
 export interface SmartChunk {
   content: string
@@ -12,15 +16,23 @@ export interface SmartChunk {
   }
 }
 
+export interface SmartChunkWithChildren extends SmartChunk {
+  children?: SmartChunk[]
+  isParent: boolean
+}
+
 export interface SmartChunkerConfig {
   chunkSize: number
   chunkOverlap: number
   sections?: string[]
 }
 
-/**
- * Default chunk sizes by document type
- */
+// =============================================================================
+// CONSTANTS
+// =============================================================================
+
+const EMBEDDING_CHAR_LIMIT = 8000
+
 const CHUNK_SIZE_DEFAULTS: Record<string, { size: number; overlap: number }> = {
   tabela_precos: { size: 1500, overlap: 100 },
   contrato: { size: 3000, overlap: 300 },
@@ -29,19 +41,6 @@ const CHUNK_SIZE_DEFAULTS: Record<string, { size: number; overlap: number }> = {
   default: { size: 3000, overlap: 200 }
 }
 
-export function getDefaultChunkConfig(tipoPlano?: string): {
-  size: number
-  overlap: number
-} {
-  if (tipoPlano && CHUNK_SIZE_DEFAULTS[tipoPlano]) {
-    return CHUNK_SIZE_DEFAULTS[tipoPlano]
-  }
-  return CHUNK_SIZE_DEFAULTS["default"]
-}
-
-/**
- * Section detection patterns for health plan documents
- */
 const SECTION_PATTERNS: Record<string, RegExp[]> = {
   preco: [
     /pre[çc]o/i,
@@ -60,9 +59,20 @@ const SECTION_PATTERNS: Record<string, RegExp[]> = {
   regras_gerais: [/regras?\s+gera/i, /condi[çc][oõ]es?\s+gera/i]
 }
 
-/**
- * Detect section type for a chunk based on its content
- */
+// =============================================================================
+// HELPERS
+// =============================================================================
+
+export function getDefaultChunkConfig(tipoPlano?: string): {
+  size: number
+  overlap: number
+} {
+  if (tipoPlano && CHUNK_SIZE_DEFAULTS[tipoPlano]) {
+    return CHUNK_SIZE_DEFAULTS[tipoPlano]
+  }
+  return CHUNK_SIZE_DEFAULTS["default"]
+}
+
 export function detectSectionType(content: string): string | null {
   for (const [section, patterns] of Object.entries(SECTION_PATTERNS)) {
     for (const pattern of patterns) {
@@ -74,16 +84,14 @@ export function detectSectionType(content: string): string | null {
   return null
 }
 
-/**
- * Estimate page number based on character offset (rough: ~3000 chars per page)
- */
 function estimatePageNumber(offset: number): number {
   return Math.floor(offset / 3000) + 1
 }
 
-/**
- * Smart chunking with section awareness
- */
+// =============================================================================
+// ORIGINAL CHUNKING (backward compatible)
+// =============================================================================
+
 export async function smartChunk(
   text: string,
   config: SmartChunkerConfig
@@ -121,9 +129,6 @@ export async function smartChunk(
   return chunks
 }
 
-/**
- * Smart chunk with analysis-informed config
- */
 export async function smartChunkWithAnalysis(
   text: string,
   analysis: PDFAnalysisResult
@@ -133,4 +138,153 @@ export async function smartChunkWithAnalysis(
     chunkOverlap: analysis.chunk_overlap_recomendado,
     sections: analysis.secoes_detectadas
   })
+}
+
+// =============================================================================
+// PLAN-BASED CHUNKING (new — respects section boundaries + table integrity)
+// =============================================================================
+
+/**
+ * Chunks document using a ChunkingPlan from the PDF analyzer.
+ * Tabular sections are kept as single large chunks.
+ * Narrative sections are split with standard RecursiveCharacterTextSplitter.
+ */
+export async function smartChunkWithPlan(
+  text: string,
+  chunkingPlan: ChunkingPlan,
+  fallbackConfig: SmartChunkerConfig
+): Promise<SmartChunk[]> {
+  const chunks: SmartChunk[] = []
+  let chunkIndex = 0
+
+  console.log(
+    `[smart-chunker] Plan-based chunking: ${chunkingPlan.sections.length} sections`
+  )
+
+  for (const section of chunkingPlan.sections) {
+    // Clamp offsets to valid range
+    const start = Math.max(0, Math.min(section.startOffset, text.length))
+    const end = Math.max(start, Math.min(section.endOffset, text.length))
+    const sectionText = text.slice(start, end)
+
+    if (sectionText.length === 0) continue
+
+    if (
+      section.isTabular ||
+      sectionText.length <= section.recommendedChunkSize
+    ) {
+      // Keep tabular/small sections as single chunks
+      chunks.push({
+        content: sectionText,
+        index: chunkIndex++,
+        section_type: section.sectionType,
+        page_number: estimatePageNumber(start),
+        metadata: { start_offset: start, end_offset: end }
+      })
+
+      console.log(
+        `[smart-chunker] Section "${section.sectionType}": 1 chunk (${sectionText.length} chars, tabular=${section.isTabular})`
+      )
+    } else {
+      // Split narrative sections with standard splitter
+      const chunkSize = Math.min(
+        section.recommendedChunkSize,
+        fallbackConfig.chunkSize
+      )
+      const chunkOverlap = Math.min(200, Math.floor(chunkSize * 0.1))
+
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize,
+        chunkOverlap,
+        separators: ["\n\n", "\n", ". ", " ", ""]
+      })
+
+      const docs = await splitter.createDocuments([sectionText])
+      let subOffset = 0
+
+      for (const doc of docs) {
+        const contentIdx = sectionText.indexOf(doc.pageContent, subOffset)
+        const absoluteOffset = start + Math.max(0, contentIdx)
+
+        chunks.push({
+          content: doc.pageContent,
+          index: chunkIndex++,
+          section_type: section.sectionType,
+          page_number: estimatePageNumber(absoluteOffset),
+          metadata: {
+            start_offset: absoluteOffset,
+            end_offset: absoluteOffset + doc.pageContent.length
+          }
+        })
+
+        if (contentIdx >= 0) {
+          subOffset = contentIdx + doc.pageContent.length - chunkOverlap
+        }
+      }
+
+      console.log(
+        `[smart-chunker] Section "${section.sectionType}": ${docs.length} chunks (narrative, ~${chunkSize} chars each)`
+      )
+    }
+  }
+
+  console.log(`[smart-chunker] Total chunks: ${chunks.length} (plan-based)`)
+  return chunks
+}
+
+// =============================================================================
+// PARENT/CHILD HIERARCHY
+// =============================================================================
+
+/**
+ * For chunks larger than the embedding limit (8K chars), creates child sub-chunks
+ * that can be embedded precisely. The parent chunk is kept for full LLM context.
+ */
+export async function createParentChildChunks(
+  chunks: SmartChunk[]
+): Promise<SmartChunkWithChildren[]> {
+  const result: SmartChunkWithChildren[] = []
+
+  for (const chunk of chunks) {
+    if (chunk.content.length > EMBEDDING_CHAR_LIMIT) {
+      // Large chunk — becomes parent with children
+      const childSplitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 3000,
+        chunkOverlap: 200,
+        separators: ["\n\n", "\n", ". ", " ", ""]
+      })
+
+      const childDocs = await childSplitter.createDocuments([chunk.content])
+      const children: SmartChunk[] = childDocs.map((doc, i) => {
+        const contentIdx = chunk.content.indexOf(doc.pageContent)
+        const childOffset =
+          chunk.metadata.start_offset + Math.max(0, contentIdx)
+
+        return {
+          content: doc.pageContent,
+          index: chunk.index * 1000 + i,
+          section_type: chunk.section_type,
+          page_number: estimatePageNumber(childOffset),
+          metadata: {
+            start_offset: childOffset,
+            end_offset: childOffset + doc.pageContent.length
+          }
+        }
+      })
+
+      result.push({
+        ...chunk,
+        isParent: true,
+        children
+      })
+
+      console.log(
+        `[smart-chunker] Parent chunk ${chunk.index}: ${chunk.content.length} chars → ${children.length} children`
+      )
+    } else {
+      result.push({ ...chunk, isParent: false })
+    }
+  }
+
+  return result
 }

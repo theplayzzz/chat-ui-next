@@ -218,11 +218,84 @@ export async function POST(req: Request) {
     }
 
     let chunks: FileItemChunk[] = []
+    // Track section_types and parent/child info for plan-based chunking
+    let chunkSectionTypes: (string | null)[] = []
+    let parentChildMapData: {
+      parentIndices: number[]
+      childrenByParent: Array<[number, number[]]>
+    } | null = null
 
     chunks = await withRagLogging(
       correlationId,
       "chunking",
       async () => {
+        const ingestionMeta = (fileMetadata as any).ingestion_metadata
+        const chunkingPlan = ingestionMeta?.chunkingPlan
+
+        // Use plan-based chunking for PDFs with a chunking plan
+        if (fileExtension === "pdf" && chunkingPlan?.sections?.length > 0) {
+          const { smartChunkWithPlan, createParentChildChunks } = await import(
+            "@/lib/rag/ingest/smart-chunker"
+          )
+          const { encode } = await import("gpt-tokenizer")
+
+          // Extract full text from PDF
+          const pdfText = await blob.text()
+
+          const smartChunks = await smartChunkWithPlan(pdfText, chunkingPlan, {
+            chunkSize: chunkConfig.chunkSize ?? 4000,
+            chunkOverlap: chunkConfig.chunkOverlap ?? 200
+          })
+
+          // Create parent/child hierarchy for large chunks
+          const hierarchical = await createParentChildChunks(smartChunks)
+
+          // Build flat list: parents first, then children
+          const allChunks: FileItemChunk[] = []
+          const sectionTypes: (string | null)[] = []
+          const parentIndices: number[] = []
+          const childrenByParent = new Map<number, number[]>()
+
+          for (const chunk of hierarchical) {
+            const parentIdx = allChunks.length
+            allChunks.push({
+              content: chunk.content,
+              tokens: encode(chunk.content).length
+            })
+            sectionTypes.push(chunk.section_type)
+
+            if (chunk.isParent && chunk.children && chunk.children.length > 0) {
+              parentIndices.push(parentIdx)
+              const childIndices: number[] = []
+
+              for (const child of chunk.children) {
+                const childIdx = allChunks.length
+                allChunks.push({
+                  content: child.content,
+                  tokens: encode(child.content).length
+                })
+                sectionTypes.push(child.section_type)
+                childIndices.push(childIdx)
+              }
+
+              childrenByParent.set(parentIdx, childIndices)
+            }
+          }
+
+          chunkSectionTypes = sectionTypes
+          parentChildMapData = {
+            parentIndices,
+            childrenByParent: Array.from(childrenByParent.entries())
+          }
+
+          console.log(
+            `[process] Plan-based chunking: ${allChunks.length} total chunks (${parentIndices.length} parents with children)`
+          )
+
+          return allChunks
+        }
+
+        // Fallback: standard chunking
         let result: FileItemChunk[] = []
         switch (fileExtension) {
           case "csv":
@@ -320,6 +393,7 @@ export async function POST(req: Request) {
       sampleContent
     )
 
+    // Build file_items with optional section_type from plan-based chunking
     const file_items = chunks.map((chunk, index) => ({
       file_id,
       user_id: profile.user_id,
@@ -333,10 +407,51 @@ export async function POST(req: Request) {
         embeddingsProvider === "local"
           ? ((embeddings[index] || null) as any)
           : null,
-      ...(planMetadata && { plan_metadata: planMetadata as any })
+      ...(planMetadata && { plan_metadata: planMetadata as any }),
+      ...(chunkSectionTypes[index] && {
+        section_type: chunkSectionTypes[index]
+      })
     }))
 
-    await supabaseAdmin.from("file_items").upsert(file_items)
+    // Two-phase insert for parent/child relationships
+    const pcMap = parentChildMapData as {
+      parentIndices: number[]
+      childrenByParent: Array<[number, number[]]>
+    } | null
+    if (pcMap !== null && pcMap.parentIndices.length > 0) {
+      // Insert all chunks first to get IDs
+      const { data: insertedItems, error: insertError } = await supabaseAdmin
+        .from("file_items")
+        .insert(file_items)
+        .select("id")
+
+      if (insertError || !insertedItems) {
+        console.error("[process] Failed to insert file_items:", insertError)
+        throw new Error("Failed to insert file items")
+      }
+
+      // Update children with parent_chunk_id
+      for (const [parentIdx, childIndices] of pcMap.childrenByParent) {
+        const parentId = insertedItems[parentIdx]?.id
+        if (parentId) {
+          const childIds = childIndices
+            .map(ci => insertedItems[ci]?.id)
+            .filter(Boolean)
+          if (childIds.length > 0) {
+            await supabaseAdmin
+              .from("file_items")
+              .update({ parent_chunk_id: parentId } as any)
+              .in("id", childIds)
+          }
+        }
+      }
+
+      console.log(
+        `[process] Parent/child relationships set: ${pcMap.parentIndices.length} parents`
+      )
+    } else {
+      await supabaseAdmin.from("file_items").upsert(file_items)
+    }
 
     const totalTokens = file_items.reduce((acc, item) => acc + item.tokens, 0)
 
