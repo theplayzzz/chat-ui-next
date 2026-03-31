@@ -98,12 +98,41 @@ export async function searchPlans(
 
     // Converter planos identificados para HealthPlanDocument[]
     // FASE 6E: Usa collectionAnalyses com planos REAIS identificados
-    const searchResults: HealthPlanDocument[] =
-      result.collectionAnalyses.flatMap(collection =>
+    let searchResults: HealthPlanDocument[] = result.collectionAnalyses.flatMap(
+      collection =>
         collection.identifiedPlans
           .filter(plan => plan.clientRelevance !== "irrelevant")
           .map(plan => convertPlanToDocument(plan, collection))
+    )
+
+    // FALLBACK: Se gradeByCollection não identificou planos mas gradeByFile
+    // tem análises relevantes, criar resultados sintéticos das análises
+    if (searchResults.length === 0 && result.fileGradingResults) {
+      const relevantFiles = result.fileGradingResults.filter(
+        (f: any) => f.relevance !== "irrelevant"
       )
+      if (relevantFiles.length > 0) {
+        console.log(
+          `[searchPlans] gradeByCollection returned 0 plans, falling back to ${relevantFiles.length} relevant files from gradeByFile`
+        )
+        searchResults = relevantFiles.map((f: any) => ({
+          id: f.fileId,
+          operadora: f.collectionName || "Operadora",
+          nome_plano: f.fileName.replace(/\.pdf$/i, "").replace(/_/g, " "),
+          tipo: "empresarial",
+          abrangencia: "nacional",
+          coparticipacao: false,
+          rede_credenciada: [],
+          carencias: {},
+          metadata: {
+            relevance: f.relevance,
+            relevanceJustification: "Análise de arquivo identificou relevância",
+            sourceFiles: [f.fileName],
+            summary: f.analysisText?.substring(0, 500)
+          }
+        }))
+      }
+    }
 
     // Preparar metadata
     const searchMetadata: SearchMetadata = result.metadata
