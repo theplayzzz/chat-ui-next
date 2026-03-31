@@ -28,8 +28,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  const serviceUrl =
-    process.env.CLAUDE_AGENT_SERVICE_URL ?? "http://localhost:3011"
+  const serviceUrl = "http://localhost:3011"
 
   let upstream: Response
   try {
