@@ -230,7 +230,25 @@ export async function POST(req: Request) {
       "chunking",
       async () => {
         const ingestionMeta = (fileMetadata as any).ingestion_metadata
-        const chunkingPlan = ingestionMeta?.chunkingPlan
+        let chunkingPlan = ingestionMeta?.chunkingPlan
+
+        // For PDFs: generate chunking plan on-the-fly if not provided
+        if (fileExtension === "pdf" && !chunkingPlan) {
+          try {
+            const { analyzePDF } = await import("@/lib/rag/ingest/pdf-analyzer")
+            const pdfTextForAnalysis = await blob.text()
+            console.log(
+              `[process] Generating chunking plan for PDF (${pdfTextForAnalysis.length} chars)...`
+            )
+            const analysis = await analyzePDF(pdfTextForAnalysis)
+            chunkingPlan = analysis.chunking_plan || null
+            console.log(
+              `[process] Chunking plan: ${chunkingPlan?.sections?.length || 0} sections`
+            )
+          } catch (err) {
+            console.warn("[process] Failed to generate chunking plan:", err)
+          }
+        }
 
         // Use plan-based chunking for PDFs with a chunking plan
         if (fileExtension === "pdf" && chunkingPlan?.sections?.length > 0) {
