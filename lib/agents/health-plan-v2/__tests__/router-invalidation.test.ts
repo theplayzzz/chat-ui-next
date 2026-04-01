@@ -311,3 +311,100 @@ describe("version chain integrity", () => {
     expect(isRecommendationStale(state)).toBe(false)
   })
 })
+
+// =============================================================================
+// PRD ROUTING CASES (A1.12)
+// =============================================================================
+
+describe("routeToCapabilityWithReason - Routing Intents", () => {
+  it("should route correctly for all basic intents", () => {
+    const state = createMockState()
+    expect(
+      routeToCapabilityWithReason({ ...state, lastIntent: "conversar" })
+        .capability
+    ).toBe("respondToUser")
+    expect(
+      routeToCapabilityWithReason({ ...state, lastIntent: "finalizar" })
+        .capability
+    ).toBe("endConversation")
+    expect(
+      routeToCapabilityWithReason({ ...state, lastIntent: "fornecer_dados" })
+        .capability
+    ).toBe("updateClientInfo")
+    expect(
+      routeToCapabilityWithReason({ ...state, lastIntent: "alterar_dados" })
+        .capability
+    ).toBe("updateClientInfo")
+    expect(
+      routeToCapabilityWithReason({ ...state, lastIntent: "simular_cenario" })
+        .capability
+    ).toBe("simulateScenario")
+  })
+
+  it("should redirect to updateClientInfo when searching without data", () => {
+    const state = createMockState({
+      lastIntent: "buscar_planos",
+      clientInfo: {}
+    })
+    const result = routeToCapabilityWithReason(state)
+    expect(result.capability).toBe("updateClientInfo")
+    expect(result.redirected).toBe(true)
+  })
+
+  it("should route searchPlans when searching with data", () => {
+    const state = createMockState({
+      lastIntent: "buscar_planos",
+      clientInfo: { age: 30, city: "SP" }
+    })
+    const result = routeToCapabilityWithReason(state)
+    expect(result.capability).toBe("searchPlans")
+    expect(result.redirected).toBe(false)
+  })
+
+  it("should redirect to searchPlans when analyzing without search results", () => {
+    const state = createMockState({
+      lastIntent: "analisar",
+      clientInfo: { age: 30, city: "SP" },
+      searchResults: []
+    })
+    const result = routeToCapabilityWithReason(state)
+    expect(result.capability).toBe("searchPlans")
+    expect(result.redirected).toBe(true)
+  })
+
+  it("should fallback to updateClientInfo when analyzing without results and data", () => {
+    const state = createMockState({
+      lastIntent: "analisar",
+      clientInfo: {},
+      searchResults: []
+    })
+    const result = routeToCapabilityWithReason(state)
+    expect(result.capability).toBe("updateClientInfo")
+    expect(result.redirected).toBe(true)
+  })
+
+  it("should fallback to respondToUser on unknown intent", () => {
+    const state = createMockState({ lastIntent: "intent_inexistente" as any })
+    const result = routeToCapabilityWithReason(state)
+    expect(result.capability).toBe("respondToUser")
+  })
+
+  it("should return __end__ when loop limit reached", () => {
+    const state = createMockState({
+      lastIntent: "conversar",
+      loopIterations: 10
+    })
+    const result = routeToCapabilityWithReason(state)
+    expect(result.capability).toBe("__end__")
+    expect(result.redirected).toBe(true)
+  })
+
+  it("should end conversation explicitly if not active", () => {
+    const { shouldContinue } = require("../nodes/router")
+    const state = createMockState({
+      isConversationActive: false,
+      lastIntent: "conversar"
+    })
+    expect(shouldContinue(state)).toBe("end")
+  })
+})
