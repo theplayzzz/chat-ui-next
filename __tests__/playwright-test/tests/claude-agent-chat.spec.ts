@@ -70,29 +70,24 @@ async function selectAssistant(page: any): Promise<boolean> {
 }
 
 async function waitForResponse(page: any, timeoutSecs = 180): Promise<string> {
-  // Poll every 2 seconds, waiting for the spinner to appear and then stop
-  let spinnerSeen = false
-  let stableCount = 0
-  const maxIter = timeoutSecs / 2
+  const timeoutMs = timeoutSecs * 1000
 
-  for (let i = 0; i < maxIter; i++) {
-    await page.waitForTimeout(2000)
+  // 1. Wait up to 10s for the spinner to appear (confirms message was sent)
+  const spinnerAppeared = await page
+    .locator(".animate-spin")
+    .waitFor({ state: "visible", timeout: 10000 })
+    .then(() => true)
+    .catch(() => false)
 
-    const spinning = await page
+  if (!spinnerAppeared) {
+    // No spinner → message may not have been sent, check for existing response
+    await page.waitForTimeout(1000)
+  } else {
+    // 2. Wait for spinner to disappear (response complete)
+    await page
       .locator(".animate-spin")
-      .isVisible()
-      .catch(() => false)
-
-    if (spinning) {
-      spinnerSeen = true
-      stableCount = 0
-    } else {
-      stableCount++
-      // If spinner was seen and is now gone for 2 consecutive checks → done
-      if (spinnerSeen && stableCount >= 2) break
-      // If spinner was never seen after 8s → response probably already there
-      if (!spinnerSeen && i >= 4) break
-    }
+      .waitFor({ state: "hidden", timeout: timeoutMs })
+      .catch(() => {}) // timeout is acceptable, response might have come
   }
 
   await page.waitForTimeout(800)

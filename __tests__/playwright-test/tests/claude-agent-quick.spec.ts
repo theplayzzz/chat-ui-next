@@ -57,17 +57,14 @@ async function sendAndWait(page: any, msg: string, timeoutSecs = 240, label = ""
 
   await page.screenshot({ path: `screenshots/debug-${label}-2-sent.png` })
 
-  let spinnerSeen = false
-  let stableCount = 0
-  for (let i = 0; i < timeoutSecs / 2; i++) {
-    await page.waitForTimeout(2000)
-    const spinning = await page.locator(".animate-spin").isVisible().catch(() => false)
-    if (spinning) { spinnerSeen = true; stableCount = 0 }
-    else {
-      stableCount++
-      if (spinnerSeen && stableCount >= 2) break
-      if (!spinnerSeen && i >= 4) break
-    }
+  // Wait for spinner to appear (confirms message sent), then disappear (response done)
+  const spinnerAppeared = await page.locator(".animate-spin")
+    .waitFor({ state: "visible", timeout: 10000 })
+    .then(() => true).catch(() => false)
+  if (spinnerAppeared) {
+    await page.locator(".animate-spin")
+      .waitFor({ state: "hidden", timeout: timeoutSecs * 1000 })
+      .catch(() => {})
   }
   await page.waitForTimeout(1000)
 
