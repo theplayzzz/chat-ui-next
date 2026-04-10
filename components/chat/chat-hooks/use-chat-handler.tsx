@@ -465,7 +465,7 @@ export const useChatHandler = () => {
           isRegeneration
             ? chatMessages[chatMessages.length - 1]
             : tempAssistantChatMessage,
-          false,
+          true, // plain text stream (not Ollama JSON)
           newAbortController,
           setFirstTokenReceived,
           setChatMessages,
