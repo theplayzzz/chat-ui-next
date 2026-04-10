@@ -350,13 +350,18 @@ export const useChatHandler = () => {
         ...availableOpenRouterModels
       ].find(llm => llm.modelId === chatSettings?.model)
 
-      validateChatSettings(
-        chatSettings,
-        modelData,
-        profile,
-        selectedWorkspace,
-        messageContent
-      )
+      // Skip model validation for Claude Agent — it has its own routing and model (claude-sonnet-4-6 not in LLM_LIST)
+      if (!isClaudeAgentAssistant(selectedAssistant)) {
+        validateChatSettings(
+          chatSettings,
+          modelData,
+          profile,
+          selectedWorkspace,
+          messageContent
+        )
+      } else if (!messageContent) {
+        throw new Error("Message content not found")
+      }
 
       let currentChat = selectedChat ? { ...selectedChat } : null
 
