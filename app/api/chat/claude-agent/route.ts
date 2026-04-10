@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     })
   }
 
-  const serviceUrl = "http://localhost:3011"
+  const serviceUrl = "http://5.161.64.137:3011"
 
   let upstream: Response
   try {
