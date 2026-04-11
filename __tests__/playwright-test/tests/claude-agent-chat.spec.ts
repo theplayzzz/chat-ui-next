@@ -54,6 +54,11 @@ async function sendAndWait(
   timeoutSecs = 240,
   label = ""
 ): Promise<string> {
+  // Assistant messages are wrapped in bg-secondary; user messages are not.
+  // Use this to count only assistant messages before sending.
+  const assistantSelector = ".bg-secondary .prose"
+  const beforeCount = await page.locator(assistantSelector).count()
+
   const textarea = page.locator("textarea").first()
   await textarea.click()
   await page.waitForTimeout(300)
@@ -72,27 +77,28 @@ async function sendAndWait(
     `  [${label}] after send = "${afterValue.substring(0, 30)}" (empty = sent OK)`
   )
 
-  await page.screenshot({ path: `screenshots/ca-${label}-sent.png` })
+  await page.screenshot({ path: `screenshots/ca-${label}-sent.png` }).catch(() => {})
 
-  // Wait for spinner to appear (confirms message sent), then disappear (response done)
-  const spinnerAppeared = await page
+  // Wait for a new assistant message to appear (count > beforeCount)
+  await page.waitForFunction(
+    (count: number) =>
+      document.querySelectorAll(".bg-secondary .prose").length > count,
+    beforeCount,
+    { timeout: timeoutSecs * 1000 }
+  ).catch(() => {})
+
+  // Also wait for spinner to disappear (streaming complete)
+  await page
     .locator(".animate-spin")
-    .waitFor({ state: "visible", timeout: 10000 })
-    .then(() => true)
-    .catch(() => false)
+    .waitFor({ state: "hidden", timeout: timeoutSecs * 1000 })
+    .catch(() => {})
 
-  if (spinnerAppeared) {
-    await page
-      .locator(".animate-spin")
-      .waitFor({ state: "hidden", timeout: timeoutSecs * 1000 })
-      .catch(() => {})
-  }
   await page.waitForTimeout(1000)
 
-  const byRole = await page.locator('[data-message-role="assistant"]').all()
-  if (byRole.length > 0) return (await byRole[byRole.length - 1].textContent()) || ""
-  const prose = await page.locator(".prose").all()
-  if (prose.length > 0) return (await prose[prose.length - 1].textContent()) || ""
+  // Read the last assistant message
+  const assistants = await page.locator(assistantSelector).all()
+  if (assistants.length > 0)
+    return (await assistants[assistants.length - 1].textContent()) || ""
   return ""
 }
 
