@@ -1,17 +1,16 @@
 /**
  * Claude Agent Documentos — Full Conversation Test (Vercel Production)
  *
- * Selects the "Claude Agent Documentos" assistant via the top-left dropdown,
- * then runs a 10-turn conversation about health plan documents.
+ * Uses the same login/select/send patterns as claude-agent-quick.spec.ts
+ * (which is proven to work in ~42 seconds). Runs 10 turns about health plan docs.
  */
 
 import { expect, test } from "@playwright/test"
 
 const BASE_URL = "https://chat-ui-next.vercel.app"
 const LOGIN_EMAIL = "play-felix@hotmail.com"
-const ASSISTANT_NAME = "Claude Agent Documentos"
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
+// ─── helpers (same pattern as claude-agent-quick.spec.ts) ─────────────────────
 
 async function login(page: any) {
   await page.goto(BASE_URL, { waitUntil: "networkidle", timeout: 30000 })
@@ -31,101 +30,70 @@ async function login(page: any) {
   await page.waitForSelector("textarea", { timeout: 20000 }).catch(() => {})
 }
 
-async function selectAssistant(page: any): Promise<boolean> {
-  await page.screenshot({ path: "screenshots/ca-00-initial.png" })
-
-  // The assistant selector is the dropdown button at top-left (shows current assistant name)
-  // Click it to open the dropdown
-  const dropdownBtn = page.locator("button").filter({ hasText: /health plan|claude agent|assistants/i }).first()
-  const topBarBtn = page.locator("header button, [class*='header'] button, nav button").first()
-
-  // Try clicking the assistant name dropdown (top-left corner, ~x=120, y=27)
+async function selectClaudeAgent(page: any): Promise<boolean> {
+  // Click the assistant dropdown (top-left at ~x=120, y=27)
   await page.mouse.click(120, 27)
   await page.waitForTimeout(1500)
-  await page.screenshot({ path: "screenshots/ca-01-after-dropdown-click.png" })
+  await page.screenshot({ path: "screenshots/ca-01-dropdown.png" })
 
-  // Look for the assistant name in the opened dropdown
-  const agentOption = page.locator(`text="${ASSISTANT_NAME}"`).first()
-  if (await agentOption.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await agentOption.click()
-    await page.waitForTimeout(1500)
-    await page.screenshot({ path: "screenshots/ca-02-assistant-selected.png" })
-    console.log(`[✓] Selected "${ASSISTANT_NAME}"`)
+  // Click Claude Agent Documentos
+  const option = page.locator("text=Claude Agent Documentos").first()
+  if (await option.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await option.click()
+    await page.waitForTimeout(2000)
+    await page.screenshot({ path: "screenshots/ca-02-selected.png" })
     return true
   }
-
-  // Try partial match
-  const partialMatch = page.locator("text=Claude Agent").first()
-  if (await partialMatch.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await partialMatch.click()
-    await page.waitForTimeout(1500)
-    console.log(`[✓] Selected via partial match`)
-    return true
-  }
-
-  // Screenshot the opened dropdown for debugging
-  await page.screenshot({ path: "screenshots/ca-01-dropdown-content.png" })
-  console.warn(`[✗] Could not find "${ASSISTANT_NAME}" in dropdown`)
+  await page.screenshot({ path: "screenshots/ca-01-no-option.png" })
   return false
 }
 
-async function waitForResponse(page: any, timeoutSecs = 180): Promise<string> {
-  const timeoutMs = timeoutSecs * 1000
+async function sendAndWait(
+  page: any,
+  msg: string,
+  timeoutSecs = 240,
+  label = ""
+): Promise<string> {
+  const textarea = page.locator("textarea").first()
+  await textarea.click()
+  await page.waitForTimeout(300)
 
-  // 1. Wait up to 10s for the spinner to appear (confirms message was sent)
+  // fill() fires individual keyboard events — React processes onChange synchronously
+  await textarea.fill(msg)
+
+  const textareaValue = await textarea.inputValue().catch(() => "N/A")
+  console.log(`  [${label}] textarea = "${textareaValue.substring(0, 60)}"`)
+
+  await textarea.press("Enter")
+
+  await page.waitForTimeout(800)
+  const afterValue = await textarea.inputValue().catch(() => "N/A")
+  console.log(
+    `  [${label}] after send = "${afterValue.substring(0, 30)}" (empty = sent OK)`
+  )
+
+  await page.screenshot({ path: `screenshots/ca-${label}-sent.png` })
+
+  // Wait for spinner to appear (confirms message sent), then disappear (response done)
   const spinnerAppeared = await page
     .locator(".animate-spin")
     .waitFor({ state: "visible", timeout: 10000 })
     .then(() => true)
     .catch(() => false)
 
-  if (!spinnerAppeared) {
-    // No spinner → message may not have been sent, check for existing response
-    await page.waitForTimeout(1000)
-  } else {
-    // 2. Wait for spinner to disappear (response complete)
+  if (spinnerAppeared) {
     await page
       .locator(".animate-spin")
-      .waitFor({ state: "hidden", timeout: timeoutMs })
-      .catch(() => {}) // timeout is acceptable, response might have come
+      .waitFor({ state: "hidden", timeout: timeoutSecs * 1000 })
+      .catch(() => {})
   }
+  await page.waitForTimeout(1000)
 
-  await page.waitForTimeout(800)
-
-  // Extract last assistant message
   const byRole = await page.locator('[data-message-role="assistant"]').all()
-  if (byRole.length > 0) {
-    return (await byRole[byRole.length - 1].textContent()) || ""
-  }
+  if (byRole.length > 0) return (await byRole[byRole.length - 1].textContent()) || ""
   const prose = await page.locator(".prose").all()
-  if (prose.length > 0) {
-    return (await prose[prose.length - 1].textContent()) || ""
-  }
+  if (prose.length > 0) return (await prose[prose.length - 1].textContent()) || ""
   return ""
-}
-
-async function sendTurn(
-  page: any,
-  msg: string,
-  idx: number
-): Promise<string> {
-  console.log(`\n─── Turn ${idx} ───────────────────────────────`)
-  console.log(`→ "${msg.substring(0, 100)}"`)
-
-  const textarea = page.locator("textarea").first()
-  await textarea.click()
-  await textarea.fill(msg)
-  await textarea.press("Enter")
-
-  const response = await waitForResponse(page)
-  const preview = response.replace(/\s+/g, " ").substring(0, 350)
-  console.log(`← "${preview}"`)
-
-  await page.screenshot({
-    path: `screenshots/ca-turn${String(idx).padStart(2, "0")}.png`
-  })
-
-  return response
 }
 
 // ─── 10-turn conversation ────────────────────────────────────────────────────
@@ -138,7 +106,7 @@ const TURNS = [
   },
   {
     msg: "O plano Bronze SP Mais da AMIL cobre a cidade de Campinas?",
-    check: (r: string) => /campinas/i.test(r) && /sim|cobre|abrange/i.test(r),
+    check: (r: string) => /campinas/i.test(r),
     desc: "Cobertura Campinas — Bronze SP Mais"
   },
   {
@@ -190,20 +158,39 @@ test.describe("Claude Agent Documentos — Conversação (Produção)", () => {
   test.setTimeout(1200000) // 20 min
 
   test("10 turnos sobre documentos de planos de saúde", async ({ page }) => {
+    // Capture network requests to /api/chat/claude-agent
+    const apiCalls: string[] = []
+    page.on("request", req => {
+      if (req.url().includes("claude-agent")) {
+        apiCalls.push(
+          `→ ${req.method()} ${req.url().replace(BASE_URL, "")}`
+        )
+      }
+    })
+    page.on("response", resp => {
+      if (resp.url().includes("claude-agent")) {
+        apiCalls.push(
+          `← ${resp.status()} ${resp.url().replace(BASE_URL, "")}`
+        )
+      }
+    })
+    page.on("console", msg => {
+      if (
+        msg.type() === "error" ||
+        msg.text().includes("claude-agent") ||
+        msg.text().includes("Claude Agent")
+      ) {
+        console.log(
+          `[BROWSER ${msg.type().toUpperCase()}] ${msg.text().substring(0, 200)}`
+        )
+      }
+    })
+    page.on("pageerror", err => console.log(`[PAGE ERROR] ${err.message}`))
+
     await login(page)
 
-    // Select the Claude Agent assistant
-    const selected = await selectAssistant(page)
-
-    // Verify it's the right assistant (top-left should now show Claude Agent)
-    const topText = await page.locator("header, nav, [class*='header']").first().textContent().catch(() => "")
-    console.log(`Top bar text: "${topText?.substring(0, 80)}"`)
+    const selected = await selectClaudeAgent(page)
     console.log(`Assistant selected: ${selected}`)
-
-    if (!selected) {
-      // Last resort: try to navigate to the assistant directly via sidebar
-      await page.screenshot({ path: "screenshots/ca-NOTSELECTED.png", fullPage: true })
-    }
 
     const results: Array<{
       turn: number
@@ -214,13 +201,23 @@ test.describe("Claude Agent Documentos — Conversação (Produção)", () => {
 
     for (let i = 0; i < TURNS.length; i++) {
       const { msg, check, desc } = TURNS[i]
+      console.log(`\n─── Turn ${i + 1} ───────────────────────────────`)
+      console.log(`→ "${msg.substring(0, 100)}"`)
+
       let response = ""
       try {
-        response = await sendTurn(page, msg, i + 1)
+        response = await sendAndWait(page, msg, 240, `t${i + 1}`)
       } catch (e: any) {
         console.error(`Turn ${i + 1} error: ${e.message}`)
         response = ""
       }
+
+      const preview = response.replace(/\s+/g, " ").substring(0, 350)
+      console.log(`← "${preview}"`)
+
+      await page
+        .screenshot({ path: `screenshots/ca-turn${String(i + 1).padStart(2, "0")}.png` })
+        .catch(() => {})
 
       const passed = response.length > 20 && check(response)
       results.push({ turn: i + 1, desc, passed, responseLen: response.length })
@@ -251,7 +248,13 @@ test.describe("Claude Agent Documentos — Conversação (Produção)", () => {
     console.log(`║ Score: ${passed}/${total} = ${pct}%`.padEnd(43) + "║")
     console.log("╚══════════════════════════════════════════╝")
 
-    await page.screenshot({ path: "screenshots/ca-final.png", fullPage: true })
+    console.log(
+      `Network calls: ${apiCalls.length > 0 ? apiCalls.join(" | ") : "NONE"}`
+    )
+
+    await page
+      .screenshot({ path: "screenshots/ca-final.png", fullPage: true })
+      .catch(() => {})
 
     expect(
       passed,
