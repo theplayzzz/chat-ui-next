@@ -279,6 +279,30 @@ export type Database = {
           },
         ]
       }
+      claude_agent_files: {
+        Row: {
+          id: string
+          filename: string
+          size_bytes: number
+          uploaded_by: string | null
+          uploaded_at: string
+        }
+        Insert: {
+          id?: string
+          filename: string
+          size_bytes: number
+          uploaded_by?: string | null
+          uploaded_at?: string
+        }
+        Update: {
+          id?: string
+          filename?: string
+          size_bytes?: number
+          uploaded_by?: string | null
+          uploaded_at?: string
+        }
+        Relationships: []
+      }
       chat_files: {
         Row: {
           chat_id: string

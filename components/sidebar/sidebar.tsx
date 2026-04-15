@@ -1,4 +1,5 @@
 import { ChatbotUIContext } from "@/context/context"
+import { isClaudeAgentAssistant } from "@/lib/assistants/is-claude-agent"
 import { Tables } from "@/supabase/types"
 import { ContentType } from "@/types"
 import { FC, useContext } from "react"
@@ -6,6 +7,7 @@ import { SIDEBAR_WIDTH } from "../ui/dashboard"
 import { TabsContent } from "../ui/tabs"
 import { WorkspaceSwitcher } from "../utility/workspace-switcher"
 import { WorkspaceSettings } from "../workspace/workspace-settings"
+import { ClaudeAgentSidebarContent } from "./claude-agent-sidebar-content"
 import { SidebarContent } from "./sidebar-content"
 
 interface SidebarProps {
@@ -23,8 +25,11 @@ export const Sidebar: FC<SidebarProps> = ({ contentType, showSidebar }) => {
     collections,
     assistants,
     tools,
-    models
+    models,
+    selectedAssistant
   } = useContext(ChatbotUIContext)
+
+  const isClaudeAgent = isClaudeAgentAssistant(selectedAssistant)
 
   const chatFolders = folders.filter(folder => folder.type === "chats")
   const presetFolders = folders.filter(folder => folder.type === "presets")
@@ -79,7 +84,11 @@ export const Sidebar: FC<SidebarProps> = ({ contentType, showSidebar }) => {
               return renderSidebarContent("prompts", prompts, promptFolders)
 
             case "files":
-              return renderSidebarContent("files", files, filesFolders)
+              return isClaudeAgent ? (
+                <ClaudeAgentSidebarContent />
+              ) : (
+                renderSidebarContent("files", files, filesFolders)
+              )
 
             case "collections":
               return renderSidebarContent(

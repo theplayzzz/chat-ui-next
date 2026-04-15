@@ -1,3 +1,4 @@
+import { ClaudeAgentFile } from "@/db/claude-agent-files"
 import { Tables } from "@/supabase/types"
 import {
   ChatFile,
@@ -26,6 +27,8 @@ interface ChatbotUIContext {
   setChats: Dispatch<SetStateAction<Tables<"chats">[]>>
   files: Tables<"files">[]
   setFiles: Dispatch<SetStateAction<Tables<"files">[]>>
+  claudeAgentFiles: ClaudeAgentFile[]
+  setClaudeAgentFiles: Dispatch<SetStateAction<ClaudeAgentFile[]>>
   folders: Tables<"folders">[]
   setFolders: Dispatch<SetStateAction<Tables<"folders">[]>>
   models: Tables<"models">[]
@@ -152,6 +155,8 @@ export const ChatbotUIContext = createContext<ChatbotUIContext>({
   setChats: () => {},
   files: [],
   setFiles: () => {},
+  claudeAgentFiles: [],
+  setClaudeAgentFiles: () => {},
   folders: [],
   setFolders: () => {},
   models: [],

@@ -104,19 +104,7 @@ function isHealthPlanAssistant(
  * Checks if the assistant is a Claude Agent (Docker + Claude Code CLI).
  * Uses /api/chat/claude-agent which proxies to the local Docker service.
  */
-function isClaudeAgentAssistant(
-  assistant: Tables<"assistants"> | null
-): boolean {
-  if (!assistant) return false
-  const name = assistant.name.toLowerCase()
-  const desc = (assistant.description || "").toLowerCase()
-  return (
-    name.includes("claude agent") ||
-    name.includes("agente documentos") ||
-    name.includes("documents agent") ||
-    desc.includes("claude-agent")
-  )
-}
+import { isClaudeAgentAssistant } from "@/lib/assistants/is-claude-agent"
 
 /**
  * Checks if the assistant is specifically Health Plan v2 (LangGraph version).

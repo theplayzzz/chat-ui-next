@@ -3,6 +3,7 @@
 "use client"
 
 import { ChatbotUIContext } from "@/context/context"
+import { ClaudeAgentFile, listClaudeAgentFiles } from "@/db/claude-agent-files"
 import { getProfileByUserId } from "@/db/profile"
 import { getBulkWorkspaceImageUrls } from "@/db/storage/workspace-images"
 import { getWorkspacesByUserId } from "@/db/workspaces"
@@ -42,6 +43,9 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
   const [collections, setCollections] = useState<Tables<"collections">[]>([])
   const [chats, setChats] = useState<Tables<"chats">[]>([])
   const [files, setFiles] = useState<Tables<"files">[]>([])
+  const [claudeAgentFiles, setClaudeAgentFiles] = useState<ClaudeAgentFile[]>(
+    []
+  )
   const [folders, setFolders] = useState<Tables<"folders">[]>([])
   const [models, setModels] = useState<Tables<"models">[]>([])
   const [presets, setPresets] = useState<Tables<"presets">[]>([])
@@ -150,6 +154,13 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
           setAvailableLocalModels(localModels)
         }
       }
+
+      // Load Claude Agent files (global, not workspace-scoped)
+      listClaudeAgentFiles()
+        .then(setClaudeAgentFiles)
+        .catch(e =>
+          console.warn("[global-state] claude_agent_files load failed:", e)
+        )
     })()
   }, [])
 
@@ -212,6 +223,8 @@ export const GlobalState: FC<GlobalStateProps> = ({ children }) => {
         setChats,
         files,
         setFiles,
+        claudeAgentFiles,
+        setClaudeAgentFiles,
         folders,
         setFolders,
         models,
