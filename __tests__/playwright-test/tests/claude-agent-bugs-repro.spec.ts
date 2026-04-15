@@ -232,8 +232,15 @@ test.describe("Claude Agent — regression (duplication + persistence)", () => {
   }) => {
     page.on("pageerror", err => console.log(`[PAGE ERROR] ${err.message}`))
     page.on("console", msg => {
-      if (msg.type() === "error") {
-        console.log(`[BROWSER ERROR] ${msg.text().substring(0, 200)}`)
+      const text = msg.text()
+      // Capture browser logs we care about (errors + our own trace prefixes)
+      if (
+        msg.type() === "error" ||
+        text.includes("use-chat-handler") ||
+        text.includes("handleCreateMessages") ||
+        text.includes("about to")
+      ) {
+        console.log(`[BROWSER ${msg.type()}] ${text.substring(0, 300)}`)
       }
     })
     page.on("response", resp => {

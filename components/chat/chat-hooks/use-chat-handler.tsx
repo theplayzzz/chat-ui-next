@@ -4,7 +4,7 @@ import { getAssistantFilesByAssistantId } from "@/db/assistant-files"
 import { getAssistantToolsByAssistantId } from "@/db/assistant-tools"
 import { updateChat } from "@/db/chats"
 import { getCollectionFilesByCollectionId } from "@/db/collection-files"
-import { deleteMessagesIncludingAndAfter } from "@/db/messages"
+import { createMessages, deleteMessagesIncludingAndAfter } from "@/db/messages"
 import { buildFinalMessages } from "@/lib/build-prompt"
 import { Tables } from "@/supabase/types"
 import { ChatMessage, ChatPayload, LLMID, ModelProvider } from "@/types"
@@ -476,6 +476,63 @@ export const useChatHandler = () => {
           setChatMessages,
           setToolInUse
         )
+
+        // Persist messages inline — handleCreateMessages (the generic path)
+        // requires a full LLM modelData entry, and claude-sonnet-4-6 is not
+        // in LLM_LIST, so the generic path silently skipped persisting.
+        if (!isRegeneration && currentChat && generatedText) {
+          try {
+            const seq = chatMessages.length
+            const userRow = {
+              chat_id: currentChat.id,
+              assistant_id: null,
+              user_id: profile!.user_id,
+              content: messageContent,
+              model: "claude-sonnet-4-6",
+              role: "user",
+              sequence_number: seq,
+              image_paths: []
+            } as any
+            const asstRow = {
+              chat_id: currentChat.id,
+              assistant_id: selectedAssistant?.id ?? null,
+              user_id: profile!.user_id,
+              content: generatedText,
+              model: "claude-sonnet-4-6",
+              role: "assistant",
+              sequence_number: seq + 1,
+              image_paths: []
+            } as any
+            const created = await createMessages([userRow, asstRow])
+            console.log(
+              `[use-chat-handler] Claude Agent persisted ${created.length} messages`
+            )
+            setChatMessages(prev => {
+              // Replace the temp user/assistant pair with real rows
+              const withoutTemp = prev.filter(
+                m =>
+                  m.message.id !== tempUserChatMessage.message.id &&
+                  m.message.id !== tempAssistantChatMessage.message.id
+              )
+              return [
+                ...withoutTemp,
+                { message: created[0], fileItems: [] },
+                { message: created[1], fileItems: [] }
+              ]
+            })
+          } catch (persistErr) {
+            console.error(
+              "[use-chat-handler] Claude Agent persist FAILED:",
+              persistErr
+            )
+          }
+        }
+
+        // Short-circuit the generic post-processing — the block below would
+        // call handleCreateMessages a second time and throw on modelData.
+        setIsGenerating(false)
+        setFirstTokenReceived(false)
+        return
       }
 
       // Check if this is a health plan assistant - use specialized API route
