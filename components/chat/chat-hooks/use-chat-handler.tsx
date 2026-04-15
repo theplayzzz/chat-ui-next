@@ -682,7 +682,9 @@ export const useChatHandler = () => {
         chatMessages,
         currentChat,
         profile!,
-        modelData!,
+        // Claude Agent uses claude-sonnet-4-6 (not in LLM_LIST) → modelData is
+        // undefined. handleCreateMessages falls back to the assistant model.
+        modelData as any,
         messageContent,
         generatedText,
         newMessageImages,
@@ -697,6 +699,7 @@ export const useChatHandler = () => {
       setIsGenerating(false)
       setFirstTokenReceived(false)
     } catch (error) {
+      console.error("[use-chat-handler] send error:", error)
       setIsGenerating(false)
       setFirstTokenReceived(false)
       setUserInput(startingInput)

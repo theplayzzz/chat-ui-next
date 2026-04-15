@@ -404,12 +404,20 @@ export const handleCreateMessages = async (
   setChatImages: React.Dispatch<React.SetStateAction<MessageImage[]>>,
   selectedAssistant: Tables<"assistants"> | null
 ) => {
+  // Claude Agent uses `claude-sonnet-4-6` which is not in LLM_LIST, so
+  // modelData may be undefined. Fall back to the assistant's configured model
+  // or a sane default so persistence never breaks on a missing modelId.
+  const modelId =
+    modelData?.modelId ??
+    (selectedAssistant as any)?.model ??
+    "claude-sonnet-4-6"
+
   const finalUserMessage: TablesInsert<"messages"> = {
     chat_id: currentChat.id,
     assistant_id: null,
     user_id: profile.user_id,
     content: messageContent,
-    model: modelData.modelId,
+    model: modelId,
     role: "user",
     sequence_number: chatMessages.length,
     image_paths: []
@@ -426,7 +434,7 @@ export const handleCreateMessages = async (
     assistant_id: selectedAssistant?.id || null,
     user_id: profile.user_id,
     content: cleanGeneratedText,
-    model: modelData.modelId,
+    model: modelId,
     role: "assistant",
     sequence_number: chatMessages.length + 1,
     image_paths: []
