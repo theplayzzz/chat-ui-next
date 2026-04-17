@@ -14,6 +14,8 @@ export function isClaudeAgentAssistant(
     name.includes("claude agent") ||
     name.includes("agente documentos") ||
     name.includes("documents agent") ||
-    desc.includes("claude-agent")
+    name.includes("agente de venda") ||
+    desc.includes("claude-agent") ||
+    assistant.id === "b70a1096-679d-41f5-9655-d4bd22459d5b"
   )
 }

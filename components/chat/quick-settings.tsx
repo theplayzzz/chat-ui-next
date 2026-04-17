@@ -164,9 +164,12 @@ export const QuickSettings: FC<QuickSettingsProps> = ({}) => {
 
   const isModified = checkIfModified()
 
+  // Filter out hidden assistants (sharing='hidden') from the dropdown
+  const visibleAssistants = assistants.filter(a => a.sharing !== "hidden")
+
   const items = [
     ...presets.map(preset => ({ ...preset, contentType: "presets" })),
-    ...assistants.map(assistant => ({
+    ...visibleAssistants.map(assistant => ({
       ...assistant,
       contentType: "assistants"
     }))

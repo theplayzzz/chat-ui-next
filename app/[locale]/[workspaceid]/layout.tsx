@@ -128,17 +128,12 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     setTools(toolData.tools)
     setModels(modelData.models)
 
-    // Auto-select Health Plan V2 as default assistant
-    const healthPlanV2 = assistantData.assistants.find(a => {
-      const name = a.name.toLowerCase()
-      return (
-        name.includes("health plan v2") ||
-        name.includes("health-plan-v2") ||
-        name.includes("health plan 2")
-      )
-    })
-    if (healthPlanV2) {
-      setSelectedAssistant(healthPlanV2)
+    // Auto-select the sales agent as default assistant (only visible one)
+    const defaultAssistant = assistantData.assistants.find(
+      a => a.sharing !== "hidden"
+    )
+    if (defaultAssistant) {
+      setSelectedAssistant(defaultAssistant)
     }
 
     // Fetch assistant images in bulk (no base64 conversion)
@@ -161,18 +156,19 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
       setAssistantImages([])
     }
 
-    // Use Health Plan V2 settings if auto-selected, otherwise workspace defaults
-    if (healthPlanV2) {
+    // Use auto-selected assistant settings, otherwise workspace defaults
+    if (defaultAssistant) {
       setChatSettings({
-        model: healthPlanV2.model as LLMID,
-        prompt: healthPlanV2.prompt,
-        temperature: healthPlanV2.temperature,
-        contextLength: healthPlanV2.context_length,
-        includeProfileContext: healthPlanV2.include_profile_context,
+        model: defaultAssistant.model as LLMID,
+        prompt: defaultAssistant.prompt,
+        temperature: defaultAssistant.temperature,
+        contextLength: defaultAssistant.context_length,
+        includeProfileContext: defaultAssistant.include_profile_context,
         includeWorkspaceInstructions:
-          healthPlanV2.include_workspace_instructions,
+          defaultAssistant.include_workspace_instructions,
         embeddingsProvider:
-          (healthPlanV2.embeddings_provider as "openai" | "local") || "openai"
+          (defaultAssistant.embeddings_provider as "openai" | "local") ||
+          "openai"
       })
     } else {
       setChatSettings({
