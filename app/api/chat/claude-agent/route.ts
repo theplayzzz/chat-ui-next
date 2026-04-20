@@ -64,13 +64,13 @@ export async function POST(request: NextRequest) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error("[claude-agent] Service unreachable:", msg)
     return new Response(
-      "Serviço Claude Agent indisponível. Verifique se o Docker está rodando.",
+      "Serviço do agente indisponível no momento. Tente novamente em instantes.",
       { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } }
     )
   }
 
   if (!upstream.ok) {
-    return new Response(`Claude Agent error: ${upstream.status}`, {
+    return new Response(`Erro no agente: ${upstream.status}`, {
       status: upstream.status,
       headers: { "Content-Type": "text/plain; charset=utf-8" }
     })

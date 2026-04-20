@@ -21,6 +21,7 @@ import {
   processResponse,
   validateChatSettings
 } from "../chat-helpers"
+import { processClaudeAgentResponse } from "../chat-helpers/process-claude-agent-response"
 
 /**
  * Builds a system prompt for health plan assistant.
@@ -412,7 +413,7 @@ export const useChatHandler = () => {
         console.log(
           "[use-chat-handler] 🤖 Claude Agent detected, using /api/chat/claude-agent"
         )
-        setToolInUse("Claude Agent")
+        setToolInUse("Agente")
 
         // Ensure chat exists for session continuity
         if (!currentChat) {
@@ -450,15 +451,14 @@ export const useChatHandler = () => {
 
         if (!response.ok) {
           const errorText = await response.text()
-          throw new Error(`Claude Agent error: ${errorText}`)
+          throw new Error(`Erro no agente: ${errorText}`)
         }
 
-        generatedText = await processResponse(
+        generatedText = await processClaudeAgentResponse(
           response,
           isRegeneration
             ? chatMessages[chatMessages.length - 1]
             : tempAssistantChatMessage,
-          true, // plain text stream (not Ollama JSON)
           newAbortController,
           setFirstTokenReceived,
           setChatMessages,

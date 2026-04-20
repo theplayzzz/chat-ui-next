@@ -47,7 +47,7 @@ export async function DELETE(
     const msg = err instanceof Error ? err.message : String(err)
     console.error("[claude-agent-files] Docker unreachable on delete:", msg)
     return NextResponse.json(
-      { error: "Claude Agent service unreachable" },
+      { error: "Serviço do agente indisponível" },
       { status: 503 }
     )
   }
