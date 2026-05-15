@@ -1,0 +1,3112 @@
+﻿
+> chatbot-ui@2.0.0 test
+> jest --ci --coverage --testPathPattern=health-plan-v2
+
+node.exe : PASS lib/agents/health-plan-v2
+/__tests__/router-invalidation.test.ts
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" 
+"C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecifi 
+   ed: (PASS lib/agents...idation.test.  
+  ts:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeComm 
+   andError
+ 
+FAIL lib/agents/health-plan-v2/monitoring
+/__tests__/rag-evaluation.test.ts
+  ÔùÅ Test suite failed to run
+
+    Vitest cannot be imported in a 
+CommonJS module using require(). Please 
+use "import" instead.
+
+    If you are using "import" in your 
+source code, then it's possible it was 
+bundled into require() automatically by 
+your bundler. In that case, do not 
+bundle CommonJS output since it will 
+never work with Vitest, or use dynamic 
+import() which is available in all 
+CommonJS modules.
+
+      10 | import { describe, it, 
+expect, vi, beforeEach } from "vitest"
+      11 | import {
+    > 12 |   relevanceEvaluator,
+         |                 ^
+      13 |   groundednessEvaluator,
+      14 |   retrievalQualityEvaluator,
+      15 |   evaluateRAG,
+
+      at Object.<anonymous> 
+(node_modules/vitest/index.cjs:1:109)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/monitoring/__tests__/rag-ev
+aluation.test.ts:12:17)
+
+FAIL lib/agents/health-plan-v2/graphs/__t
+ests__/search-plans-graph.test.ts
+  ÔùÅ Test suite failed to run
+
+    Vitest cannot be imported in a 
+CommonJS module using require(). Please 
+use "import" instead.
+
+    If you are using "import" in your 
+source code, then it's possible it was 
+bundled into require() automatically by 
+your bundler. In that case, do not 
+bundle CommonJS output since it will 
+never work with Vitest, or use dynamic 
+import() which is available in all 
+CommonJS modules.
+
+      10 | import { describe, it, 
+expect, vi, beforeEach, afterEach } from 
+"vitest"
+      11 | import {
+    > 12 |   createSearchPlansGraph,
+         |                 ^
+      13 |   compileSearchPlansGraph,
+      14 |   SearchPlansStateAnnotation,
+      15 |   type SearchPlansState,
+
+      at Object.<anonymous> 
+(node_modules/vitest/index.cjs:1:109)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/graphs/__tests__/search-pla
+ns-graph.test.ts:12:17)
+
+FAIL lib/agents/health-plan-v2/__tests__/
+cache-invalidation.test.ts
+  ÔùÅ hasSignificantChange ÔÇ║ should 
+return false when only name changes
+
+    expect(received).toBe(expected) // 
+Object.is equality
+
+    Expected: false
+    Received: true
+
+      75 |     const newInfo: 
+PartialClientInfo = { name: "Jo├úo 
+Silva", age: 30 }
+      76 |
+    > 77 |     
+expect(hasSignificantChange(oldInfo, 
+newInfo)).toBe(false)
+         |                               
+                     ^
+      78 |   })
+      79 |
+      80 |   it("should return false 
+when only preferences change", () => {
+
+      at Object.toBe (lib/agents/health-p
+lan-v2/__tests__/cache-invalidation.test.
+ts:77:52)
+
+  ÔùÅ hasSignificantChange ÔÇ║ should 
+return false when only preferences change
+
+    expect(received).toBe(expected) // 
+Object.is equality
+
+    Expected: false
+    Received: true
+
+      85 |     }
+      86 |
+    > 87 |     
+expect(hasSignificantChange(oldInfo, 
+newInfo)).toBe(false)
+         |                               
+                     ^
+      88 |   })
+      89 |
+      90 |   it("should return false 
+when nothing changes", () => {
+
+      at Object.toBe (lib/agents/health-p
+lan-v2/__tests__/cache-invalidation.test.
+ts:87:52)
+
+  ÔùÅ onClientInfoChange ÔÇ║ should 
+detect non-significant change
+
+    expect(received).toBe(expected) // 
+Object.is equality
+
+    Expected: false
+    Received: true
+
+      124 |     const result = 
+onClientInfoChange(oldInfo, newData)
+      125 |
+    > 126 |     expect(result.shouldInval
+idate).toBe(false)
+          |                              
+       ^
+      127 |     expect(result.changedFiel
+ds).toContain("name")
+      128 |     expect(result.mergedInfo.
+name).toBe("Jo├úo Silva")
+      129 |   })
+
+      at Object.toBe (lib/agents/health-p
+lan-v2/__tests__/cache-invalidation.test.
+ts:126:37)
+
+FAIL lib/agents/health-plan-v2/schemas/ra
+g-schemas.test.ts
+  ÔùÅ Test suite failed to run
+
+    Vitest cannot be imported in a 
+CommonJS module using require(). Please 
+use "import" instead.
+
+    If you are using "import" in your 
+source code, then it's possible it was 
+bundled into require() automatically by 
+your bundler. In that case, do not 
+bundle CommonJS output since it will 
+never work with Vitest, or use dynamic 
+import() which is available in all 
+CommonJS modules.
+
+      3 |   GradeResultSchema,
+      4 |   QueryItemSchema,
+    > 5 |   RewriteResultSchema
+        |                 ^
+      6 | } from "./rag-schemas"
+      7 |
+      8 | describe("RAG Schemas 
+Validation", () => {
+
+      at Object.<anonymous> 
+(node_modules/vitest/index.cjs:1:109)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/schemas/rag-schemas.test.ts
+:5:17)
+
+PASS lib/agents/health-plan-v2/__tests__/
+fase9-conversation-finalization.test.ts
+  ÔùÅ Console
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: Error: LLM 
+timeout
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\fase
+9-conversation-finalization.test.ts:177:2
+9)
+          at Promise.then.completed (C:\U
+sers\Private_Work\Desktop\Claude\chat-ui-
+next\node_modules\jest-circus\build\utils
+.js:298:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\jest-circus\build\utils.js:2
+31:10)
+          at _callCircusTest (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\jest-circus\build\run.js:316:4
+0)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at _runTest (C:\Users\Private_W
+ork\Desktop\Claude\chat-ui-next\node_modu
+les\jest-circus\build\run.js:252:3)
+          at _runTestsForDescribeBlock (C
+:\Users\Private_Work\Desktop\Claude\chat-
+ui-next\node_modules\jest-circus\build\ru
+n.js:126:9)
+          at _runTestsForDescribeBlock (C
+:\Users\Private_Work\Desktop\Claude\chat-
+ui-next\node_modules\jest-circus\build\ru
+n.js:121:9)
+          at run (C:\Users\Private_Work\D
+esktop\Claude\chat-ui-next\node_modules\j
+est-circus\build\run.js:71:3)
+          at 
+runAndTransformResultsToJestFormat (C:\Us
+ers\Private_Work\Desktop\Claude\chat-ui-n
+ext\node_modules\jest-circus\build\legacy
+-code-todo-rewrite\jestAdapterInit.js:122
+:21)
+          at jestAdapter (C:\Users\Privat
+e_Work\Desktop\Claude\chat-ui-next\node_m
+odules\jest-circus\build\legacy-code-todo
+-rewrite\jestAdapter.js:79:19)
+          at runTestInternal (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\jest-runner\build\runTest.js:3
+67:16)
+          at runTest (C:\Users\Private_Wo
+rk\Desktop\Claude\chat-ui-next\node_modul
+es\jest-runner\build\runTest.js:444:34)
+          at Object.worker (C:\Users\Priv
+ate_Work\Desktop\Claude\chat-ui-next\node
+_modules\jest-runner\build\testWorker.js:
+106:12)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/fase9-conversatio
+n-finalization.test.ts:183:20)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 0,
+        isComplete: false,
+        fieldsPresent: [],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 20,
+        isComplete: false,
+        fieldsPresent: [ 'age' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 70,
+        isComplete: true,
+        fieldsPresent: [ 'age', 'city', 
+'state', 'budget' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+confirmation message
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+86:13)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 20,
+        isComplete: false,
+        fieldsPresent: [ 'age' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Validation 
+warnings: [
+        'Idade 150 parece incorreta. Por 
+favor, confirme.',
+        'Idade acima de 70 anos pode ter 
+restri├º├Áes em alguns planos'
+      ]
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+63:13)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.log
+      [respondToUser] Processing: "O que 
+├® coparticipa├º├úo?..."
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/respond-to-user.ts:168:
+11)
+
+    console.log
+      [respondToUser] Response 
+generated, topic: glossary, terms: 1
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/respond-to-user.ts:208:
+13)
+
+    console.log
+      [respondToUser] Processing: "Qual 
+plano tem melhor cobertura?..."
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/respond-to-user.ts:168:
+11)
+
+    console.log
+      [respondToUser] Response 
+generated, topic: plan_comparison, 
+terms: 0
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/respond-to-user.ts:208:
+13)
+
+    console.log
+      [respondToUser] Processing: "O que 
+├® car├¬ncia?..."
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/respond-to-user.ts:168:
+11)
+
+    console.log
+      [respondToUser] Response 
+generated, topic: glossary, terms: 1
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/respond-to-user.ts:208:
+13)
+
+    console.log
+      [respondToUser] Processing: "Me 
+explique sobre planos..."
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/respond-to-user.ts:168:
+11)
+
+    console.error
+      [respondToUser] LLM failed, using 
+fallback: Error: LLM timeout
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\fase
+9-conversation-finalization.test.ts:554:2
+9)
+          at Promise.then.completed (C:\U
+sers\Private_Work\Desktop\Claude\chat-ui-
+next\node_modules\jest-circus\build\utils
+.js:298:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\jest-circus\build\utils.js:2
+31:10)
+          at _callCircusTest (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\jest-circus\build\run.js:316:4
+0)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at _runTest (C:\Users\Private_W
+ork\Desktop\Claude\chat-ui-next\node_modu
+les\jest-circus\build\run.js:252:3)
+          at _runTestsForDescribeBlock (C
+:\Users\Private_Work\Desktop\Claude\chat-
+ui-next\node_modules\jest-circus\build\ru
+n.js:126:9)
+          at _runTestsForDescribeBlock (C
+:\Users\Private_Work\Desktop\Claude\chat-
+ui-next\node_modules\jest-circus\build\ru
+n.js:121:9)
+          at run (C:\Users\Private_Work\D
+esktop\Claude\chat-ui-next\node_modules\j
+est-circus\build\run.js:71:3)
+          at 
+runAndTransformResultsToJestFormat (C:\Us
+ers\Private_Work\Desktop\Claude\chat-ui-n
+ext\node_modules\jest-circus\build\legacy
+-code-todo-rewrite\jestAdapterInit.js:122
+:21)
+          at jestAdapter (C:\Users\Privat
+e_Work\Desktop\Claude\chat-ui-next\node_m
+odules\jest-circus\build\legacy-code-todo
+-rewrite\jestAdapter.js:79:19)
+          at runTestInternal (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\jest-runner\build\runTest.js:3
+67:16)
+          at runTest (C:\Users\Private_Wo
+rk\Desktop\Claude\chat-ui-next\node_modul
+es\jest-runner\build\runTest.js:444:34)
+          at Object.worker (C:\Users\Priv
+ate_Work\Desktop\Claude\chat-ui-next\node
+_modules\jest-runner\build\testWorker.js:
+106:12)
+
+      215 |     }
+      216 |   } catch (error) {
+    > 217 |     
+console.error("[respondToUser] LLM 
+failed, using fallback:", error)
+          |             ^
+      218 |
+      219 |     // Fallback: gloss├írio 
++ mensagem gen├®rica
+      220 |     const fallback = 
+userMessage
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/respond-to-user.ts:21
+7:13)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/fase9-conversatio
+n-finalization.test.ts:565:20)
+
+    console.log
+      [endConversation] Finalizing 
+conversation (5 messages)
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:117
+:11)
+
+    console.log
+      [endConversation] Farewell 
+generated, hasRecommendation: false
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:163
+:13)
+
+    console.log
+      [endConversation] Finalizing 
+conversation (5 messages)
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:117
+:11)
+
+    console.log
+      [endConversation] Farewell 
+generated, hasRecommendation: true
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:163
+:13)
+
+    console.log
+      [endConversation] Finalizing 
+conversation (5 messages)
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:117
+:11)
+
+    console.log
+      [endConversation] Farewell 
+generated, hasRecommendation: false
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:163
+:13)
+
+    console.log
+      [endConversation] Finalizing 
+conversation (1 messages)
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:117
+:11)
+
+    console.log
+      [endConversation] Finalizing 
+conversation (5 messages)
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:117
+:11)
+
+    console.log
+      [endConversation] Farewell 
+generated, hasRecommendation: false
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:163
+:13)
+
+    console.error
+      [endConversation] Audit save 
+failed (non-blocking): Error: Database 
+down
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\fase
+9-conversation-finalization.test.ts:697:2
+3)
+          at Promise.then.completed (C:\U
+sers\Private_Work\Desktop\Claude\chat-ui-
+next\node_modules\jest-circus\build\utils
+.js:298:28)
+          at new Promise (<anonymous>)
+          at callAsyncCircusFn (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\jest-circus\build\utils.js:2
+31:10)
+          at _callCircusTest (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\jest-circus\build\run.js:316:4
+0)
+          at _runTest (C:\Users\Private_W
+ork\Desktop\Claude\chat-ui-next\node_modu
+les\jest-circus\build\run.js:252:3)
+          at _runTestsForDescribeBlock (C
+:\Users\Private_Work\Desktop\Claude\chat-
+ui-next\node_modules\jest-circus\build\ru
+n.js:126:9)
+          at _runTestsForDescribeBlock (C
+:\Users\Private_Work\Desktop\Claude\chat-
+ui-next\node_modules\jest-circus\build\ru
+n.js:121:9)
+          at run (C:\Users\Private_Work\D
+esktop\Claude\chat-ui-next\node_modules\j
+est-circus\build\run.js:71:3)
+          at 
+runAndTransformResultsToJestFormat (C:\Us
+ers\Private_Work\Desktop\Claude\chat-ui-n
+ext\node_modules\jest-circus\build\legacy
+-code-todo-rewrite\jestAdapterInit.js:122
+:21)
+          at jestAdapter (C:\Users\Privat
+e_Work\Desktop\Claude\chat-ui-next\node_m
+odules\jest-circus\build\legacy-code-todo
+-rewrite\jestAdapter.js:79:19)
+          at runTestInternal (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\jest-runner\build\runTest.js:3
+67:16)
+          at runTest (C:\Users\Private_Wo
+rk\Desktop\Claude\chat-ui-next\node_modul
+es\jest-runner\build\runTest.js:444:34)
+          at Object.worker (C:\Users\Priv
+ate_Work\Desktop\Claude\chat-ui-next\node
+_modules\jest-runner\build\testWorker.js:
+106:12)
+
+      170 |       farewellMessage: 
+response
+      171 |     }).catch(err => {
+    > 172 |       
+console.error("[endConversation] Audit 
+save failed (non-blocking):", err)
+          |               ^
+      173 |     })
+      174 |
+      175 |     return {
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/end-conversation.ts:1
+72:15)
+
+FAIL lib/agents/health-plan-v2/nodes/rag/
+__tests__/grade-by-collection.test.ts
+  ÔùÅ Console
+
+    console.log
+      [gradeByCollection] Iniciando 
+an├ílise por collection...
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:179:11)
+
+    console.log
+      [gradeByCollection] Collections: 
+1, Batch: 2
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:192:11)
+
+    console.log
+      [gradeByCollection] Processando 
+batch 1/1
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:206:13)
+
+    console.log
+      [gradeByCollection] Analisando: 
+Unimed (2 arquivos, ~470 tokens de 
+an├ílises)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:319:11)
+          at Array.map (<anonymous>)
+
+    console.log
+      [gradeByCollection] Detalhes: 
+unimed-tabela.pdf=243t, 
+unimed-regras.pdf=227t
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:324:11)
+          at Array.map (<anonymous>)
+
+    console.error
+      [gradeByCollection] Erro ao 
+analisar Unimed: OpenAIError: The 
+OPENAI_API_KEY environment variable is 
+missing or empty; either provide it, or 
+instantiate the OpenAI client with an 
+apiKey option, like new OpenAI({ apiKey: 
+'My API Key' }).
+          at new OpenAI (C:\Users\Private
+_Work\Desktop\Claude\chat-ui-next\node_mo
+dules\@langchain\openai\node_modules\open
+ai\src\client.ts:343:13)
+          at 
+ChatOpenAICompletions._getClientOptions (
+C:\Users\Private_Work\Desktop\Claude\chat
+-ui-next\node_modules\@langchain\openai\d
+ist\chat_models.cjs:701:27)
+          at ChatOpenAICompletions.comple
+tionWithRetry (C:\Users\Private_Work\Desk
+top\Claude\chat-ui-next\node_modules\@lan
+gchain\openai\dist\chat_models.cjs:2015:3
+6)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1842:37)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at analyzeCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:383:22)
+          at async Promise.all (index 0)
+          at gradeByCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:210:26)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\nodes\rag\__te
+sts__\grade-by-collection.test.ts:283:20)
+
+      401 |     return 
+createCollectionResult(collection, 
+parsed, options.model)
+      402 |   } catch (error) {
+    > 403 |     console.error(
+          |             ^
+      404 |       `[gradeByCollection] 
+Erro ao analisar 
+${collection.collectionName}:`,
+      405 |       error
+      406 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/rag/grade-by-collection.ts:403:13)
+          at async Promise.all (index 0)
+      at gradeByCollection (lib/agents/he
+alth-plan-v2/nodes/rag/grade-by-collectio
+n.ts:210:26)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/nodes/rag/__tests__/grade-b
+y-collection.test.ts:283:20)
+
+    console.log
+      [gradeByCollection] Conclu├¡do: 0 
+planos em 1 collections (128ms)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:229:11)
+
+    console.log
+      [gradeByCollection] Iniciando 
+an├ílise por collection...
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:179:11)
+
+    console.log
+      [gradeByCollection] Collections: 
+1, Batch: 2
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:192:11)
+
+    console.log
+      [gradeByCollection] Processando 
+batch 1/1
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:206:13)
+
+    console.log
+      [gradeByCollection] Analisando: 
+Unimed (2 arquivos, ~470 tokens de 
+an├ílises)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:319:11)
+          at Array.map (<anonymous>)
+
+    console.log
+      [gradeByCollection] Detalhes: 
+unimed-tabela.pdf=243t, 
+unimed-regras.pdf=227t
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:324:11)
+          at Array.map (<anonymous>)
+
+    console.error
+      [gradeByCollection] Erro ao 
+analisar Unimed: OpenAIError: The 
+OPENAI_API_KEY environment variable is 
+missing or empty; either provide it, or 
+instantiate the OpenAI client with an 
+apiKey option, like new OpenAI({ apiKey: 
+'My API Key' }).
+          at new OpenAI (C:\Users\Private
+_Work\Desktop\Claude\chat-ui-next\node_mo
+dules\@langchain\openai\node_modules\open
+ai\src\client.ts:343:13)
+          at 
+ChatOpenAICompletions._getClientOptions (
+C:\Users\Private_Work\Desktop\Claude\chat
+-ui-next\node_modules\@langchain\openai\d
+ist\chat_models.cjs:701:27)
+          at ChatOpenAICompletions.comple
+tionWithRetry (C:\Users\Private_Work\Desk
+top\Claude\chat-ui-next\node_modules\@lan
+gchain\openai\dist\chat_models.cjs:2015:3
+6)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1842:37)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at analyzeCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:383:22)
+          at async Promise.all (index 0)
+          at gradeByCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:210:26)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\nodes\rag\__te
+sts__\grade-by-collection.test.ts:308:20)
+
+      401 |     return 
+createCollectionResult(collection, 
+parsed, options.model)
+      402 |   } catch (error) {
+    > 403 |     console.error(
+          |             ^
+      404 |       `[gradeByCollection] 
+Erro ao analisar 
+${collection.collectionName}:`,
+      405 |       error
+      406 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/rag/grade-by-collection.ts:403:13)
+          at async Promise.all (index 0)
+      at gradeByCollection (lib/agents/he
+alth-plan-v2/nodes/rag/grade-by-collectio
+n.ts:210:26)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/nodes/rag/__tests__/grade-b
+y-collection.test.ts:308:20)
+
+    console.log
+      [gradeByCollection] Conclu├¡do: 0 
+planos em 1 collections (6ms)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:229:11)
+
+    console.log
+      [gradeByCollection] Iniciando 
+an├ílise por collection...
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:179:11)
+
+    console.log
+      [gradeByCollection] Collections: 
+1, Batch: 2
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:192:11)
+
+    console.log
+      [gradeByCollection] Processando 
+batch 1/1
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:206:13)
+
+    console.log
+      [gradeByCollection] Analisando: 
+Unimed (2 arquivos, ~470 tokens de 
+an├ílises)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:319:11)
+          at Array.map (<anonymous>)
+
+    console.log
+      [gradeByCollection] Detalhes: 
+unimed-tabela.pdf=243t, 
+unimed-regras.pdf=227t
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:324:11)
+          at Array.map (<anonymous>)
+
+    console.error
+      [gradeByCollection] Erro ao 
+analisar Unimed: OpenAIError: The 
+OPENAI_API_KEY environment variable is 
+missing or empty; either provide it, or 
+instantiate the OpenAI client with an 
+apiKey option, like new OpenAI({ apiKey: 
+'My API Key' }).
+          at new OpenAI (C:\Users\Private
+_Work\Desktop\Claude\chat-ui-next\node_mo
+dules\@langchain\openai\node_modules\open
+ai\src\client.ts:343:13)
+          at 
+ChatOpenAICompletions._getClientOptions (
+C:\Users\Private_Work\Desktop\Claude\chat
+-ui-next\node_modules\@langchain\openai\d
+ist\chat_models.cjs:701:27)
+          at ChatOpenAICompletions.comple
+tionWithRetry (C:\Users\Private_Work\Desk
+top\Claude\chat-ui-next\node_modules\@lan
+gchain\openai\dist\chat_models.cjs:2015:3
+6)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1842:37)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at analyzeCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:383:22)
+          at async Promise.all (index 0)
+          at gradeByCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:210:26)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\nodes\rag\__te
+sts__\grade-by-collection.test.ts:352:20)
+
+      401 |     return 
+createCollectionResult(collection, 
+parsed, options.model)
+      402 |   } catch (error) {
+    > 403 |     console.error(
+          |             ^
+      404 |       `[gradeByCollection] 
+Erro ao analisar 
+${collection.collectionName}:`,
+      405 |       error
+      406 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/rag/grade-by-collection.ts:403:13)
+          at async Promise.all (index 0)
+      at gradeByCollection (lib/agents/he
+alth-plan-v2/nodes/rag/grade-by-collectio
+n.ts:210:26)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/nodes/rag/__tests__/grade-b
+y-collection.test.ts:352:20)
+
+    console.log
+      [gradeByCollection] Conclu├¡do: 0 
+planos em 1 collections (5ms)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:229:11)
+
+    console.log
+      [gradeByCollection] Iniciando 
+an├ílise por collection...
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:179:11)
+
+    console.log
+      [gradeByCollection] Collections: 
+1, Batch: 2
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:192:11)
+
+    console.log
+      [gradeByCollection] Processando 
+batch 1/1
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:206:13)
+
+    console.log
+      [gradeByCollection] Analisando: 
+Unimed (2 arquivos, ~470 tokens de 
+an├ílises)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:319:11)
+          at Array.map (<anonymous>)
+
+    console.log
+      [gradeByCollection] Detalhes: 
+unimed-tabela.pdf=243t, 
+unimed-regras.pdf=227t
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:324:11)
+          at Array.map (<anonymous>)
+
+    console.error
+      [gradeByCollection] Erro ao 
+analisar Unimed: OpenAIError: The 
+OPENAI_API_KEY environment variable is 
+missing or empty; either provide it, or 
+instantiate the OpenAI client with an 
+apiKey option, like new OpenAI({ apiKey: 
+'My API Key' }).
+          at new OpenAI (C:\Users\Private
+_Work\Desktop\Claude\chat-ui-next\node_mo
+dules\@langchain\openai\node_modules\open
+ai\src\client.ts:343:13)
+          at 
+ChatOpenAICompletions._getClientOptions (
+C:\Users\Private_Work\Desktop\Claude\chat
+-ui-next\node_modules\@langchain\openai\d
+ist\chat_models.cjs:701:27)
+          at ChatOpenAICompletions.comple
+tionWithRetry (C:\Users\Private_Work\Desk
+top\Claude\chat-ui-next\node_modules\@lan
+gchain\openai\dist\chat_models.cjs:2015:3
+6)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1842:37)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at analyzeCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:383:22)
+          at async Promise.all (index 0)
+          at gradeByCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:210:26)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\nodes\rag\__te
+sts__\grade-by-collection.test.ts:374:20)
+
+      401 |     return 
+createCollectionResult(collection, 
+parsed, options.model)
+      402 |   } catch (error) {
+    > 403 |     console.error(
+          |             ^
+      404 |       `[gradeByCollection] 
+Erro ao analisar 
+${collection.collectionName}:`,
+      405 |       error
+      406 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/rag/grade-by-collection.ts:403:13)
+          at async Promise.all (index 0)
+      at gradeByCollection (lib/agents/he
+alth-plan-v2/nodes/rag/grade-by-collectio
+n.ts:210:26)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/nodes/rag/__tests__/grade-b
+y-collection.test.ts:374:20)
+
+    console.log
+      [gradeByCollection] Conclu├¡do: 0 
+planos em 1 collections (4ms)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:229:11)
+
+    console.log
+      [gradeByCollection] Iniciando 
+an├ílise por collection...
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:179:11)
+
+    console.log
+      [gradeByCollection] Nenhuma 
+collection para analisar
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:188:13)
+
+    console.log
+      [gradeByCollection] Iniciando 
+an├ílise por collection...
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:179:11)
+
+    console.log
+      [gradeByCollection] Collections: 
+1, Batch: 2
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:192:11)
+
+    console.log
+      [gradeByCollection] Processando 
+batch 1/1
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:206:13)
+
+    console.log
+      [gradeByCollection] Analisando: 
+Unimed (2 arquivos, ~0 tokens de 
+an├ílises)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:319:11)
+          at Array.map (<anonymous>)
+
+    console.log
+      [gradeByCollection] Detalhes: 
+unimed-tabela.pdf=0t, 
+unimed-regras.pdf=0t
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:324:11)
+          at Array.map (<anonymous>)
+
+    console.error
+      [gradeByCollection] Erro ao 
+analisar Unimed: OpenAIError: The 
+OPENAI_API_KEY environment variable is 
+missing or empty; either provide it, or 
+instantiate the OpenAI client with an 
+apiKey option, like new OpenAI({ apiKey: 
+'My API Key' }).
+          at new OpenAI (C:\Users\Private
+_Work\Desktop\Claude\chat-ui-next\node_mo
+dules\@langchain\openai\node_modules\open
+ai\src\client.ts:343:13)
+          at 
+ChatOpenAICompletions._getClientOptions (
+C:\Users\Private_Work\Desktop\Claude\chat
+-ui-next\node_modules\@langchain\openai\d
+ist\chat_models.cjs:701:27)
+          at ChatOpenAICompletions.comple
+tionWithRetry (C:\Users\Private_Work\Desk
+top\Claude\chat-ui-next\node_modules\@lan
+gchain\openai\dist\chat_models.cjs:2015:3
+6)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1842:37)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at analyzeCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:383:22)
+          at async Promise.all (index 0)
+          at gradeByCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:210:26)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\nodes\rag\__te
+sts__\grade-by-collection.test.ts:415:20)
+
+      401 |     return 
+createCollectionResult(collection, 
+parsed, options.model)
+      402 |   } catch (error) {
+    > 403 |     console.error(
+          |             ^
+      404 |       `[gradeByCollection] 
+Erro ao analisar 
+${collection.collectionName}:`,
+      405 |       error
+      406 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/rag/grade-by-collection.ts:403:13)
+          at async Promise.all (index 0)
+      at gradeByCollection (lib/agents/he
+alth-plan-v2/nodes/rag/grade-by-collectio
+n.ts:210:26)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/nodes/rag/__tests__/grade-b
+y-collection.test.ts:415:20)
+
+    console.log
+      [gradeByCollection] Conclu├¡do: 0 
+planos em 1 collections (5ms)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:229:11)
+
+    console.log
+      [gradeByCollection] Iniciando 
+an├ílise por collection...
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:179:11)
+
+    console.log
+      [gradeByCollection] Collections: 
+1, Batch: 2
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:192:11)
+
+    console.log
+      [gradeByCollection] Processando 
+batch 1/1
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:206:13)
+
+    console.log
+      [gradeByCollection] Analisando: 
+Unimed (2 arquivos, ~470 tokens de 
+an├ílises)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:319:11)
+          at Array.map (<anonymous>)
+
+    console.log
+      [gradeByCollection] Detalhes: 
+unimed-tabela.pdf=243t, 
+unimed-regras.pdf=227t
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:324:11)
+          at Array.map (<anonymous>)
+
+    console.error
+      [gradeByCollection] Erro ao 
+analisar Unimed: OpenAIError: The 
+OPENAI_API_KEY environment variable is 
+missing or empty; either provide it, or 
+instantiate the OpenAI client with an 
+apiKey option, like new OpenAI({ apiKey: 
+'My API Key' }).
+          at new OpenAI (C:\Users\Private
+_Work\Desktop\Claude\chat-ui-next\node_mo
+dules\@langchain\openai\node_modules\open
+ai\src\client.ts:343:13)
+          at 
+ChatOpenAICompletions._getClientOptions (
+C:\Users\Private_Work\Desktop\Claude\chat
+-ui-next\node_modules\@langchain\openai\d
+ist\chat_models.cjs:701:27)
+          at ChatOpenAICompletions.comple
+tionWithRetry (C:\Users\Private_Work\Desk
+top\Claude\chat-ui-next\node_modules\@lan
+gchain\openai\dist\chat_models.cjs:2015:3
+6)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1842:37)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at analyzeCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:383:22)
+          at async Promise.all (index 0)
+          at gradeByCollection (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+lib\agents\health-plan-v2\nodes\rag\grade
+-by-collection.ts:210:26)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\nodes\rag\__te
+sts__\grade-by-collection.test.ts:427:20)
+
+      401 |     return 
+createCollectionResult(collection, 
+parsed, options.model)
+      402 |   } catch (error) {
+    > 403 |     console.error(
+          |             ^
+      404 |       `[gradeByCollection] 
+Erro ao analisar 
+${collection.collectionName}:`,
+      405 |       error
+      406 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/rag/grade-by-collection.ts:403:13)
+          at async Promise.all (index 0)
+      at gradeByCollection (lib/agents/he
+alth-plan-v2/nodes/rag/grade-by-collectio
+n.ts:210:26)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/nodes/rag/__tests__/grade-b
+y-collection.test.ts:427:20)
+
+    console.log
+      [gradeByCollection] Conclu├¡do: 0 
+planos em 1 collections (3ms)
+
+      at log (lib/agents/health-plan-v2/n
+odes/rag/grade-by-collection.ts:229:11)
+
+  ÔùÅ gradeByCollection ÔÇ║ deve 
+identificar planos usando 
+previousAnalysisText
+
+    expect(received).toBeGreaterThan(expe
+cted)
+
+    Expected: > 0
+    Received:   0
+
+      289 |
+      290 |     // Validar que planos 
+foram identificados
+    > 291 |     expect(result.stats.total
+PlansIdentified).toBeGreaterThan(0)
+          |                              
+                 ^
+      292 |     expect(result.collectionA
+nalyses).toBeDefined()
+      293 |     expect(result.collectionA
+nalyses.length).toBeGreaterThan(0)
+      294 |
+
+      at Object.toBeGreaterThan (lib/agen
+ts/health-plan-v2/nodes/rag/__tests__/gra
+de-by-collection.test.ts:291:47)
+
+PASS lib/agents/health-plan-v2/__tests__/
+update-client-info.test.ts
+  ÔùÅ Console
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 0,
+        isComplete: false,
+        fieldsPresent: [],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:437:20)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:437:20)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 70,
+        isComplete: true,
+        fieldsPresent: [ 'age', 'city', 
+'state', 'budget' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+confirmation message
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+86:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:451:20)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:451:20)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 20,
+        isComplete: false,
+        fieldsPresent: [ 'age' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:461:20)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:461:20)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 70,
+        isComplete: true,
+        fieldsPresent: [ 'age', 'city', 
+'state', 'budget' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Validation 
+warnings: [ 'Titular menor de 18 anos 
+pode requerer respons├ível legal' ]
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+63:13)
+
+    console.log
+      [updateClientInfo] Generating 
+confirmation message
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+86:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:477:20)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:477:20)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 0,
+        isComplete: false,
+        fieldsPresent: [],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:487:20)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:487:20)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 70,
+        isComplete: true,
+        fieldsPresent: [ 'age', 'city', 
+'state', 'budget' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+confirmation message
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+86:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:501:20)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:501:20)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 0,
+        isComplete: false,
+        fieldsPresent: [],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:516:18)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:516:18)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 20,
+        isComplete: false,
+        fieldsPresent: [ 'age' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:521:14)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:521:14)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 70,
+        isComplete: true,
+        fieldsPresent: [ 'age', 'city', 
+'state', 'budget' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+confirmation message
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+86:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:534:14)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:534:14)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 70,
+        isComplete: true,
+        fieldsPresent: [ 'age', 'city', 
+'state', 'budget' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Validation 
+warnings: [ 'Titular menor de 18 anos 
+pode requerer respons├ível legal' ]
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+63:13)
+
+    console.log
+      [updateClientInfo] Generating 
+confirmation message
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+86:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:547:20)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:547:20)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 80,
+        isComplete: true,
+        fieldsPresent: [ 'age', 'city', 
+'state', 'budget', 'dependents' ],
+        clientInfoVersion: 0
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Validation 
+warnings: [ 'Or├ºamento pode ser 
+insuficiente para planos com boa 
+cobertura' ]
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+63:13)
+
+    console.log
+      [updateClientInfo] Generating 
+confirmation message
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+86:13)
+
+    console.error
+      [humanizeResponse] LLM failed, 
+using glossary fallback: TypeError: (0 , 
+messages_1.isAIMessage) is not a function
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\openai\dist\chat_models.cjs:228:40
+          at Array.flatMap (<anonymous>)
+          at 
+_convertMessagesToOpenAIParams (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\openai\dist\chat_
+models.cjs:203:21)
+          at 
+ChatOpenAICompletions._generate (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\node_modules\@langchain\openai\dist\chat
+_models.cjs:1802:32)
+          at ChatOpenAI._generate (C:\Use
+rs\Private_Work\Desktop\Claude\chat-ui-ne
+xt\node_modules\@langchain\openai\dist\ch
+at_models.cjs:2780:33)
+          at C:\Users\Private_Work\Deskto
+p\Claude\chat-ui-next\node_modules\@langc
+hain\core\dist\language_models\chat_model
+s.cjs:254:96
+          at Array.map (<anonymous>)
+          at 
+ChatOpenAI._generateUncached (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\language_
+models\chat_models.cjs:254:67)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at ChatOpenAI.invoke (C:\Users\
+Private_Work\Desktop\Claude\chat-ui-next\
+node_modules\@langchain\core\dist\languag
+e_models\chat_models.cjs:92:24)
+          at RunnableSequence.invoke (C:\
+Users\Private_Work\Desktop\Claude\chat-ui
+-next\node_modules\@langchain\core\dist\r
+unnables\base.cjs:1310:33)
+          at humanizeResponse (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\humanize-response.ts:222:20)
+          at updateClientInfo (C:\Users\P
+rivate_Work\Desktop\Claude\chat-ui-next\l
+ib\agents\health-plan-v2\nodes\capabiliti
+es\update-client-info.ts:494:21)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\upda
+te-client-info.test.ts:569:20)
+
+      234 |     }
+      235 |   } catch (error) {
+    > 236 |     console.error(
+          |             ^
+      237 |       "[humanizeResponse] 
+LLM failed, using glossary fallback:",
+      238 |       error
+      239 |     )
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/humanize-response.ts:
+236:13)
+      at updateClientInfo (lib/agents/hea
+lth-plan-v2/nodes/capabilities/update-cli
+ent-info.ts:494:21)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/update-client-inf
+o.test.ts:569:20)
+
+PASS lib/agents/health-plan-v2/__tests__/
+orchestrator-loop.test.ts
+  ÔùÅ Console
+
+    console.log
+      [cache-invalidation] Dependents 
+merged: { existingCount: 1, 
+incomingCount: 1, resultCount: 2 }
+
+      at log (lib/agents/health-plan-v2/s
+tate/cache-invalidation.ts:129:11)
+
+    console.log
+      [cache-invalidation] Dependents 
+merged: { existingCount: 1, 
+incomingCount: 1, resultCount: 1 }
+
+      at log (lib/agents/health-plan-v2/s
+tate/cache-invalidation.ts:129:11)
+
+    console.log
+      [cache-invalidation] Dependents 
+merged: { existingCount: 1, 
+incomingCount: 1, resultCount: 1 }
+
+      at log (lib/agents/health-plan-v2/s
+tate/cache-invalidation.ts:129:11)
+
+    console.log
+      [cache-invalidation] Dependents 
+merged: { existingCount: 2, 
+incomingCount: 1, resultCount: 3 }
+
+      at log (lib/agents/health-plan-v2/s
+tate/cache-invalidation.ts:129:11)
+
+    console.log
+      [cache-invalidation] Dependents 
+merged: { existingCount: 1, 
+incomingCount: 1, resultCount: 1 }
+
+      at log (lib/agents/health-plan-v2/s
+tate/cache-invalidation.ts:129:11)
+
+    console.log
+      [cache-invalidation] Dependents 
+merged: { existingCount: 3, 
+incomingCount: 1, resultCount: 4 }
+
+      at log (lib/agents/health-plan-v2/s
+tate/cache-invalidation.ts:129:11)
+
+    console.log
+      [cache-invalidation] Dependents 
+merged: { existingCount: 1, 
+incomingCount: 1, resultCount: 1 }
+
+      at log (lib/agents/health-plan-v2/s
+tate/cache-invalidation.ts:129:11)
+
+    console.log
+      [cache-invalidation] Dependents 
+merged: { existingCount: 2, 
+incomingCount: 1, resultCount: 3 }
+
+      at log (lib/agents/health-plan-v2/s
+tate/cache-invalidation.ts:129:11)
+
+    console.log
+      [router] Route decision: {
+        intent: 'buscar_planos',
+        capability: 'updateClientInfo',
+        reason: 'Dados insuficientes 
+para busca (precisa idade e 
+localiza├º├úo)',
+        redirected: true
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/router.ts:154:11)
+
+    console.log
+      [router] Route decision: {
+        intent: 'pedir_recomendacao',
+        capability: 'searchPlans',
+        reason: 'Sem an├ílise nem busca, 
+iniciando busca para recomenda├º├úo',
+        redirected: true
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/router.ts:154:11)
+
+    console.log
+      [router] Route decision: {
+        intent: 'finalizar',
+        capability: 'endConversation',
+        reason: 'Usu├írio solicitou 
+finaliza├º├úo',
+        redirected: false
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/router.ts:154:11)
+
+    console.log
+      [router] Route decision: {
+        intent: 'conversar',
+        capability: '__end__',
+        reason: 'Loop limit reached (10 
+iterations)',
+        redirected: true
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/router.ts:154:11)
+
+    console.log
+      [updateClientInfo] Processing 
+client data: {
+        completeness: 0,
+        isComplete: false,
+        fieldsPresent: [],
+        clientInfoVersion: undefined
+      }
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+50:11)
+
+    console.log
+      [updateClientInfo] Generating 
+follow-up question
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/update-client-info.ts:4
+90:13)
+
+    console.log
+      [searchPlans] Iniciando busca via 
+sub-grafo RAG por arquivo...
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/search-plans.ts:44:11)
+
+    console.log
+      [searchPlans] Query constru├¡da: 
+"plano de sa├║de adulto 30 anos S├úo 
+Paulo cobertura regional individual..."
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/search-plans.ts:79:13)
+
+    console.log
+      [searchPlans] Mensagens de 
+contexto: 0
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/search-plans.ts:82:13)
+
+    console.log
+      [searchPlans] Invocando 
+searchPlansGraph...
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/search-plans.ts:87:13)
+
+    console.log
+      [search-plans-graph] Inicializando 
+busca...
+
+      at RunnableCallable.log [as func] (
+lib/agents/health-plan-v2/graphs/search-p
+lans-graph.ts:161:11)
+
+    console.log
+      [search-plans-graph] AssistantId: 
+undefined
+
+      at RunnableCallable.log [as func] (
+lib/agents/health-plan-v2/graphs/search-p
+lans-graph.ts:162:11)
+
+    console.error
+      [searchPlans] Erro na busca: 
+TypeError: this.signal?.throwIfAborted 
+is not a function
+          at 
+AsyncGeneratorWithSetup.next (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\no
+de_modules\@langchain\core\dist\utils\str
+eam.cjs:237:22)
+          at Object.pull (C:\Users\Privat
+e_Work\Desktop\Claude\chat-ui-next\node_m
+odules\@langchain\core\dist\utils\stream.
+cjs:107:57)
+          at invokePromiseCallback 
+(node:internal/webstreams/util:172:10)
+          at Object.<anonymous> 
+(node:internal/webstreams/util:177:23)
+          at readableStreamDefaultControl
+lerCallPullIfNeeded (node:internal/webstr
+eams/readablestream:2384:24)
+          at node:internal/webstreams/rea
+dablestream:2472:7
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+
+      154 |     }
+      155 |   } catch (error) {
+    > 156 |     
+console.error("[searchPlans] Erro na 
+busca:", error)
+          |             ^
+      157 |
+      158 |     const rawError =
+      159 |       "Desculpe, houve um 
+problema ao buscar os planos. Vou tentar 
+de outra forma. " +
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/search-plans.ts:156:1
+3)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/orchestrator-loop
+.test.ts:440:20)
+
+    console.log
+      [respondToUser] Processing: "..."
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/respond-to-user.ts:168:
+11)
+
+    console.error
+      [respondToUser] LLM failed, using 
+fallback: TypeError: Cannot read 
+properties of undefined (reading 
+'length')
+          at length (C:\Users\Private_Wor
+k\Desktop\Claude\chat-ui-next\lib\agents\
+health-plan-v2\nodes\capabilities\respond
+-to-user.ts:209:107)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\orch
+estrator-loop.test.ts:459:20)
+
+      215 |     }
+      216 |   } catch (error) {
+    > 217 |     
+console.error("[respondToUser] LLM 
+failed, using fallback:", error)
+          |             ^
+      218 |
+      219 |     // Fallback: gloss├írio 
++ mensagem gen├®rica
+      220 |     const fallback = 
+userMessage
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/respond-to-user.ts:21
+7:13)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/orchestrator-loop
+.test.ts:459:20)
+
+    console.log
+      [endConversation] Finalizing 
+conversation (5 messages)
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:117
+:11)
+
+    console.log
+      [endConversation] Farewell 
+generated, hasRecommendation: undefined
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/end-conversation.ts:163
+:13)
+
+    console.error
+      [endConversation] LLM failed, 
+using fallback: TypeError: Cannot read 
+properties of undefined (reading 
+'additional_kwargs')
+          at new AIMessage (C:\Users\Priv
+ate_Work\Desktop\Claude\chat-ui-next\node
+_modules\@langchain\core\dist\messages\ai
+.cjs:35:45)
+          at endConversation (C:\Users\Pr
+ivate_Work\Desktop\Claude\chat-ui-next\li
+b\agents\health-plan-v2\nodes\capabilitie
+s\end-conversation.ts:178:18)
+          at processTicksAndRejections 
+(node:internal/process/task_queues:104:5)
+          at Object.<anonymous> (C:\Users
+\Private_Work\Desktop\Claude\chat-ui-next
+\lib\agents\health-plan-v2\__tests__\orch
+estrator-loop.test.ts:483:20)
+
+      179 |     }
+      180 |   } catch (error) {
+    > 181 |     
+console.error("[endConversation] LLM 
+failed, using fallback:", error)
+          |             ^
+      182 |
+      183 |     const fallbackResponse =
+      184 |       "Foi um prazer ajudar 
+voc├¬! Se precisar de mais informa├º├Áes 
+sobre " +
+
+      at error (lib/agents/health-plan-v2
+/nodes/capabilities/end-conversation.ts:1
+81:13)
+      at Object.<anonymous> (lib/agents/h
+ealth-plan-v2/__tests__/orchestrator-loop
+.test.ts:483:20)
+
+    console.log
+      [analyzeCompatibility] Iniciando 
+an├ílise de compatibilidade com 
+GPT-5-mini...
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/analyze-compatibility.t
+s:110:11)
+
+    console.log
+      [analyzeCompatibility] Sem dados 
+para analisar
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/analyze-compatibility.t
+s:124:13)
+
+    console.log
+      [fetchPrices] ERP integration not 
+yet available, using fallback
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/fetch-prices.ts:29:11)
+
+    console.log
+      [generateRecommendation] Gerando 
+recomenda├º├úo humanizada com 
+GPT-5-mini...
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/generate-recommendation
+.ts:96:11)
+
+    console.log
+      [generateRecommendation] Sem 
+an├ílise de compatibilidade dispon├¡vel
+
+      at log (lib/agents/health-plan-v2/n
+odes/capabilities/generate-recommendation
+.ts:112:13)
+
+    console.log
+      
+          ===============================
+=============
+          ORCHESTRATOR LOOP INTEGRATION 
+TESTS
+          ===============================
+=============
+      
+          Para testar manualmente via 
+frontend:
+      
+          1. Acesse http://localhost:3000
+          2. Selecione "Health Plan v2" 
+no picker
+          3. Teste os seguintes 
+cen├írios:
+      
+          Cen├írio 1: Classifica├º├úo de 
+Intent
+          - Envie: "Me recomende um 
+plano"
+          - Esperado: 
+intent=pedir_recomendacao ÔåÆ 
+redireciona para updateClientInfo
+          - Resposta deve pedir dados 
+(idade, cidade)
+      
+          Cen├írio 2: Coleta de Dados
+          - Envie: "Tenho 35 anos e moro 
+em S├úo Paulo"
+          - Esperado: 
+intent=fornecer_dados ÔåÆ 
+updateClientInfo
+          - Dados devem ser extra├¡dos e 
+armazenados
+      
+          Cen├írio 3: Finaliza├º├úo
+          - Envie: "Obrigado, pode 
+encerrar"
+          - Esperado: intent=finalizar 
+ÔåÆ endConversation
+          - Conversa encerra com 
+mensagem de despedida
+      
+          Cen├írio 4: Loop Cont├¡nuo
+          - Envie m├║ltiplas mensagens
+          - Esperado: Conversa n├úo 
+termina sozinha
+          - Agente sempre aguarda 
+pr├│xima mensagem
+      
+          Cen├írio 5: Verifica├º├úo de 
+Duplica├º├úo (Bug 22.8)
+          - Envie 3 mensagens 
+consecutivas
+          - Recarregue a p├ígina
+          - Esperado: Mensagens n├úo 
+duplicam
+      
+          Verifica├º├Áes no LangSmith:
+          - Acesse 
+https://smith.langchain.com
+          - Verifique traces com spans: 
+orchestrator, router, capacidade
+          - Confirme metadata: intent, 
+confidence, loopIterations
+      
+          ===============================
+=============
+
+      at Object.log (lib/agents/health-pl
+an-v2/__tests__/orchestrator-loop.test.ts
+:603:13)
+
+PASS lib/agents/health-plan-v2/__tests__/
+checkpointer-persistence.test.ts
+  ÔùÅ Console
+
+    console.log
+      ÔÜá DATABASE_URL not configured
+
+      at Object.log (lib/agents/health-pl
+an-v2/__tests__/checkpointer-persistence.
+test.ts:26:15)
+
+    console.log
+      Database configuration status: 
+Missing
+
+      at Object.log (lib/agents/health-pl
+an-v2/__tests__/checkpointer-persistence.
+test.ts:35:13)
+
+    console.log
+      
+          ===============================
+=============
+          INTEGRATION TEST INSTRUCTIONS
+          ===============================
+=============
+      
+          Para testar persist├¬ncia do 
+checkpointer com banco real:
+      
+          1. Configure DATABASE_URL no 
+.env.local:
+             
+DATABASE_URL=postgresql://...
+      
+          2. Execute o script de teste 
+de integra├º├úo:
+             npx tsx lib/agents/health-pl
+an-v2/__tests__/integration/checkpointer.
+integration.ts
+      
+          3. Ou teste via API:
+             curl -X POST http://localhos
+t:3000/api/chat/health-plan-agent-v2 \
+               -H "Content-Type: 
+application/json" \
+               -d '{"workspaceId":"test",
+"assistantId":"test","messages":[{"role":
+"user","content":"oi"}]}'
+      
+          4. Verifique headers de 
+resposta:
+             X-Checkpointer-Enabled: true
+      
+          ===============================
+=============
+
+      at Object.log (lib/agents/health-pl
+an-v2/__tests__/checkpointer-persistence.
+test.ts:134:13)
+
+------------------------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------
+File                                      | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                                                                                                                
+------------------------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------
+All files                                 |   67.47 |    69.93 |   45.62 |   67.47 |                                                                                                                                                  
+ agents/health-plan-v2                    |     100 |      100 |     100 |     100 |                                                                                                                                                  
+  types.ts                                |     100 |      100 |     100 |     100 |                                                                                                                                                  
+ agents/health-plan-v2/audit              |   29.16 |      100 |       0 |   29.16 |                                                                                                                                                  
+  save-conversation-audit.ts              |   29.16 |      100 |       0 |   29.16 | 43-57,59-74,76-80,93-192                                                                                                                         
+ agents/health-plan-v2/checkpointer       |    42.1 |      100 |       0 |    42.1 |                                                                                                                                                  
+  postgres-checkpointer.ts                |    42.1 |      100 |       0 |    42.1 | 34-61,70-95,101-106,112-119,125-133                                                                                                              
+ agents/health-plan-v2/graphs             |   61.63 |    74.07 |   66.66 |   61.63 |                                                                                                                                                  
+  search-plans-graph.ts                   |   61.63 |    74.07 |   66.66 |   61.63 | 190,192-197,199,212-240,247-288,295-338,343-422,508-515                                                                                          
+ agents/health-plan-v2/intent             |   72.77 |      100 |       0 |   72.77 |                                                                                                                                                  
+  index.ts                                |     100 |      100 |     100 |     100 |                                                                                                                                                  
+  intent-classification-types.ts          |   97.12 |      100 |       0 |   97.12 | 319-320,326-327,333-334,340-341,347-348                                                                                                          
+  intent-classifier.ts                    |   41.93 |      100 |       0 |   41.93 | 100-207,216-236,241-263,268-283,288-299                                                                                                          
+ agents/health-plan-v2/intent/prompts     |   90.11 |      100 |       0 |   90.11 |                                                                                                                                                  
+  intent-classification-prompt.ts         |   90.11 |      100 |       0 |   90.11 | 442-474,480-492,498-499,505-506                                                                                                                  
+ agents/health-plan-v2/nodes              |   58.93 |       80 |      75 |   58.93 |                                                                                                                                                  
+  orchestrator.ts                         |   38.69 |    85.71 |      50 |   38.69 | 44-155,178-187                                                                                                                                   
+  router.ts                               |   68.48 |    79.16 |      80 |   68.48 | 174-179,202-207,211-216,228-233,238-253,256-262,291-298,317,325-370,384-404,413-422                                                              
+ agents/health-plan-v2/nodes/capabilities |   70.79 |    61.88 |      75 |   70.79 |                                                                                                                                                  
+  analyze-compatibility.ts                |   41.35 |     12.5 |      25 |   41.35 | 137-140,145,149-241,247-270,280-329,334-363,368-399                                                                                              
+  end-conversation.ts                     |   95.52 |       65 |     100 |   95.52 | 76-77,81-85,192-193                                                                                                                              
+  fetch-prices.ts                         |     100 |      100 |     100 |     100 |                                                                                                                                                  
+  generate-recommendation.ts              |   41.53 |    14.28 |      25 |   41.53 | 103,109,127-132,139-206,222-247,257-306,311-334,339-390                                                                                          
+  humanize-response.ts                    |     100 |    94.44 |     100 |     100 | 158                                                                                                                                              
+  index.ts                                |     100 |      100 |     100 |     100 |                                                                                                                                                  
+  respond-to-user.ts                      |   95.74 |    46.87 |     100 |   95.74 | 84-85,95-102                                                                                                                                     
+  search-plans.ts                         |   55.15 |    12.12 |   66.66 |   55.15 | 53-69,96-127,133-134,145-150,185-220,229-249,271-272,283,285,289-292,300-301,308-321,325-339,346-348,352-353,357-358,362,364-365,457-507,509-533 
+  update-client-info.ts                   |    93.2 |    87.95 |     100 |    93.2 | 233-234,240,242-245,249-267,356-362,403-405                                                                                                      
+ agents/health-plan-v2/nodes/rag          |   55.88 |    61.11 |   32.25 |   55.88 |                                                                                                                                                  
+  grade-by-collection.ts                  |    77.8 |    61.11 |    90.9 |    77.8 | 263-267,387-391,394-401,453-462,464-467,469-470,496-546,618-633,667-668,697-773,780-785                                                          
+  grade-documents.ts                      |   35.86 |      100 |       0 |   35.86 | 88-94,152-207,216-281,286-323,332-380,385-398,403-497,506-518,523-548,553-585                                                                    
+  retrieve-simple.ts                      |   43.19 |      100 |       0 |   43.19 | 139-224,233-240,261-323,328-354,359-368,373-384,395-432,438-452,458-461,467-470                                                                  
+ agents/health-plan-v2/state              |   86.54 |    89.55 |   56.86 |   86.54 |                                                                                                                                                  
+  cache-invalidation.ts                   |   80.91 |    84.78 |      80 |   80.91 | 209-251,361-405                                                                                                                                  
+  state-annotation.ts                     |     100 |      100 |   51.21 |     100 |                                                                                                                                                  
+ agents/health-plan-v2/workflow           |   52.17 |      100 |       0 |   52.17 |                                                                                                                                                  
+  workflow.ts                             |   52.17 |      100 |       0 |   52.17 | 55-111,127-132,150-167,173-174,180-184                                                                                                           
+ tools/health-plan/prompts                |   87.39 |    33.33 |      20 |   87.39 |                                                                                                                                                  
+  extraction-prompts.ts                   |   87.39 |    33.33 |      20 |   87.39 | 270-282,290-291,301-308,316-323,330-341                                                                                                          
+ tools/health-plan/schemas                |   97.54 |     87.5 |     100 |   97.54 |                                                                                                                                                  
+  client-info-schema.ts                   |   97.54 |     87.5 |     100 |   97.54 | 151-154                                                                                                                                          
+ tools/health-plan/templates              |   54.73 |    83.33 |    5.55 |   54.73 |                                                                                                                                                  
+  recommendation-template.ts              |   54.73 |    83.33 |    5.55 |   54.73 | 149-159,167-174,183-187,195-199,207-211,219-235,243-251,259-267,276-278,288-294,300-321,327-371,377-403,409-451,457-488,494-511,578-586,606-607  
+ tools/health-plan/validators             |   65.84 |    70.37 |    37.5 |   65.84 |                                                                                                                                                  
+  missing-fields-detector.ts              |   65.84 |    70.37 |    37.5 |   65.84 | 46-78,87-90,162-166,175-193,207-208,223-263,290-293,319,321-322                                                                                  
+------------------------------------------|---------|----------|---------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------
+
+Test Suites: 5 failed, 5 passed, 10 total
+Tests:       4 failed, 152 passed, 156 
+total
+Snapshots:   0 total
+Time:        7.739 s
+Ran all test suites matching 
+/health-plan-v2/i.

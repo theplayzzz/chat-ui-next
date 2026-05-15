@@ -88,11 +88,25 @@ jest.mock("@langchain/openai", () => ({
           }
         })
       })),
-      invoke: jest.fn().mockResolvedValue({
-        intent: "fornecer_dados",
-        confidence: 0.9,
-        extractedData: {},
-        reasoning: "Mock response"
+      invoke: jest.fn().mockImplementation(async (messages: any) => {
+        const text = Array.isArray(messages)
+          ? JSON.stringify(messages)
+          : String(messages)
+        let intent = "fornecer_dados"
+        if (text.includes("1234_buscar")) intent = "buscar_planos"
+        else if (text.includes("1234_recomendacao"))
+          intent = "pedir_recomendacao"
+        else if (text.includes("1234_conversar")) intent = "conversar"
+        else if (text.includes("1234_finalizar")) intent = "finalizar"
+
+        return {
+          content: JSON.stringify({
+            intent,
+            confidence: 0.9,
+            extractedData: {},
+            reasoning: "Mock response"
+          })
+        }
       })
     }
     return mockInstance
@@ -595,6 +609,122 @@ describe("Workflow Structure", () => {
         error instanceof Error ? error.message : String(error)
       expect(errorMessage).not.toContain("Cannot find module")
     }
+  })
+})
+
+// =============================================================================
+// PRD ORCHESTRATOR ROUTING CASES (A1.11)
+// =============================================================================
+
+describe("Orchestrator Node Routing Integration", () => {
+  it("should route to updateClientInfo for fornecer_dados", async () => {
+    const { orchestratorNode } = await import("../nodes/orchestrator")
+    const { routeToCapability } = await import("../nodes/router")
+
+    // The global mock will return 'fornecer_dados' when seeing "1234_fornecer"
+    const state = {
+      messages: [new HumanMessage("1234_fornecer")],
+      clientInfo: {}
+    } as any
+    const newState = await orchestratorNode(state)
+    const nextRoute = routeToCapability({ ...state, ...newState })
+
+    expect(newState.lastIntent).toBe("fornecer_dados")
+    expect(nextRoute).toBe("updateClientInfo")
+  })
+
+  it("should route to searchPlans for buscar_planos data is present", async () => {
+    const { orchestratorNode } = await import("../nodes/orchestrator")
+    const { routeToCapability } = await import("../nodes/router")
+
+    // The global mock will return 'buscar_planos' when seeing "1234_buscar"
+    const state = {
+      messages: [new HumanMessage("1234_buscar")],
+      clientInfo: { age: 30, city: "SP" }
+    } as any
+
+    const newState = await orchestratorNode(state)
+    const nextRoute = routeToCapability({ ...state, ...newState })
+
+    expect(newState.lastIntent).toBe("buscar_planos")
+    expect(nextRoute).toBe("searchPlans")
+  })
+
+  it("should route to generateRecommendation for pedir_recomendacao", async () => {
+    const { orchestratorNode } = await import("../nodes/orchestrator")
+    const { routeToCapability } = await import("../nodes/router")
+
+    const state = {
+      messages: [new HumanMessage("1234_recomendacao")],
+      clientInfo: { age: 30, city: "SP" },
+      searchResults: [{ id: "1" }],
+      compatibilityAnalysis: { analyses: [{ planId: "1", score: 80 }] },
+      analysisVersion: 1,
+      recommendationVersion: 0
+    } as any
+
+    const newState = await orchestratorNode(state)
+    const nextRoute = routeToCapability({ ...state, ...newState })
+
+    expect(newState.lastIntent).toBe("pedir_recomendacao")
+    expect(nextRoute).toBe("generateRecommendation")
+  })
+
+  it("should route to respondToUser for conversar", async () => {
+    const { orchestratorNode } = await import("../nodes/orchestrator")
+    const { routeToCapability } = await import("../nodes/router")
+
+    const state = { messages: [new HumanMessage("1234_conversar")] } as any
+    const newState = await orchestratorNode(state)
+    const nextRoute = routeToCapability({ ...state, ...newState })
+
+    expect(newState.lastIntent).toBe("conversar")
+    expect(nextRoute).toBe("respondToUser")
+  })
+
+  it("should route to endConversation for finalizar", async () => {
+    const { orchestratorNode } = await import("../nodes/orchestrator")
+    const { routeToCapability } = await import("../nodes/router")
+
+    const state = { messages: [new HumanMessage("1234_finalizar")] } as any
+    const newState = await orchestratorNode(state)
+    const nextRoute = routeToCapability({ ...state, ...newState })
+
+    expect(newState.lastIntent).toBe("finalizar")
+    expect(nextRoute).toBe("endConversation")
+  })
+
+  it("should handle full flow sequentially up to 3 iterations", async () => {
+    const { orchestratorNode } = await import("../nodes/orchestrator")
+    const { routeToCapability } = await import("../nodes/router")
+
+    // Simulate: dados -> busca -> recomendacao
+
+    // 1: Fornecer dados
+    let state = {
+      messages: [new HumanMessage("1234_fornecer")],
+      clientInfo: {}
+    } as any
+    state = { ...state, ...(await orchestratorNode(state)) }
+    expect(state.lastIntent).toBe("fornecer_dados")
+    expect(routeToCapability(state)).toBe("updateClientInfo")
+
+    // 2: Busca
+    state.clientInfo = { age: 30, city: "SP" } // capability effect
+    state.messages = [new HumanMessage("1234_buscar")]
+    state = { ...state, ...(await orchestratorNode(state)) }
+    expect(state.lastIntent).toBe("buscar_planos")
+    expect(routeToCapability(state)).toBe("searchPlans")
+
+    // 3: Recomendação
+    state.searchResults = [{ id: "1" }]
+    state.compatibilityAnalysis = { analyses: [{ planId: "1", score: 80 }] }
+    state.analysisVersion = 1
+    state.recommendationVersion = 0
+    state.messages = [new HumanMessage("1234_recomendacao")]
+    state = { ...state, ...(await orchestratorNode(state)) }
+    expect(state.lastIntent).toBe("pedir_recomendacao")
+    expect(routeToCapability(state)).toBe("generateRecommendation")
   })
 })
 
